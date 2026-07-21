@@ -234,7 +234,9 @@ export const examAnswerQueue = {
     // Lazy load the interval flush timer
     if (!this.timer) {
       this.timer = setInterval(() => {
-        this.flush();
+        this.flush().catch(err => {
+          console.warn('[Exam Answer Queue] Unhandled flush exception caught:', err);
+        });
       }, this.flushIntervalMs);
     }
   },

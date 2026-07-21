@@ -365,14 +365,23 @@ export const AdminOverview: React.FC = () => {
         </Card>
 
         {/* Institutions Tile */}
-        <Card className="md:col-span-2 lg:col-span-2 bg-indigo-50 border-0 rounded-[40px] p-10 flex flex-col justify-between group cursor-pointer hover:bg-indigo-100 transition-colors" onClick={() => navigate('/admin/schools')}>
-           <div className="flex justify-between items-start">
+        <Card className="md:col-span-2 lg:col-span-2 bg-indigo-50 border-0 rounded-[40px] p-10 flex flex-col justify-between group cursor-pointer hover:bg-indigo-100 transition-colors relative">
+           <div className="flex justify-between items-start" onClick={() => navigate('/admin/schools')}>
               <div className="h-14 w-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-xl shadow-indigo-200">
                  <SchoolIcon size={28} />
               </div>
-              <ChevronRight className="text-indigo-300 group-hover:translate-x-2 transition-transform" />
+              <div className="flex items-center gap-2">
+                 <button 
+                   type="button"
+                   onClick={(e) => { e.stopPropagation(); navigate('/admin/schools/onboard'); }}
+                   className="bg-indigo-600 hover:bg-indigo-900 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer z-10"
+                 >
+                   <Plus size={14} /> Onboard School
+                 </button>
+                 <ChevronRight className="text-indigo-300 group-hover:translate-x-2 transition-transform" />
+              </div>
            </div>
-           <div>
+           <div onClick={() => navigate('/admin/schools')}>
               <p className="text-5xl font-black text-indigo-900 tracking-tighter">{stats.schools}</p>
               <p className="text-[11px] font-black text-indigo-400 uppercase tracking-widest mt-2">Vetted Institutions</p>
            </div>

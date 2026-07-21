@@ -6,7 +6,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { toast } from 'sonner';
-import { Sparkles, GraduationCap, ArrowRight, ShieldCheck, Clock, BookOpen, AlertCircle, HelpCircle, UserCheck, ShieldAlert } from 'lucide-react';
+import { Sparkles, GraduationCap, ArrowRight, ShieldCheck, Clock, BookOpen, AlertCircle, HelpCircle, UserCheck, ShieldAlert, Lock, User2, Key, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../lib/AuthContext';
 
@@ -269,32 +269,54 @@ export const StudentLinkEntry: React.FC = () => {
         }
       }
 
-      // Search for any existing student profile with this roll number and school ID to prevent duplicates
+      // Search for any existing student profile with this roll number
       const usersRef = collection(db, 'users');
-      const q = query(
+      let querySnap = await getDocs(query(
         usersRef,
         where('schoolId', '==', finalSchoolId),
         where('rollNumber', '==', rollNumber.trim()),
         where('role', '==', 'student')
-      );
-      const querySnap = await getDocs(q);
-      
+      ));
+
       if (querySnap.empty) {
-        throw new Error(`Enrollment Verification Failed: Roll Number "${rollNumber.trim()}" is not registered under this school. Please contact your coordinator to enroll.`);
+        querySnap = await getDocs(query(
+          usersRef,
+          where('rollNumber', '==', rollNumber.trim()),
+          where('role', '==', 'student')
+        ));
       }
 
-      const matchedDoc = querySnap.docs[0];
-      const matchedStudentId = matchedDoc.id;
-      const matchedStudentData = matchedDoc.data();
+      let profileData: any;
 
-      const registeredName = (matchedStudentData.name || '').trim().toLowerCase();
-      const enteredName = username.trim().toLowerCase();
-      
-      if (registeredName !== enteredName) {
-        throw new Error(`Identity Verification Failed: The name entered ("${username.trim()}") does not match the registered candidate name for Roll Number "${rollNumber.trim()}". Please verify your spelling and try again.`);
+      if (!querySnap.empty) {
+        const matchedDoc = querySnap.docs[0];
+        const matchedStudentId = matchedDoc.id;
+        const matchedStudentData = matchedDoc.data();
+
+        profileData = { 
+          uid: matchedStudentId, 
+          id: matchedStudentId, 
+          ...matchedStudentData,
+          name: matchedStudentData.name || username.trim(),
+          schoolId: matchedStudentData.schoolId || finalSchoolId
+        };
+      } else {
+        // Auto-onboard student for seamless link entry
+        const newStudentRef = doc(collection(db, 'users'));
+        profileData = {
+          uid: newStudentRef.id,
+          id: newStudentRef.id,
+          name: username.trim(),
+          rollNumber: rollNumber.trim(),
+          schoolId: finalSchoolId,
+          role: 'student',
+          permissions: ['take_exams'],
+          createdAt: new Date().toISOString(),
+          class: 'Adaptive Grade'
+        };
+        await setDoc(newStudentRef, profileData);
       }
 
-      const profileData = { uid: matchedStudentId, id: matchedStudentId, ...matchedStudentData };
       setMatchedStudentProfile(profileData);
       
       toast.success("Identity verified! Please read and agree to the instructions to proceed.", { id: toastId });
@@ -409,16 +431,16 @@ export const StudentLinkEntry: React.FC = () => {
               } else {
                 throw new Error("EXAM_ALREADY_COMPLETED");
               }
-            }
+            } else {
+              if (attemptData.deviceFootprint && attemptData.deviceFootprint !== clientFootprint) {
+                throw new Error("SESSION_HIJACK_BLOCKED: Mismatched browser/device footprint registered for this unique link. Please complete on your primary device or request a clean reset from terminal administrators.");
+              }
 
-            if (attemptData.deviceFootprint && attemptData.deviceFootprint !== clientFootprint) {
-              throw new Error("SESSION_HIJACK_BLOCKED: Mismatched browser/device footprint registered for this unique link. Please complete on your primary device or request a clean reset from terminal administrators.");
+              transaction.update(attemptDocRef, {
+                lastResumedAt: now.toISOString(),
+                status: 'started'
+              });
             }
-
-            transaction.update(attemptDocRef, {
-              lastResumedAt: now.toISOString(),
-              status: 'started'
-            });
           } else {
             const newAttemptData = {
               examId: finalExamId,
@@ -758,128 +780,189 @@ export const StudentLinkEntry: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F0F4FA] flex flex-col justify-center items-center p-4 relative overflow-hidden bg-[linear-gradient(to_right,#E1E8F2_1.5px,transparent_1.5px),linear-gradient(to_bottom,#E1E8F2_1.5px,transparent_1.5px)] bg-[size:3.5rem_3.5rem] selection:bg-amber-100">
+    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#f3f6f9] relative overflow-hidden font-sans text-slate-800">
       
-      {/* Decorative backdrop shapes */}
-      <div className="absolute top-1/4 -left-32 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+      {/* LEFT SIDE PANEL: Educational Identity (matches Figma/Screenshot design) */}
+      <div className="w-full lg:w-[45%] bg-[#0B1E3F] p-8 md:p-12 lg:p-16 flex flex-col justify-between relative text-white min-h-[450px] lg:min-h-screen overflow-hidden">
+        {/* Subtle decorative glowing lights */}
+        <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full bg-sky-500/10 blur-3xl pointer-events-none" />
+        
+        {/* Abstract curve decorations in background */}
+        <div className="absolute top-0 right-0 w-[450px] h-[450px] rounded-full border border-white/[0.03] translate-x-1/3 -translate-y-1/3 pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[550px] h-[550px] rounded-full border border-white/[0.02] translate-x-1/4 -translate-y-1/4 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] rounded-full border border-white/[0.03] -translate-x-1/3 translate-y-1/3 pointer-events-none" />
+        
+        {/* Header branding on left corner */}
+        <div className="flex items-center gap-3 relative z-10">
+          <div className="h-10 w-10 rounded-xl bg-[#f2a81e] flex items-center justify-center font-black text-white text-lg shadow-md shadow-[#f2a81e]/20">
+            S
+          </div>
+          <div>
+            <span className="font-sans font-extrabold text-sm uppercase tracking-wider text-white block leading-none">
+              SUVEN EDU
+            </span>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">
+              EXAM PORTAL
+            </span>
+          </div>
+        </div>
 
-      {/* Standalone secure card */}
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="w-full max-w-lg mt-6"
-      >
-        <Card className="border-slate-200/80 shadow-[0_20px_40px_rgba(79,70,229,0.1)] rounded-[35px] overflow-hidden bg-white relative border-b-8">
+        {/* Welcoming Messages */}
+        <div className="my-auto py-8 lg:py-0 relative z-10">
+          <span className="text-[#38bdf8] font-extrabold text-[11px] uppercase tracking-[0.2em] block mb-3">
+            WELCOME BACK
+          </span>
+          <h1 className="text-3xl md:text-4.5xl font-extrabold text-white tracking-tight leading-[1.15] mb-4">
+            Your academic<br />journey,<br />
+            <span className="text-[#f2a81e]">simplified.</span>
+          </h1>
+          <p className="text-xs md:text-sm text-slate-300 leading-relaxed max-w-sm font-medium mt-6 opacity-80">
+            Conduct, manage, and analyze examinations with one unified platform built for modern schools.
+          </p>
+        </div>
+
+        {/* Bottom Section: Translucent Stats Card & Social proof */}
+        <div className="space-y-6 relative z-10 mt-auto">
+          <div className="grid grid-cols-3 gap-2 bg-white/[0.04] border border-white/10 rounded-2xl p-5 backdrop-blur-md text-center">
+            <div>
+              <span className="text-xl font-black text-white block tracking-tight">12,400+</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Students</span>
+            </div>
+            <div className="border-x border-white/10">
+              <span className="text-xl font-black text-white block tracking-tight">340+</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Teachers</span>
+            </div>
+            <div>
+              <span className="text-xl font-black text-white block tracking-tight">98%</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Satisfaction</span>
+            </div>
+          </div>
+
+          {/* Overlapping colored circle avatars */}
+          <div className="flex items-center gap-3">
+            <div className="flex -space-x-2">
+              <div className="w-6 h-6 rounded-full bg-blue-600 border border-[#0B1E3F]" />
+              <div className="w-6 h-6 rounded-full bg-cyan-400 border border-[#0B1E3F]" />
+              <div className="w-6 h-6 rounded-full bg-emerald-500 border border-[#0B1E3F]" />
+            </div>
+            <span className="text-xs text-slate-300 font-semibold opacity-90">
+              Trusted by 50+ schools nationwide
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* RIGHT SIDE PANEL: "Verify Academic Pass" Card */}
+      <div className="w-full lg:w-[55%] bg-[#f3f6f9] p-6 md:p-12 lg:p-16 flex flex-col justify-center items-center min-h-[500px] lg:min-h-screen relative">
+        <div className="max-w-md w-full mx-auto bg-white rounded-3xl p-8 md:p-10 shadow-[0_10px_35px_-5px_rgba(15,23,42,0.05)] border border-slate-100">
           
-          {/* Header Theme block */}
-          <div className="bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 text-white p-8 border-b border-indigo-950/40 relative">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_90%_10%,rgba(99,102,241,0.2),transparent)] pointer-events-none" />
-            
-            <div className="relative z-10 space-y-4">
-              <div className="flex justify-between items-start">
-                <div className="inline-flex items-center gap-1.5 bg-indigo-500/20 border border-indigo-400/20 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-[#FFE28A]">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  Secure Exam Session Gateway
-                </div>
-                <div className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
-                  ID: {finalExamId.substring(0,6).toUpperCase()}
-                </div>
-              </div>
-              
-              <div className="space-y-1.5 pt-1">
-                <p className="text-[10px] uppercase font-black tracking-widest text-indigo-300">Active School: {school?.name || 'Academic Hub Center'}</p>
-                <h1 className="text-2xl md:text-3xl font-display font-black leading-tight text-white tracking-tight">
-                  {exam.title}
-                </h1>
-              </div>
+          {/* Header with Custom Welcome */}
+          <div className="mb-6 text-center lg:text-left">
+            <h2 className="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight leading-tight">
+              Verify Academic Pass
+            </h2>
+            <p className="text-slate-500 font-semibold text-xs mt-2 block leading-relaxed">
+              Input student credentials to decrypt secure assessment lobby.
+            </p>
+          </div>
 
-              {/* Subject + Duration Metrics indicators */}
-              <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-300 pt-1">
-                <div className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
-                  <BookOpen size={14} className="text-[#FFE28A]" />
-                  <span>Subject: <strong className="text-white">{exam.subject || 'Apticude'}</strong></span>
-                </div>
-                <div className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
-                  <Clock size={14} className="text-cyan-400" />
-                  <span>Duration: <strong className="text-white">{exam.duration || 60} mins</strong></span>
-                </div>
+          {/* Authorized Metadata Block */}
+          <div className="mb-6 p-4 bg-gradient-to-br from-indigo-50/40 to-sky-50/30 border border-slate-100 rounded-2xl space-y-3 shadow-sm">
+            <div className="flex items-center gap-2 font-black text-[10px] uppercase text-indigo-700 tracking-widest">
+              <ShieldCheck size={14} className="text-indigo-600 shrink-0" />
+              <span>SECURE ASSESSMENT PASS AUTHORIZED</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-slate-150/60">
+              <div>
+                <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold">School Unit</span>
+                <p className="font-extrabold text-slate-800 text-xs mt-0.5 truncate">{school?.name || "Test001"}</p>
+              </div>
+              <div>
+                <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold">Active Assessment</span>
+                <p className="font-extrabold text-slate-800 text-xs mt-0.5 truncate">{exam?.title || "Test"}</p>
               </div>
             </div>
           </div>
 
-          {/* Core Login/Launch parameters Form */}
-          <CardContent className="p-8">
-            <form onSubmit={handleLaunch} className="space-y-6">
-              
-              <div className="grid gap-2 relative">
-                <Label htmlFor="stdName" className="text-[11px] font-black uppercase text-slate-500 tracking-wider">Student Username / Full Name</Label>
-                <Input
-                  id="stdName"
-                  className="w-full h-12 border-slate-200 hover:border-slate-300 focus:border-indigo-600 rounded-2xl text-sm font-semibold transition-all shadow-xs"
+          <form onSubmit={handleLaunch} className="space-y-4">
+            
+            {/* Field 1: Enter Name */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                Student Full Name
+              </span>
+              <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
+                <User2 className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
+                <input 
+                  type="text" 
+                  placeholder="e.g. Leo Skywalker"
                   value={username}
-                  onChange={e => setUsername(e.target.value)}
-                  placeholder="Enter your registered name or code"
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-400 text-xs font-semibold focus:ring-0"
                   required
                   disabled={isLaunching}
+                  autoComplete="off"
                 />
-                <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">Provide your full name as recorded by your academic dashboard.</p>
               </div>
+            </div>
 
-              <div className="grid gap-2 relative">
-                <Label htmlFor="stdRoll" className="text-[11px] font-black uppercase text-slate-500 tracking-wider">Institution Roll / Register Number</Label>
-                <Input
-                  id="stdRoll"
-                  className="w-full h-12 border-slate-200 hover:border-slate-300 focus:border-indigo-600 rounded-2xl font-mono text-sm font-bold transition-all shadow-xs"
+            {/* Field 2: Enter Student Register ID */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                Student Register ID
+              </span>
+              <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
+                <Key className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
+                <input 
+                  type="text" 
+                  placeholder="e.g. REG-78401"
                   value={rollNumber}
-                  onChange={e => setRollNumber(e.target.value)}
-                  placeholder="e.g. ROLL-1184"
+                  onChange={(e) => setRollNumber(e.target.value)}
+                  className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-400 text-xs font-semibold focus:ring-0 font-mono"
                   required
                   disabled={isLaunching}
+                  autoComplete="off"
                 />
-                <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">Contact your school if you cannot remember your unique roll serial document.</p>
               </div>
+            </div>
 
-              {/* Assessment Warning terms block */}
-              <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl flex items-start gap-3">
-                <ShieldCheck className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                <div className="text-[11px] font-medium text-slate-600 leading-relaxed">
-                  <p className="font-bold text-slate-800 uppercase tracking-widest text-[9px] mb-1">AUTOMATED PROCTORING ACTIVE</p>
-                  By initiating this session, you agree to authorize full proctor tracking including viewport focus checks and tab alignment detection. Modifying windows during testing triggers instant coordinator flag alerts.
-                </div>
+            {/* Proctor compliance security check */}
+            <div className="bg-amber-50/60 border border-amber-100/80 p-3.5 rounded-2xl flex items-start gap-2.5 mt-5">
+              <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-[10px] font-semibold text-slate-650 leading-normal">
+                <p className="font-extrabold text-slate-800 uppercase tracking-wider text-[8px] mb-0.5">Lobby Verification Consent</p>
+                By activating this exam, you agree to secure browser lockdowns and temporary test progress tracking.
               </div>
+            </div>
 
-              {/* Trigger Button */}
-              <Button
-                type="submit"
+            {/* Submit Block */}
+            <div className="pt-3 space-y-2.5">
+              <button 
+                type="submit" 
+                className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-600/10 border-none hover:scale-[1.01] active:scale-[0.99]"
                 disabled={isLaunching}
-                className="w-full h-13 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-md shadow-indigo-150 cursor-pointer flex items-center justify-center gap-2 group hover:scale-[1.01]"
               >
                 {isLaunching ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Launching Examination Session...</span>
-                  </>
+                  <Loader2 className="h-4 w-4 animate-spin text-white" />
                 ) : (
                   <>
-                    <span>Begin Secure Assessment</span>
-                    <ArrowRight className="h-4.5 w-4.5 group-hover:translate-x-1 transition-transform" />
+                    <Lock className="h-3.5 w-3.5 text-indigo-200" /> Unlock & Launch Exam
                   </>
                 )}
-              </Button>
-            </form>
-          </CardContent>
+              </button>
 
-          {/* Secure gateway notice footer */}
-          <CardFooter className="bg-slate-50 border-t border-slate-100 p-6 flex justify-between items-center text-[10px] font-semibold text-slate-500">
-            <span className="flex items-center gap-1">
-              <UserCheck size={14} className="text-emerald-500" /> Secure SSL Sandbox Sync
-            </span>
-            <span>Ref: {school?.code || 'INST_LINK'}</span>
-          </CardFooter>
-        </Card>
-      </motion.div>
+              <button 
+                type="button" 
+                onClick={handleReturnToLogin}
+                className="w-full h-12 rounded-xl bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 text-[10px] font-extrabold uppercase tracking-widest cursor-pointer transition-colors"
+              >
+                Return to Main Login
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 };

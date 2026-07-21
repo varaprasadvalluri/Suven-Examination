@@ -1,6 +1,7 @@
 import React, { useEffect, useState, KeyboardEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDbObserver } from '../lib/observerPattern';
-import { db, handleFirestoreError, setDoc, OperationType, collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs, limit, startAfter, getCountFromServer, where } from '../lib/firebase';
+import { db, handleFirestoreError, setDoc, OperationType, collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs, limit, startAfter, getCountFromServer, where, writeBatch } from '../lib/firebase';
 import { School, AuthPolicy } from '../types';
 import { Button } from './ui/button';
 import { ConfirmationDialog } from './ConfirmationDialog';
@@ -86,6 +87,7 @@ const getTeachersCount = (totalStudents: number) => {
 };
 
 export const AdminSchoolManagement: React.FC = () => {
+  const navigate = useNavigate();
   const [schools, setSchools] = useState<School[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -364,14 +366,47 @@ export const AdminSchoolManagement: React.FC = () => {
   const handleConfirmDeleteSchool = async () => {
     if (!schoolToDelete) return;
     setIsDeletingSchool(true);
+    const toastId = toast.loading(`Hard deleting school "${schoolToDelete.name}" and all associated candidate profiles and exam activity...`);
     try {
-      await deleteDoc(doc(db, 'schools', schoolToDelete.id));
-      toast.success(`School "${schoolToDelete.name}" successfully removed from Registry`);
+      const schoolId = schoolToDelete.id;
+      const batch = writeBatch(db);
+
+      // 1. Fetch & delete all user accounts under this school
+      const usersQ = query(collection(db, 'users'), where('schoolId', '==', schoolId));
+      const usersSnap = await getDocs(usersQ);
+      usersSnap.forEach(uDoc => batch.delete(uDoc.ref));
+
+      // 2. Fetch & delete all student invitations under this school
+      const invQ = query(collection(db, 'invitations'), where('schoolId', '==', schoolId));
+      const invSnap = await getDocs(invQ);
+      invSnap.forEach(iDoc => batch.delete(iDoc.ref));
+
+      // 3. Fetch & delete all exam attempts under this school
+      const attQ = query(collection(db, 'attempts'), where('schoolId', '==', schoolId));
+      const attSnap = await getDocs(attQ);
+      attSnap.forEach(aDoc => batch.delete(aDoc.ref));
+
+      // 4. Fetch & delete all error books under this school
+      const ebQ = query(collection(db, 'error_books'), where('schoolId', '==', schoolId));
+      const ebSnap = await getDocs(ebQ);
+      ebSnap.forEach(eDoc => batch.delete(eDoc.ref));
+
+      // 5. Fetch & delete secure exam links under this school
+      const linkQ = query(collection(db, 'secure_exam_links'), where('schoolId', '==', schoolId));
+      const linkSnap = await getDocs(linkQ);
+      linkSnap.forEach(lDoc => batch.delete(lDoc.ref));
+
+      // 6. Delete the school document itself
+      batch.delete(doc(db, 'schools', schoolId));
+
+      await batch.commit();
+
+      toast.success(`School "${schoolToDelete.name}" and all associated student profiles and exam data permanently hard deleted.`, { id: toastId });
       setIsDeleteConfirmOpen(false);
       setSchoolToDelete(null);
     } catch (error) {
-      console.error(error);
-      toast.error("Failed to remove school node");
+      console.error("Hard delete error:", error);
+      toast.error("Failed to execute hard delete of school node.", { id: toastId });
     } finally {
       setIsDeletingSchool(false);
     }
@@ -417,12 +452,14 @@ export const AdminSchoolManagement: React.FC = () => {
         
         <div className="flex items-center gap-4">
           <Dialog open={isPreRegisterOpen} onOpenChange={setIsPreRegisterOpen}>
-            <DialogTrigger>
-              <Button variant="outline" className="h-11 px-6 rounded-xl font-bold flex items-center gap-2 transition-all text-xs cursor-pointer border-slate-200">
-                <Plus className="h-4 w-4" /> 
-                Pre-Register Email
-              </Button>
-            </DialogTrigger>
+            <DialogTrigger 
+              render={
+                <Button variant="outline" className="h-11 px-6 rounded-xl font-bold flex items-center gap-2 transition-all text-xs cursor-pointer border-slate-200">
+                  <Plus className="h-4 w-4" /> 
+                  Pre-Register Email
+                </Button>
+              }
+            />
             <DialogContent className="sm:max-w-[400px] rounded-3xl border border-slate-200 shadow-2xl bg-white p-6">
               <DialogHeader>
                 <DialogTitle className="text-xl font-black text-slate-900">Pre-Register School Admin</DialogTitle>
@@ -450,179 +487,15 @@ export const AdminSchoolManagement: React.FC = () => {
             </DialogContent>
           </Dialog>
 
-          <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+          <Button 
+            onClick={() => navigate('/admin/schools/onboard')}
+            className="bg-indigo-600 hover:bg-slate-900 text-white h-11 px-6 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-600/20 transition-all text-xs cursor-pointer"
+          >
+            <Plus className="h-4 w-4" /> 
+            Onboard School
+          </Button>
 
-            <SheetTrigger render={
-              <Button className="bg-slate-900 hover:bg-black text-white h-11 px-6 rounded-xl font-bold flex items-center gap-2 shadow-sm transition-all text-xs cursor-pointer">
-                <Plus className="h-4 w-4" /> 
-                Register School
-              </Button>
-            } />
-            <SheetContent className="w-full sm:max-w-[540px] border-l-0 shadow-2xl p-0 flex flex-col h-full bg-white">
-              <div className="h-full flex flex-col justify-between overflow-hidden">
-                {/* Form header */}
-                <div className="p-6 md:p-8 pb-4 border-b border-slate-100">
-                  <SheetHeader>
-                    <div className="h-14 w-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 mb-4">
-                      <Building2 size={28} />
-                    </div>
-                    <SheetTitle className="text-3xl font-display font-black text-slate-900 tracking-tight text-wrap break-words">Onboard Institution</SheetTitle>
-                    <SheetDescription className="text-slate-500 font-medium text-base text-wrap break-words">
-                      Deploy a new institutional node with custom security and access policies.
-                    </SheetDescription>
-                  </SheetHeader>
-                </div>
 
-                {/* Form Body - scrollable area container with safe layout auto wrapping */}
-                <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8">
-                  <div className="space-y-8">
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-600">
-                        <div className="h-4 w-4 rounded-full bg-indigo-100 flex items-center justify-center text-[8px]">1</div>
-                        Identity & Branding
-                      </div>
-                      <div className="grid gap-5">
-                        <div className="grid gap-2">
-                          <Label className="text-xs font-bold text-slate-700 ml-1">Official Name</Label>
-                          <Input 
-                            value={formData.name} 
-                            onChange={e => setFormData({...formData, name: e.target.value})} 
-                            placeholder="e.g. Stanford Medical Institute" 
-                            className="w-full h-12 border-slate-200 focus:bg-slate-50 transition-colors rounded-xl text-wrap" 
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label className="text-xs font-bold text-slate-700 ml-1">Master Administrator Email</Label>
-                          <Input 
-                            value={formData.adminEmail} 
-                            onChange={e => setFormData({...formData, adminEmail: e.target.value})} 
-                            placeholder="registrar@stanford.edu" 
-                            className="w-full h-12 border-slate-200 focus:bg-slate-50 transition-colors rounded-xl text-wrap" 
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label className="text-xs font-bold text-slate-700 ml-1">Region / Location</Label>
-                          <Input 
-                            value={formData.region} 
-                            onChange={e => setFormData({...formData, region: e.target.value})} 
-                            placeholder="e.g. Bangalore South, Karnataka" 
-                            className="w-full h-12 border-slate-200 focus:bg-slate-50 transition-colors rounded-xl text-wrap" 
-                          />
-                        </div>
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="grid gap-2">
-                            <Label className="text-[10px] font-bold text-slate-700 ml-1">Enrolled Students</Label>
-                            <Input 
-                              type="number"
-                              value={formData.totalStudents} 
-                              onChange={e => setFormData({...formData, totalStudents: e.target.value})} 
-                              placeholder="e.g. 500" 
-                              className="w-full h-12 border-slate-200 focus:bg-slate-50 transition-colors rounded-xl text-wrap" 
-                            />
-                          </div>
-                          <div className="grid gap-2">
-                            <Label className="text-[10px] font-bold text-slate-700 ml-1">Attendance (%)</Label>
-                            <Input 
-                              type="number"
-                              value={formData.attendanceRate} 
-                              onChange={e => setFormData({...formData, attendanceRate: e.target.value})} 
-                              placeholder="e.g. 96.5" 
-                              className="w-full h-12 border-slate-200 focus:bg-slate-50 transition-colors rounded-xl text-wrap" 
-                            />
-                          </div>
-                          <div className="grid gap-2">
-                            <Label className="text-[10px] font-bold text-slate-700 ml-1">Mean Exam Rating</Label>
-                            <Input 
-                              type="number"
-                              value={formData.avgScore} 
-                              onChange={e => setFormData({...formData, avgScore: e.target.value})} 
-                              placeholder="e.g. 78.5" 
-                              className="w-full h-12 border-slate-200 focus:bg-slate-50 transition-colors rounded-xl text-wrap" 
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-600">
-                        <div className="h-4 w-4 rounded-full bg-indigo-100 flex items-center justify-center text-[8px]">2</div>
-                        Access Control
-                      </div>
-                      <div className="grid gap-5">
-                        <div className="grid gap-2">
-                          <Label className="text-xs font-bold text-slate-700 ml-1">Authorized Email Domains</Label>
-                          <TagInput 
-                            tags={formData.allowedDomains} 
-                            onAdd={(tag) => setFormData({...formData, allowedDomains: [...formData.allowedDomains, tag]})}
-                            onRemove={(tag) => setFormData({...formData, allowedDomains: formData.allowedDomains.filter(t => t !== tag)})}
-                            placeholder="e.g. stanford.edu (Press Enter)"
-                          />
-                          <p className="text-[10px] text-slate-400 ml-1 text-wrap break-words">Restricts onboarding to users with these email domains.</p>
-                        </div>
-                        
-                        <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-2xl gap-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-slate-900 truncate">Provision Status</p>
-                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-tight truncate">Instantly enable/disable access</p>
-                          </div>
-                          <Switch 
-                            checked={formData.status === 'active'} 
-                            onCheckedChange={(checked) => setFormData({...formData, status: checked ? 'active' : 'inactive'})} 
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-600">
-                        <div className="h-4 w-4 rounded-full bg-indigo-100 flex items-center justify-center text-[8px]">3</div>
-                        Authentication Policy
-                      </div>
-                      <RadioGroup 
-                        value={formData.authPolicy} 
-                        onValueChange={(val: AuthPolicy) => setFormData({...formData, authPolicy: val})}
-                        className="grid grid-cols-1 gap-3 w-full"
-                      >
-                        {[
-                          { id: 'google', label: 'Google SSO Only', icon: Globe, desc: 'Enterprise-grade social identity via Google Workspace.' },
-                          { id: 'password', label: 'Email/Pass Only', icon: Shield, desc: 'Standard credential-based authentication legacy.' },
-                          { id: 'both', label: 'Hybrid Policy', icon: ShieldCheck, desc: 'Maximum flexibility for students and faculty.' }
-                        ].map((policy) => (
-                          <div key={policy.id} className="relative w-full">
-                            <RadioGroupItem value={policy.id} id={policy.id} className="peer sr-only" />
-                            <Label 
-                              htmlFor={policy.id}
-                              className="flex items-center p-4 bg-white border border-slate-200 rounded-2xl cursor-pointer peer-data-[state=checked]:border-indigo-600 peer-data-[state=checked]:bg-indigo-50/30 transition-all hover:bg-slate-50 gap-2 w-full min-w-0"
-                            >
-                              <div className={`h-10 w-10 min-w-[40px] rounded-xl flex items-center justify-center mr-2 transition-colors ${formData.authPolicy === policy.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                                <policy.icon size={20} />
-                              </div>
-                              <div className="flex-1 min-w-0 space-y-1">
-                                <p className="text-sm font-black text-slate-900 tracking-tight truncate">{policy.label}</p>
-                                <p className="text-[10px] text-slate-500 font-medium leading-normal text-wrap break-words">{policy.desc}</p>
-                              </div>
-                              <div className={`h-5 w-5 min-w-[20px] rounded-full border-2 flex items-center justify-center transition-all ${formData.authPolicy === policy.id ? 'border-indigo-600' : 'border-slate-200'} ml-2`}>
-                                {formData.authPolicy === policy.id && <div className="h-2.5 w-2.5 rounded-full bg-indigo-600" />}
-                              </div>
-                            </Label>
-                          </div>
-                        ))}
-                      </RadioGroup>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer action controls, sticky at bottoms */}
-                <div className="p-6 md:p-8 bg-slate-50 border-t border-slate-200">
-                  <div className="flex gap-4 w-full">
-                    <Button variant="outline" className="flex-1 h-12 bg-white rounded-xl font-bold cursor-pointer transition-colors hover:bg-slate-100 text-sm" onClick={() => setIsSheetOpen(false)}>Discard</Button>
-                    <Button className="flex-[2] h-12 bg-indigo-600 hover:bg-slate-900 rounded-xl font-bold shadow-lg shadow-indigo-100 cursor-pointer transition-all text-sm" onClick={handleCreateSchool}>Commit Node</Button>
-                  </div>
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
         </div>
       </div>
 

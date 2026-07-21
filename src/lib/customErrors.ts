@@ -142,10 +142,17 @@ export function handleErrorAndLog(error: any, actionContext: string): CustomAppE
   });
 
   // 4. Dispatch custom window event so centralized ErrorBoundary can show a rich, interactive diagnostic modal
-  // Skip showing full crash modal for normal form validation / auth errors, they are handled locally in UI
-  const isFatalCrash = !customException.code.startsWith('auth/') && 
-                       !customException.code.startsWith('validation/') && 
-                       !customException.code.startsWith('school/');
+  // Skip showing full crash modal for normal form validation / auth errors / background syncs, they are handled gracefully in UI
+  const isBackgroundOrNonFatal = actionContext.includes('Sync') || 
+                                actionContext.includes('Stream') || 
+                                actionContext.includes('Lifecycle') ||
+                                actionContext.includes('Background') ||
+                                actionContext.includes('Queue') ||
+                                customException.code.startsWith('auth/') ||
+                                customException.code.startsWith('validation/') ||
+                                customException.code.startsWith('school/');
+
+  const isFatalCrash = !isBackgroundOrNonFatal;
                        
   if (isFatalCrash) {
     const event = new CustomEvent('app-custom-exception', {
@@ -171,6 +178,23 @@ export function initializeGlobalErrorMiddleware() {
     event.preventDefault();
     
     const reason = event.reason;
+    const msg = String(reason?.message || reason?.stack || reason || '');
+    
+    // Ignore benign background errors (e.g., dev websocket disconnections, aborted fetches, resize observers)
+    if (
+      !reason ||
+      msg.includes('vite') ||
+      msg.includes('WebSocket') ||
+      msg.includes('websocket') ||
+      msg.includes('ResizeObserver') ||
+      msg.includes('canceled') ||
+      msg.includes('aborted') ||
+      msg.includes('AbortError')
+    ) {
+      console.warn('[Global Middleware] Suppressed benign background rejection:', reason);
+      return;
+    }
+    
     // Guess action context based on stack or message if possible, or use standard fallback
     let context = "Asynchronous Server Syncing";
     if (reason?.stack) {
@@ -186,7 +210,8 @@ export function initializeGlobalErrorMiddleware() {
       }
     }
     
-    handleErrorAndLog(reason, context);
+    // Log to console without raising alarming toast popups for background rejections
+    console.warn(`[Global Middleware] Handled unhandled promise rejection in context: "${context}"`, reason);
   };
 
   const handleGlobalError = (event: ErrorEvent) => {

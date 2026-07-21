@@ -125,6 +125,20 @@ const CuteTrophyIcon = () => (
   </svg>
 );
 
+const CuteBillingIcon = () => (
+  <svg className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-12 group-hover:rotate-6 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]" viewBox="0 0 24 24" fill="none">
+    <defs>
+      <linearGradient id="billGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#A7F3D0" />
+        <stop offset="100%" stopColor="#059669" />
+      </linearGradient>
+    </defs>
+    <rect x="3" y="4" width="18" height="16" rx="4" fill="url(#billGrad)" stroke="#111222" strokeWidth="2" />
+    <circle cx="12" cy="12" r="3.5" fill="#FFFFFF" stroke="#111222" strokeWidth="1.5" />
+    <path d="M 12 10.2 V 13.8 M 10.8 11.2 C 10.8 11.2 11.2 10.8 12 10.8 C 12.8 10.8 13.2 11.2 13.2 11.8 C 13.2 12.8 10.8 12.2 10.8 13.2 C 10.8 13.8 11.4 14.2 12 14.2 C 12.8 14.2 13.2 13.8 13.2 13.8" stroke="#111222" strokeWidth="1.2" strokeLinecap="round" />
+  </svg>
+);
+
 const CUTE_ICONS_MAPPING: Record<string, () => React.JSX.Element> = {
   'Intelligence Base': CuteDashboardIcon,
   'Intelligence Base (Admin)': CuteDashboardIcon,
@@ -145,6 +159,7 @@ const CUTE_ICONS_MAPPING: Record<string, () => React.JSX.Element> = {
   'System Analytics': CuteAnalyticsIcon,
   'Scale & Performance Hub': CuteAnalyticsIcon,
   'Interactive API Docs': CuteAnalyticsIcon,
+  'GCP Cloud Billing': CuteBillingIcon,
 };
 
 interface LayoutProps {
@@ -208,6 +223,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     { label: 'Security proctors', path: '/admin/proctoring', roles: ['admin'] },
     { label: 'Syllabus Tracker', path: '/admin/syllabus', roles: ['admin'] },
     { label: 'Merit Scoreboard', path: '/admin/merit', roles: ['admin', 'school'] },
+    { label: 'GCP Cloud Billing', path: '/admin/gcp-billing', roles: ['admin'] },
     { label: 'System Analytics', path: '/admin/analytics', roles: ['admin'] },
     { label: 'Scale & Performance Hub', path: '/admin/performance', roles: ['admin'] },
     { label: 'Interactive API Docs', path: '/admin/api-docs', roles: ['admin'] },
@@ -325,7 +341,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               'Merit Scoreboard': { gradient: 'from-amber-100 to-amber-50', activeBorder: 'border-amber-400', activeText: 'text-amber-850', accentBg: 'bg-amber-400' },
               'System Analytics': { gradient: 'from-pink-100 to-pink-50', activeBorder: 'border-pink-400', activeText: 'text-pink-850', accentBg: 'bg-pink-400' },
               'Scale & Performance Hub': { gradient: 'from-purple-100 to-purple-50', activeBorder: 'border-purple-400', activeText: 'text-purple-850', accentBg: 'bg-purple-400' },
-              'Interactive API Docs': { gradient: 'from-indigo-100 to-indigo-50', activeBorder: 'border-indigo-400', activeText: 'text-indigo-850', accentBg: 'bg-indigo-400' }
+              'Interactive API Docs': { gradient: 'from-indigo-100 to-indigo-50', activeBorder: 'border-indigo-400', activeText: 'text-indigo-850', accentBg: 'bg-indigo-400' },
+              'GCP Cloud Billing': { gradient: 'from-emerald-100 to-emerald-50', activeBorder: 'border-emerald-400', activeText: 'text-emerald-850', accentBg: 'bg-emerald-400' }
             };
 
             const colors = themeColors[item.label] || { gradient: 'from-sky-100 to-sky-50', activeBorder: 'border-sky-400', activeText: 'text-sky-800', accentBg: 'bg-sky-400' };

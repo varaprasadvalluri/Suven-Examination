@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { 
-  Lock, ArrowRight, Loader2, Award, Building2, User2, BookOpen, AlertCircle, ShieldCheck, GraduationCap, Check, Key, Mail, ChevronDown, CheckCircle, Eye, EyeOff, Calendar, Sparkles, Shield, Trophy, Settings, ClipboardList, Database
+  Lock, ArrowRight, Loader2, Award, Building2, User2, BookOpen, AlertCircle, ShieldCheck, GraduationCap, Check, Key, Mail, ChevronDown, CheckCircle, Eye, EyeOff, Sparkles, Shield, Trophy, Settings, ClipboardList, Database
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { DatabaseMigrator } from './DatabaseMigrator';
@@ -13,7 +13,7 @@ import { handleErrorAndLog } from '../lib/customErrors';
 export const LoginPage: React.FC = () => {
   const { user, profile, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithDemo, signOut, sendPasswordResetEmail } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'login' | 'signup' | 'migration'>('login');
+  const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   
   // Invitation Verification State
   const [searchParams] = useSearchParams();
@@ -26,7 +26,6 @@ export const LoginPage: React.FC = () => {
   const [inviteSchool, setInviteSchool] = useState<any | null>(null);
   const [enteredName, setEnteredName] = useState('');
   const [enteredRoll, setEnteredRoll] = useState('');
-  const [enteredDob, setEnteredDob] = useState('');
   const [isVerifyingDetails, setIsVerifyingDetails] = useState(false);
 
   // Login inputs & touch states
@@ -52,7 +51,7 @@ export const LoginPage: React.FC = () => {
   const [onboardedEmails, setOnboardedEmails] = useState<string[]>([]);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'schools'), (snapshot) => {
+    const unsubscribe = onSnapshot(collection(db, 'schools'), async (snapshot) => {
       const emailList = snapshot.docs
         .map(doc => doc.data()?.adminEmail)
         .filter((e): e is string => typeof e === 'string' && e.trim().length > 0)
@@ -65,6 +64,17 @@ export const LoginPage: React.FC = () => {
         })
         .filter((d): d is string => typeof d === 'string' && d.trim().length > 0)
         .map(d => d.trim().toLowerCase());
+
+      let allowedList: string[] = [];
+      try {
+        const allowedSnap = await getDocs(collection(db, 'allowed_schools'));
+        allowedList = allowedSnap.docs
+          .map(doc => doc.data()?.email)
+          .filter((e): e is string => typeof e === 'string' && e.trim().length > 0)
+          .map(e => e.trim().toLowerCase());
+      } catch (err) {
+        console.warn("Could not query allowed_schools list:", err);
+      }
         
       const fallbackEmails = [
         'school@suvenedu.demo',
@@ -74,7 +84,7 @@ export const LoginPage: React.FC = () => {
         'suveen2619@gmail.com'
       ];
       
-      const uniqueEmails = Array.from(new Set([...emailList, ...domainsList, ...fallbackEmails]));
+      const uniqueEmails = Array.from(new Set([...emailList, ...domainsList, ...allowedList, ...fallbackEmails]));
       setOnboardedEmails(uniqueEmails);
     }, (err) => {
       console.error("Error listening to schools list:", err);
@@ -88,13 +98,6 @@ export const LoginPage: React.FC = () => {
     });
     return () => unsubscribe();
   }, []);
-
-  // Dynamic whitelist validation effect (Bypassed so any email can register)
-  useEffect(() => {
-    if (errorMessage === "Registration allowed only for onboarded schools. This email is not authorized.") {
-      setErrorMessage(null);
-    }
-  }, [signUpEmail, activeTab]);
 
   const FALLBACK_OPTIONS = [
     { value: 'school', label: "Educator / Registrar", icon: 'BookOpen', desc: "Analyse metrics, control timers, proctor" },
@@ -126,7 +129,6 @@ export const LoginPage: React.FC = () => {
     setName('');
     setEnteredName('');
     setEnteredRoll('');
-    setEnteredDob('');
 
     const fetchDropdownOptions = async () => {
       try {
@@ -264,13 +266,13 @@ export const LoginPage: React.FC = () => {
 
   const handleVerifySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!enteredName.trim() || !enteredRoll.trim() || !enteredDob.trim()) {
-      toast.error("Invalid credentials provided");
+    if (!enteredName.trim() || !enteredRoll.trim()) {
+      toast.error("Please enter both your Full Name and Register / Roll Number");
       return;
     }
 
     if (!inviteData) {
-      toast.error("Invalid credentials provided");
+      toast.error("Invalid credentials or expired invitation pass");
       return;
     }
 
@@ -289,41 +291,14 @@ export const LoginPage: React.FC = () => {
         return lowercase.includes('<script') || lowercase.includes('javascript:') || lowercase.includes('<') || lowercase.includes('>') || lowercase.includes('onload');
       };
 
-      // Strict Pattern Rules
-      const nameRegex = /^[A-Za-z\s]+$/;
-      const rollRegex = /^[a-zA-Z0-9\-]+$/;
-
       const trimmedName = enteredName.trim();
       const trimmedRoll = enteredRoll.trim();
-      const trimmedDob = enteredDob.trim();
 
-      if (
-        containsHTMLOrScripts(trimmedName) || 
-        containsHTMLOrScripts(trimmedRoll) || 
-        containsHTMLOrScripts(trimmedDob) ||
-        !nameRegex.test(trimmedName) ||
-        !rollRegex.test(trimmedRoll)
-      ) {
+      if (containsHTMLOrScripts(trimmedName) || containsHTMLOrScripts(trimmedRoll)) {
         toast.error("Invalid credentials provided", { id: toastId });
         setIsVerifyingDetails(false);
         return;
       }
-
-      // Format comparer for DOB (works across YYYY-MM-DD and DD/MM/YYYY)
-      const formatForCompare = (d: string) => {
-        const parts = d.split(/[-/]/);
-        if (parts.length === 3) {
-          if (parts[0].length === 4) {
-            return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-          } else if (parts[2].length === 4) {
-            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-          }
-        }
-        return d.toLowerCase().trim();
-      };
-
-      const inputName = trimmedName.toLowerCase();
-      const inputDob = formatForCompare(trimmedDob);
 
       if (inviteData.isFallback) {
         // Fallback search: Find student by Roll/Register ID strictly in Firestore
@@ -338,24 +313,25 @@ export const LoginPage: React.FC = () => {
         if (!querySnap.empty) {
           const matchProfile = querySnap.docs[0].data() as any;
           const matchId = querySnap.docs[0].id;
-          const actualName = (matchProfile.name || '').trim().toLowerCase();
-          const actualDob = formatForCompare(matchProfile.dob || '');
-
-          if (actualName === inputName && (!actualDob || actualDob === inputDob)) {
-            resolvedStudentProfile = { uid: matchId, ...matchProfile };
-            if (!actualDob) {
-              resolvedStudentProfile.dob = trimmedDob;
-              await setDoc(doc(db, 'users', matchId), resolvedStudentProfile);
-            }
-          } else {
-            toast.error("Invalid credentials provided", { id: toastId });
-            setIsVerifyingDetails(false);
-            return;
+          resolvedStudentProfile = { uid: matchId, ...matchProfile, name: matchProfile.name || trimmedName };
+          if (!matchProfile.name) {
+            await setDoc(doc(db, 'users', matchId), resolvedStudentProfile);
           }
         } else {
-          toast.error("Invalid credentials provided", { id: toastId });
-          setIsVerifyingDetails(false);
-          return;
+          // Auto onboard student if not pre-registered
+          const newStudentRef = doc(collection(db, 'users'));
+          const newStudentData = {
+            uid: newStudentRef.id,
+            name: trimmedName,
+            rollNumber: trimmedRoll,
+            schoolId: targetSchoolId,
+            role: 'student',
+            permissions: ['take_exams'],
+            createdAt: new Date().toISOString(),
+            class: 'Adaptive Grade'
+          };
+          await setDoc(newStudentRef, newStudentData);
+          resolvedStudentProfile = newStudentData;
         }
 
         // Locate an active assessment to link
@@ -365,7 +341,7 @@ export const LoginPage: React.FC = () => {
           targetExamId = availableExam.id;
           targetExamTitle = (availableExam.data() as any).title || "Secure Examination";
         } else {
-          toast.error("Invalid credentials provided", { id: toastId });
+          toast.error("No active examinations found", { id: toastId });
           setIsVerifyingDetails(false);
           return;
         }
@@ -382,19 +358,9 @@ export const LoginPage: React.FC = () => {
         if (!querySnap.empty) {
           const matchProfile = querySnap.docs[0].data() as any;
           const matchId = querySnap.docs[0].id;
-          resolvedStudentProfile = { uid: matchId, ...matchProfile };
+          resolvedStudentProfile = { uid: matchId, ...matchProfile, name: matchProfile.name || trimmedName };
           
-          // Lazily complement name or DOB if not set
-          let needsUpdate = false;
           if (!matchProfile.name) {
-            resolvedStudentProfile.name = trimmedName;
-            needsUpdate = true;
-          }
-          if (!matchProfile.dob && trimmedDob) {
-            resolvedStudentProfile.dob = trimmedDob;
-            needsUpdate = true;
-          }
-          if (needsUpdate) {
             await setDoc(doc(db, 'users', matchId), resolvedStudentProfile);
           }
         } else {
@@ -406,7 +372,6 @@ export const LoginPage: React.FC = () => {
             rollNumber: trimmedRoll,
             schoolId: targetSchoolId,
             role: 'student',
-            dob: trimmedDob,
             permissions: ['take_exams'],
             createdAt: new Date().toISOString(),
             class: 'Adaptive Grade'
@@ -592,13 +557,21 @@ export const LoginPage: React.FC = () => {
     const trimmedName = name.trim();
     const trimmedEmail = signUpEmail.trim();
 
+    // STRICT RULE: Admin self-registration is strictly disallowed!
+    if (selectedRole === 'admin') {
+      const msg = "Admin accounts cannot be self-registered. Admin credentials must be provisioned manually in Firestore by the system administrator.";
+      setErrorMessage(msg);
+      toast.error("Self-registration for Admin is disabled.");
+      return;
+    }
+
     if (!trimmedName || trimmedName.length < 3) {
       setErrorMessage("Name must be at least 3 alphabetical characters long.");
       toast.error("Invalid Name.");
       return;
     }
-    if (!selectedRole || (selectedRole !== 'admin' && selectedRole !== 'school')) {
-      setErrorMessage("Please select a Registration Designation Role.");
+    if (!selectedRole || selectedRole !== 'school') {
+      setErrorMessage("Please select Teacher / School Role.");
       toast.error("Role Selection Required.");
       return;
     }
@@ -633,7 +606,7 @@ export const LoginPage: React.FC = () => {
       if (selectedRole === 'school') {
         const schoolsRef = collection(db, 'schools');
         
-        // Try exact adminEmail lookup first
+        // 1. Try exact adminEmail lookup in schools
         const q = query(schoolsRef, where('adminEmail', '==', checkEmail));
         const snap = await getDocs(q);
         
@@ -641,44 +614,65 @@ export const LoginPage: React.FC = () => {
           isAuthorized = true;
           schoolId = snap.docs[0].id;
         } else {
-          // Fallback case-insensitive lookup & allowedDomains lookup
-          const allSchools = await getDocs(schoolsRef);
-          const foundSchool = allSchools.docs.find(doc => {
-            const data = doc.data();
-            if (!data) return false;
-            
-            const isEmailMatch = (data.adminEmail || '').trim().toLowerCase() === checkEmail;
-            
-            const emailDomain = checkEmail.split('@')[1];
-            const isDomainMatch = emailDomain && Array.isArray(data.allowedDomains) && 
-              data.allowedDomains.map((d: string) => d.trim().toLowerCase()).includes(emailDomain.toLowerCase());
-              
-            return isEmailMatch || isDomainMatch;
-          });
-          
-          if (foundSchool) {
-            isAuthorized = true;
-            schoolId = foundSchool.id;
-          } else {
-            // Also check if they are in the hardcoded fallback list
-            const fallbackEmails = [
-              'school@suvenedu.demo',
-              'admin@suvenedu.demo',
-              'sweety123@gmail.com',
-              'amruthav1301@gmail.com',
-              'suveen2619@gmail.com'
-            ];
-            
-            if (fallbackEmails.includes(checkEmail)) {
+          // 2. Try allowed_schools lookup by email or safe ID
+          try {
+            const safeEmailId = checkEmail.replace(/[^a-zA-Z0-9_-]/g, '_');
+            const allowedDoc = await getDoc(doc(db, 'allowed_schools', safeEmailId));
+            if (allowedDoc.exists()) {
               isAuthorized = true;
-              schoolId = 'school-fallback-id';
+              schoolId = allowedDoc.data()?.schoolId || 'school-allowed-id';
+            } else {
+              const qAllowed = query(collection(db, 'allowed_schools'), where('email', '==', checkEmail));
+              const snapAllowed = await getDocs(qAllowed);
+              if (!snapAllowed.empty) {
+                isAuthorized = true;
+                schoolId = snapAllowed.docs[0].data()?.schoolId || 'school-allowed-id';
+              }
+            }
+          } catch (e) {
+            console.warn("Allowed schools query error:", e);
+          }
+
+          if (!isAuthorized) {
+            // 3. Fallback case-insensitive lookup & allowedDomains lookup in schools
+            const allSchools = await getDocs(schoolsRef);
+            const foundSchool = allSchools.docs.find(docSnap => {
+              const data = docSnap.data();
+              if (!data) return false;
+              
+              const isEmailMatch = (data.adminEmail || '').trim().toLowerCase() === checkEmail;
+              
+              const emailDomain = checkEmail.split('@')[1];
+              const isDomainMatch = emailDomain && Array.isArray(data.allowedDomains) && 
+                data.allowedDomains.map((d: string) => d.trim().toLowerCase()).includes(emailDomain.toLowerCase());
+                
+              return isEmailMatch || isDomainMatch;
+            });
+            
+            if (foundSchool) {
+              isAuthorized = true;
+              schoolId = foundSchool.id;
+            } else {
+              // 4. Hardcoded fallback list for demos
+              const fallbackEmails = [
+                'school@suvenedu.demo',
+                'sweety123@gmail.com',
+                'amruthav1301@gmail.com',
+                'suveen2619@gmail.com'
+              ];
+              
+              if (fallbackEmails.includes(checkEmail)) {
+                isAuthorized = true;
+                schoolId = 'school-fallback-id';
+              }
             }
           }
         }
       }
 
       if (selectedRole === 'school' && !isAuthorized) {
-        setErrorMessage("This email address has not been onboarded by the administrator.");
+        setErrorMessage(`Registration denied: Your email address (${trimmedEmail}) is not onboarded by an Admin. Please contact the administrator to onboard your school before creating an account.`);
+        toast.error("Email not onboarded by Admin.");
         setIsLoading(false);
         return;
       }
@@ -739,11 +733,11 @@ export const LoginPage: React.FC = () => {
   const isSignUpNameValid = name.trim().length >= 3;
   const isSignUpEmailValid = isValidEmail(signUpEmail.trim());
   const isEmailOnboarded = signUpEmail 
-    ? (selectedRole === 'admin' || 
-       onboardedEmails.includes(signUpEmail.trim().toLowerCase()))
+    ? (onboardedEmails.includes(signUpEmail.trim().toLowerCase()) ||
+       onboardedEmails.includes(signUpEmail.trim().toLowerCase().split('@')[1] || ''))
     : false;
   const isSignUpPasswordValid = signUpPassword.length >= 6;
-  const isSignUpFormValid = isSignUpNameValid && isSignUpEmailValid && isSignUpPasswordValid && (selectedRole === 'admin' || selectedRole === 'school');
+  const isSignUpFormValid = isSignUpNameValid && isSignUpEmailValid && isSignUpPasswordValid && selectedRole === 'school' && isEmailOnboarded;
 
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#f3f6f9] relative overflow-hidden font-sans text-slate-800">
@@ -821,30 +815,7 @@ export const LoginPage: React.FC = () => {
 
       {/* RIGHT SIDE PANEL: Tabbed Form matching Figma layout mockup */}
       <div className="w-full lg:w-[55%] bg-[#f3f6f9] p-6 md:p-12 lg:p-16 flex flex-col justify-center items-center min-h-[500px] lg:min-h-screen relative">
-        
-        {activeTab === 'migration' ? (
-          <div className="max-w-4xl w-full mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="flex justify-between items-center bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-              <div className="flex items-center gap-2.5">
-                <Database className="text-indigo-600 animate-pulse" size={18} />
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider leading-none">Database Migration Control Center</h3>
-                  <span className="text-[10px] text-slate-400 font-semibold block mt-1">Configure & synchronize "suven-edu" database securely</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveTab('login')}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-[11px] font-bold transition-all"
-              >
-                ← Return to Login Form
-              </button>
-            </div>
-            
-            <DatabaseMigrator />
-          </div>
-        ) : (
-          <div className="max-w-md w-full mx-auto bg-white rounded-3xl p-8 md:p-10 shadow-[0_10px_35px_-5px_rgba(15,23,42,0.05)] border border-slate-100">
+        <div className="max-w-md w-full mx-auto bg-white rounded-3xl p-8 md:p-10 shadow-[0_10px_35px_-5px_rgba(15,23,42,0.05)] border border-slate-100">
           
           {/* Header with Custom Welcome */}
           <div className="mb-6 text-center lg:text-left">
@@ -940,25 +911,6 @@ export const LoginPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Field 3: Date of Birth (DOB) */}
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                  Date of Birth (DOB)
-                </span>
-                <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
-                  <Calendar className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
-                  <input 
-                    type="date" 
-                    value={enteredDob}
-                    onChange={(e) => setEnteredDob(e.target.value)}
-                    className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-400 text-xs font-semibold focus:ring-0"
-                    required
-                    disabled={isVerifyingDetails}
-                    autoComplete="off"
-                  />
-                </div>
-              </div>
-
               {/* Proctor compliance security check */}
               <div className="bg-amber-50/60 border border-amber-100/80 p-3.5 rounded-2xl flex items-start gap-2.5 mt-5">
                 <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
@@ -1042,15 +994,6 @@ export const LoginPage: React.FC = () => {
                       <span className="text-xs font-bold leading-none">Admin</span>
                     </button>
                   </div>
-
-                  {/* Student Link Entry Banner */}
-                  <a
-                    href="/student/exam-entry"
-                    className="w-full flex items-center justify-center gap-2 bg-[#eff6ff] text-[#1a56db] border border-[#bfdbfe] hover:bg-[#e0f2fe]/40 transition-colors py-2.5 px-4 rounded-xl text-xs font-bold mb-6"
-                  >
-                    <GraduationCap className="h-4.5 w-4.5 shrink-0 text-[#1a56db]" />
-                    <span>Access your exams & results</span>
-                  </a>
 
                   <form onSubmit={handleEmailLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     
@@ -1149,20 +1092,10 @@ export const LoginPage: React.FC = () => {
                       )}
                     </button>
 
-                    <div className="text-center text-xs text-slate-500 mt-6 space-y-4">
+                    <div className="text-center text-xs text-slate-500 mt-6">
                       <p>
                         New Account : <button type="button" onClick={() => setActiveTab('signup')} className="text-[#1a56db] font-bold hover:underline">Request account access</button>
                       </p>
-                      <div className="pt-3 border-t border-slate-100 flex justify-center">
-                        <button 
-                          type="button" 
-                          onClick={() => setActiveTab('migration')} 
-                          className="inline-flex items-center gap-1.5 text-indigo-650 hover:text-indigo-800 font-extrabold hover:underline text-[11px]"
-                        >
-                          <Database size={13} className="animate-pulse text-indigo-500" />
-                          Database Migration & IAM Setup Utility
-                        </button>
-                      </div>
                     </div>
                   </form>
                 </>
@@ -1186,25 +1119,35 @@ export const LoginPage: React.FC = () => {
                         }`}
                       >
                         <ClipboardList className="h-4 w-4" />
-                        <span>Teacher</span>
+                        <span>Teacher / School</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => {
                           setSelectedRole('admin');
-                          setErrorMessage(null);
+                          setErrorMessage("Admin accounts cannot be self-registered. They must be added manually in Firestore by the system administrator.");
                         }}
-                        className={`flex items-center justify-center gap-2 h-11 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                        className={`flex items-center justify-center gap-2 h-11 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer opacity-70 ${
                           selectedRole === 'admin'
-                            ? 'bg-[#ebf3fe] border-[#1a56db] text-[#1a56db]'
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'
+                            ? 'bg-amber-50 border-amber-300 text-amber-900 font-extrabold'
+                            : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
                         }`}
                       >
                         <Settings className="h-4 w-4" />
-                        <span>Admin</span>
+                        <span>Admin (Manual Only)</span>
                       </button>
                     </div>
+
+                    {selectedRole === 'admin' && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-900 text-[11px] leading-relaxed flex items-start gap-2 mt-2 animate-in fade-in duration-200">
+                        <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="font-extrabold block">Admin Access Restricted</strong>
+                          Admin accounts cannot be self-registered publicly. They must be provisioned manually in Firestore. Please select <b>Teacher / School</b> or contact your administrator.
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Name Input */}
@@ -1320,7 +1263,6 @@ export const LoginPage: React.FC = () => {
           )}
 
         </div>
-        )}
       </div>
 
     </div>

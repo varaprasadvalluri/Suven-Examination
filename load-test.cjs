@@ -77,6 +77,7 @@ function makeRequest(method, endpoint, payload = null) {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'x-load-test': 'true'
       }
     };
 

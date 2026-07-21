@@ -59,7 +59,7 @@ const COMMON_FORMULAS = [
 ];
 
 interface PeriodicTableHelperProps {
-  onInsertSymbol: (symbol: string) => void;
+  onInsertSymbol?: (symbol: string) => void;
 }
 
 export const PeriodicTableHelper: React.FC<PeriodicTableHelperProps> = ({ onInsertSymbol }) => {
@@ -84,13 +84,23 @@ export const PeriodicTableHelper: React.FC<PeriodicTableHelperProps> = ({ onInse
   };
 
   const handleElementClick = (symbol: string) => {
-    onInsertSymbol(symbol);
-    toast.success(`Inserted Element: ${symbol}`);
+    if (onInsertSymbol) {
+      onInsertSymbol(symbol);
+      toast.success(`Inserted Element: ${symbol}`);
+    } else {
+      navigator.clipboard?.writeText(symbol);
+      toast.success(`Copied Element Symbol: ${symbol}`);
+    }
   };
 
   const handleFormulaClick = (formulaText: string) => {
-    onInsertSymbol(formulaText);
-    toast.success(`Inserted Formula: ${formulaText}`);
+    if (onInsertSymbol) {
+      onInsertSymbol(formulaText);
+      toast.success(`Inserted Formula: ${formulaText}`);
+    } else {
+      navigator.clipboard?.writeText(formulaText);
+      toast.success(`Copied Formula: ${formulaText}`);
+    }
   };
 
   return (

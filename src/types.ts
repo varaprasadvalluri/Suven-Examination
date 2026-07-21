@@ -60,6 +60,7 @@ export interface Exam {
   status: 'published' | 'draft';
   questions?: Question[];
   assignedSchoolIds?: string[];
+  schoolId?: string;
 }
 
 export interface Attempt {

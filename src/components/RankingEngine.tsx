@@ -144,14 +144,14 @@ export const RankingEngine: React.FC = () => {
       
       if (examsAttended > 0) {
         const totalAccuracy = completedAttempts.reduce((sum, a) => sum + (a.accuracy !== undefined ? a.accuracy : (a.score || 0)), 0);
-        averagePercentage = Number((totalAccuracy / examsAttended).toFixed(1));
+        averagePercentage = Math.round(totalAccuracy / examsAttended);
         
         const totalScore = completedAttempts.reduce((sum, a) => sum + (a.score || 0), 0);
-        averageScore = Number((totalScore / examsAttended).toFixed(1));
+        averageScore = Math.round(totalScore / examsAttended);
       }
 
       // Calculate trend/improvement dynamically based on difference between the two most recent attempts
-      let improvement = '0.0%';
+      let improvement = '0%';
       if (examsAttended >= 2) {
         const sortedAtts = [...completedAttempts].sort((a, b) => {
           const tA = a.endTime ? new Date(a.endTime).getTime() : 0;
@@ -163,9 +163,10 @@ export const RankingEngine: React.FC = () => {
         const accuracyLatest = latest.accuracy !== undefined ? latest.accuracy : (latest.score || 0);
         const accuracyPrev = prev.accuracy !== undefined ? prev.accuracy : (prev.score || 0);
         const diff = accuracyLatest - accuracyPrev;
-        improvement = `${diff >= 0 ? '+' : ''}${diff.toFixed(1)}%`;
+        const roundDiff = Math.round(diff);
+        improvement = `${roundDiff >= 0 ? '+' : ''}${roundDiff}%`;
       } else if (examsAttended === 1) {
-        improvement = '+0.0%';
+        improvement = '+0%';
       } else {
         improvement = '-';
       }
@@ -198,13 +199,13 @@ export const RankingEngine: React.FC = () => {
         
         if (examsAttended > 0) {
           const totalAccuracy = completedAttempts.reduce((sum, a) => sum + (a.accuracy !== undefined ? a.accuracy : (a.score || 0)), 0);
-          averagePercentage = Number((totalAccuracy / examsAttended).toFixed(1));
+          averagePercentage = Math.round(totalAccuracy / examsAttended);
           
           const totalScore = completedAttempts.reduce((sum, a) => sum + (a.score || 0), 0);
-          averageScore = Number((totalScore / examsAttended).toFixed(1));
+          averageScore = Math.round(totalScore / examsAttended);
         }
 
-        let improvement = '0.0%';
+        let improvement = '0%';
         if (examsAttended >= 2) {
           const sortedAtts = [...completedAttempts].sort((a, b) => {
             const tA = a.endTime ? new Date(a.endTime).getTime() : 0;
@@ -216,9 +217,10 @@ export const RankingEngine: React.FC = () => {
           const accuracyLatest = latest.accuracy !== undefined ? latest.accuracy : (latest.score || 0);
           const accuracyPrev = prev.accuracy !== undefined ? prev.accuracy : (prev.score || 0);
           const diff = accuracyLatest - accuracyPrev;
-          improvement = `${diff >= 0 ? '+' : ''}${diff.toFixed(1)}%`;
+          const roundDiff = Math.round(diff);
+          improvement = `${roundDiff >= 0 ? '+' : ''}${roundDiff}%`;
         } else if (examsAttended === 1) {
-          improvement = '+0.0%';
+          improvement = '+0%';
         } else {
           improvement = '-';
         }
@@ -279,8 +281,8 @@ export const RankingEngine: React.FC = () => {
     
     const sumAccuracy = candidatesWithAttempts.reduce((sum, item) => sum + item.percentile, 0);
     const meanPercentage = candidatesWithAttempts.length > 0 
-      ? Number((sumAccuracy / candidatesWithAttempts.length).toFixed(1)) 
-      : 0.0;
+      ? Math.round(sumAccuracy / candidatesWithAttempts.length) 
+      : 0;
 
     const masteryCount = candidatesWithAttempts.filter(item => item.percentile >= 75).length;
     const masteryString = `${masteryCount}/${totalCandidates}`;
@@ -445,7 +447,7 @@ export const RankingEngine: React.FC = () => {
                             </div>
                          </td>
                          <td className="px-6 py-2.5 text-center font-bold text-slate-850">
-                            {Number(entry.score).toFixed(1)}
+                            {Math.round(entry.score)}
                          </td>
                          <td className="px-6 py-2.5 text-center font-bold">
                             <span className="text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full text-xs">

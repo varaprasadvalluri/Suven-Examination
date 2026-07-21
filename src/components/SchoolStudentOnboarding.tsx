@@ -3,6 +3,7 @@ import { useDbObserver } from '../lib/observerPattern';
 import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType, doc, setDoc, writeBatch, collection, query, where, onSnapshot, deleteDoc, getDoc, getDocs, limit, startAfter, getCountFromServer, orderBy, updateDoc } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
+import { SchoolCandidateOnboarding } from './SchoolCandidateOnboarding';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
@@ -921,7 +922,14 @@ export const SchoolStudentOnboarding: React.FC = () => {
         batch.delete(docSnap.ref);
       });
 
-      // 4. Delete the student profile document itself
+      // 4. Fetch proctoring logs for the student
+      const logsQuery = query(collection(db, 'proctoring_logs'), where('studentId', '==', studentId));
+      const logsSnap = await getDocs(logsQuery);
+      logsSnap.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
+      });
+
+      // 5. Delete the student profile document itself
       const studentDocRef = doc(db, 'users', studentId);
       batch.delete(studentDocRef);
 
@@ -946,6 +954,10 @@ export const SchoolStudentOnboarding: React.FC = () => {
 
   const filteredStudents = students;
 
+  if (isManualOpen) {
+    return <SchoolCandidateOnboarding onBack={() => setIsManualOpen(false)} />;
+  }
+
   return (
     <div className="space-y-10 px-1 md:px-0">
       
@@ -956,149 +968,13 @@ export const SchoolStudentOnboarding: React.FC = () => {
           <p className="text-slate-500 mt-1 text-wrap break-words text-sm font-medium">Easily onboard student batches via Excel spreadsheets.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          <Dialog open={isManualOpen} onOpenChange={setIsManualOpen}>
-            <DialogTrigger 
-              render={
-                <Button variant="outline" className="flex-grow sm:flex-initial border-indigo-200 text-indigo-600 hover:bg-indigo-50 h-11 text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer transition-all duration-300 shadow-md shadow-indigo-100 hover:scale-[1.02]">
-                  <UserPlus className="h-4 w-4 mr-2 flex-shrink-0" /> Add Scholar Manually
-                </Button>
-              }
-            />
-            <DialogContent className="w-full max-w-[95vw] sm:max-w-md max-h-[92vh] flex flex-col p-0 overflow-hidden rounded-[30px] border-none shadow-[0_25px_50px_-12px_rgba(4f,70,229,0.25)] bg-white animate-in zoom-in-95">
-              
-              {/* Premium Top Hero Header */}
-              <div className="relative overflow-hidden bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 text-white p-6 pb-8 border-b border-white/5">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(99,102,241,0.2),transparent)] pointer-events-none" />
-                <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/5 rounded-full blur-xl pointer-events-none" />
-                <div className="relative z-10 space-y-2">
-                  <div className="inline-flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-400/25 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest text-indigo-300">
-                    <Sparkles className="h-3 w-3 text-[#FFE28A] animate-pulse" />
-                    Registrar Node
-                  </div>
-                  <DialogTitle className="text-xl font-black text-slate-100 tracking-tight text-wrap break-words">Register Candidate</DialogTitle>
-                  <div className="inline-block bg-white/10 text-amber-200 text-[10px] font-mono px-3 py-1 rounded-md border border-white/10 uppercase font-black">
-                    🏫 Institution: {schoolName}
-                  </div>
-                  <DialogDescription className="text-slate-300 text-xs mt-1 leading-relaxed text-wrap break-words">
-                    Load academic credentials to issue secure assessment invitations instantly.
-                  </DialogDescription>
-                </div>
-              </div>
-               
-              <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                
-                {/* Field 1: Name */}
-                <div className="grid gap-1.5 relative">
-                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Candidate Full Name</Label>
-                  <div className="relative">
-                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-indigo-400 pointer-events-none" />
-                    <Input 
-                      className="w-full h-12 pl-11 border-slate-200/80 hover:border-slate-300 focus:border-indigo-600 rounded-xl text-sm font-semibold transition-all shadow-xs" 
-                      value={manualStudent.name} 
-                      onChange={e => setManualStudent({...manualStudent, name: e.target.value})} 
-                      placeholder="e.g. Alexander Pierce" 
-                    />
-                  </div>
-                  <p className="text-[9px] text-slate-400 font-medium">Use official record names for certificate mapping.</p>
-                </div>
-
-                {/* Field 2: Email */}
-                <div className="grid gap-1.5 relative">
-                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Secure Email Address (Optional)</Label>
-                  <div className="relative">
-                    <Inbox className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-indigo-400 pointer-events-none" />
-                    <Input 
-                      className="w-full h-12 pl-11 border-slate-200/80 hover:border-slate-300 focus:border-indigo-600 rounded-xl text-sm font-semibold transition-all shadow-xs" 
-                      type="email" 
-                      value={manualStudent.email} 
-                      onChange={e => setManualStudent({...manualStudent, email: e.target.value})} 
-                      placeholder="e.g. alexander@school.com" 
-                    />
-                  </div>
-                  <p className="text-[9px] text-slate-400 font-medium">Invitation passes with login hashes will ship here.</p>
-                </div>
-
-                {/* Academic Level & Section layout */}
-                <div className="grid grid-cols-2 gap-4">
-                  
-                  <div className="grid gap-1.5">
-                    <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Academic Grade</Label>
-                    <Select 
-                      value={manualStudent.class} 
-                      onValueChange={val => setManualStudent({...manualStudent, class: val})}
-                    >
-                      <SelectTrigger className="w-full h-12 bg-white border-2 border-slate-300 hover:border-indigo-500 focus:border-indigo-650 rounded-xl text-sm font-bold text-slate-900 transition-all shadow-sm px-4 justify-between">
-                        <SelectValue placeholder="Pick Grade" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[180px] overflow-y-auto bg-white border-2 border-slate-300 shadow-xl rounded-xl p-1 z-50">
-                        {ACADEMIC_LEVELS.map(level => (
-                          <SelectItem key={level} value={level} className="text-xs font-bold font-sans text-slate-800 hover:bg-slate-50 cursor-pointer py-1.5 px-2.5 rounded-lg">
-                            {level}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid gap-1.5">
-                    <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Section</Label>
-                    <Input 
-                      className="w-full h-12 border-slate-200/80 hover:border-slate-300 focus:border-indigo-600 rounded-xl text-sm font-bold text-center transition-all shadow-xs" 
-                      value={manualStudent.section} 
-                      onChange={e => setManualStudent({...manualStudent, section: e.target.value})} 
-                      placeholder="e.g. B" 
-                    />
-                  </div>
-
-                </div>
-
-                {/* Field 4: Roll Register Number */}
-                <div className="grid gap-1.5 relative">
-                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Institution Register / Roll Number</Label>
-                  <div className="relative">
-                    <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-indigo-400 pointer-events-none" />
-                    <Input 
-                      className="w-full h-12 pl-11 border-slate-200/80 hover:border-slate-300 focus:border-indigo-600 rounded-xl font-mono text-sm font-bold transition-all shadow-xs" 
-                      value={manualStudent.rollNumber} 
-                      onChange={e => setManualStudent({...manualStudent, rollNumber: e.target.value})} 
-                      placeholder="e.g. REG-78401" 
-                    />
-                  </div>
-                  <p className="text-[9px] text-slate-400 font-medium">Must be a unique code to prevent registry intersection.</p>
-                </div>
-
-                {/* Field 5: Date of Birth */}
-                <div className="grid gap-1.5 relative">
-                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Date of Birth (DOB)</Label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-indigo-400 pointer-events-none" />
-                    <Input 
-                      type="date"
-                      className="w-full h-12 pl-11 border-slate-200/80 hover:border-slate-300 focus:border-indigo-600 rounded-xl text-sm font-semibold transition-all shadow-xs cursor-pointer" 
-                      value={manualStudent.dob} 
-                      onChange={e => setManualStudent({...manualStudent, dob: e.target.value})} 
-                    />
-                  </div>
-                  <p className="text-[9px] text-slate-400 font-medium">Acts as a unique secondary verification field.</p>
-                </div>
-
-              </div>
-               
-              {/* Premium Footer with Gradient Trigger */}
-              <div className="p-6 bg-slate-50 border-t border-slate-100 flex flex-col gap-2">
-                <Button 
-                  onClick={handleManualAdd} 
-                  className="w-full h-12 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-md shadow-indigo-200 cursor-pointer hover:scale-[1.01]"
-                >
-                  Confirm Registration
-                </Button>
-                <div className="flex items-center justify-center gap-1 text-[9px] text-slate-400 font-medium pt-1">
-                  <CheckCircle2 size={12} className="text-emerald-500" />
-                  <span>Saves securely to encrypted institution database</span>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button 
+            onClick={() => setIsManualOpen(true)}
+            variant="outline" 
+            className="flex-grow sm:flex-initial border-indigo-200 text-indigo-600 hover:bg-indigo-50 h-11 text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer transition-all duration-300 shadow-md shadow-indigo-100 hover:scale-[1.02]"
+          >
+            <UserPlus className="h-4 w-4 mr-2 flex-shrink-0" /> Register Candidate
+          </Button>
           <Button variant="outline" onClick={downloadTemplate} className="flex-grow sm:flex-initial border-slate-200 h-11 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer">
             <Download className="h-4 w-4 mr-2 flex-shrink-0" /> Template Template
           </Button>

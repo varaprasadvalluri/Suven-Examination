@@ -12,6 +12,8 @@ import { ResultDetails } from './components/ResultDetails';
 import { AdminResults } from './components/AdminResults';
 import { LoginPage } from './components/LoginPage';
 import { AdminSchoolManagement } from './components/AdminSchoolManagement';
+import { AdminSchoolOnboarding } from './components/AdminSchoolOnboarding';
+import { SchoolCandidateOnboarding } from './components/SchoolCandidateOnboarding';
 import { SchoolDashboard } from './components/SchoolDashboard';
 import { LiveProctoringWall } from './components/LiveProctoringWall';
 import { SyllabusTracker } from './components/SyllabusTracker';
@@ -20,6 +22,7 @@ import { AdminAnalytics } from './components/AdminAnalytics';
 import { StudentLinkEntry } from './components/StudentLinkEntry';
 import { ScalePerformanceHub } from './components/ScalePerformanceHub';
 import { ApiDocs } from './components/ApiDocs';
+import { AdminCloudBilling } from './components/AdminCloudBilling';
 import { GraduationCap } from 'lucide-react';
 import { Button } from './components/ui/button';
 
@@ -120,6 +123,16 @@ export default function App() {
               <Layout><AdminSchoolManagement /></Layout>
             </ProtectedRoute>
           } />
+          <Route path="/admin/schools/onboard" element={
+            <ProtectedRoute roles={['admin']}>
+              <Layout><AdminSchoolOnboarding /></Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/school/candidate-onboard" element={
+            <ProtectedRoute roles={['admin', 'school']}>
+              <Layout><SchoolCandidateOnboarding /></Layout>
+            </ProtectedRoute>
+          } />
           <Route path="/admin/analytics" element={
             <ProtectedRoute roles={['admin']}>
               <Layout><AdminAnalytics /></Layout>
@@ -138,6 +151,11 @@ export default function App() {
           <Route path="/admin/api-docs" element={
             <ProtectedRoute roles={['admin']}>
               <Layout><ApiDocs /></Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/gcp-billing" element={
+            <ProtectedRoute roles={['admin']}>
+              <Layout><AdminCloudBilling /></Layout>
             </ProtectedRoute>
           } />
           <Route path="/admin/results/:examId" element={
