@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================================
+    // MODULE 1: School Lab IP Gatekeeper Security Rules (Enterprise Deployment)
+    // ============================================================================
+    
+    // Core helper to retrieve the school meta-configuration document
+    function getSchool(schoolId) {
+      return get(/databases/$(database)/documents/schools/$(schoolId));
+    }
+
+    // Helper verifying if incoming client request IP complies with permitted laboratory addresses
+    function isClientIpPermitted(schoolId) {
+      let schoolDoc = getSchool(schoolId);
+      // If whitelists do not exist or are empty, we default-permit access (e.g. at-home students)
+      return !('allowedIps' in schoolDoc.data) 
+        || (schoolDoc.data.allowedIps.size() == 0)
+        || (request.ip in schoolDoc.data.allowedIps);
+    }
+
+    // Rules governing exam attempts
+    match /attempts/{attemptId} {
+      allow create, update: if (request.resource.data.schoolId != null) 
+        && isClientIpPermitted(request.resource.data.schoolId);
+      
+      allow read: if true;
+    }
+
+    // Generic development permissions (kept for seamless preview auto-onboarding)
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

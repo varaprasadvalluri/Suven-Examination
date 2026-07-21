@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  suvenedu-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: suvenedu-production-service
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Add database or secret keys here as environment variables (or load from a .env file)
+      # - GEMINI_API_KEY=${GEMINI_API_KEY}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"

@@ -1,0 +1,37 @@
+steps:
+  # Step 1: Build the optimized production Docker image using Cloud Build
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '-t', 'gcr.io/$PROJECT_ID/suvenedu-service:latest',
+      '-t', 'gcr.io/$PROJECT_ID/suvenedu-service:$COMMIT_SHA',
+      '.'
+    ]
+
+  # Step 2: Push the image to Google Container Registry (GCR)
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/suvenedu-service:$COMMIT_SHA']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/suvenedu-service:latest']
+
+  # Step 3: Deploy to Google Cloud Run with custom autoscaling rules for high-concurrency (10k users)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args: [
+      'run', 'deploy', 'suvenedu-service',
+      '--image', 'gcr.io/$PROJECT_ID/suvenedu-service:$COMMIT_SHA',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--port', '3000',
+      '--min-instances', '5',         # Keep warm container instances active to avoid 9:00 AM cold starts
+      '--max-instances', '50',         # Scale to up to 50 active container environments automatically
+      '--cpu', '2',                    # Dedicate 2 vCPUs per container instance
+      '--memory', '2Gi',               # Dedicate 2GB memory per container instance
+      '--concurrency', '100',          # Allow up to 100 parallel connections per container instance
+      '--timeout', '60s'
+    ]
+
+images:
+  - 'gcr.io/$PROJECT_ID/suvenedu-service:latest'
+  - 'gcr.io/$PROJECT_ID/suvenedu-service:$COMMIT_SHA'
