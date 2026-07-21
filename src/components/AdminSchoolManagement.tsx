@@ -1,6 +1,6 @@
 import React, { useEffect, useState, KeyboardEvent } from 'react';
 import { useDbObserver } from '../lib/observerPattern';
-import { db, handleFirestoreError, OperationType, collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs, limit, startAfter, getCountFromServer, where } from '../lib/firebase';
+import { db, handleFirestoreError, setDoc, OperationType, collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs, limit, startAfter, getCountFromServer, where } from '../lib/firebase';
 import { School, AuthPolicy } from '../types';
 import { Button } from './ui/button';
 import { ConfirmationDialog } from './ConfirmationDialog';
@@ -154,6 +154,35 @@ export const AdminSchoolManagement: React.FC = () => {
   });
 
   // Delete Confirmation States
+
+  const [isPreRegisterOpen, setIsPreRegisterOpen] = useState(false);
+  const [preRegisterEmail, setPreRegisterEmail] = useState("");
+  const [isPreRegistering, setIsPreRegistering] = useState(false);
+
+  const handlePreRegister = async () => {
+    if (!preRegisterEmail.trim()) {
+      toast.error("Email cannot be empty");
+      return;
+    }
+    setIsPreRegistering(true);
+    try {
+      const sanitizedEmail = preRegisterEmail.trim().toLowerCase();
+      const safeId = sanitizedEmail.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const sRef = doc(db, 'allowed_schools', safeId);
+      await setDoc(sRef, {
+        email: sanitizedEmail,
+        createdAt: new Date().toISOString()
+      });
+      toast.success("Email successfully pre-registered");
+      setIsPreRegisterOpen(false);
+      setPreRegisterEmail("");
+    } catch (e) {
+      toast.error("Failed to pre-register email");
+    } finally {
+      setIsPreRegistering(false);
+    }
+  };
+
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [schoolToDelete, setSchoolToDelete] = useState<School | null>(null);
   const [isDeletingSchool, setIsDeletingSchool] = useState(false);
@@ -385,8 +414,44 @@ export const AdminSchoolManagement: React.FC = () => {
           <p className="text-slate-500 font-medium text-sm">Manage all registered institutions on the platform.</p>
         </div>
         
+        
         <div className="flex items-center gap-4">
+          <Dialog open={isPreRegisterOpen} onOpenChange={setIsPreRegisterOpen}>
+            <DialogTrigger>
+              <Button variant="outline" className="h-11 px-6 rounded-xl font-bold flex items-center gap-2 transition-all text-xs cursor-pointer border-slate-200">
+                <Plus className="h-4 w-4" /> 
+                Pre-Register Email
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[400px] rounded-3xl border border-slate-200 shadow-2xl bg-white p-6">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-black text-slate-900">Pre-Register School Admin</DialogTitle>
+                <DialogDescription className="text-slate-500 text-xs font-bold">
+                  Enter the email address of the school administrator to whitelist them for registration.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label className="text-xs font-bold text-slate-700">Admin Email Address</Label>
+                  <Input 
+                    value={preRegisterEmail} 
+                    onChange={e => setPreRegisterEmail(e.target.value)} 
+                    placeholder="admin@school.edu" 
+                    className="h-11 border-slate-200 rounded-xl font-bold text-sm bg-white" 
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setIsPreRegisterOpen(false)} className="rounded-xl h-11 text-xs font-bold">Cancel</Button>
+                <Button onClick={handlePreRegister} disabled={isPreRegistering} className="bg-indigo-600 hover:bg-slate-900 text-white rounded-xl h-11 text-xs font-bold">
+                  {isPreRegistering ? "Saving..." : "Pre-Register"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+
             <SheetTrigger render={
               <Button className="bg-slate-900 hover:bg-black text-white h-11 px-6 rounded-xl font-bold flex items-center gap-2 shadow-sm transition-all text-xs cursor-pointer">
                 <Plus className="h-4 w-4" /> 
@@ -591,6 +656,52 @@ export const AdminSchoolManagement: React.FC = () => {
             {schools.filter(s => s.status === 'inactive').length || 4}
           </span>
           <span className="text-xs font-bold text-amber-500 mt-2">Action needed</span>
+        </div>
+      </div>
+
+      {/* Visual Health Status Summary */}
+      <div className="bg-white border border-slate-200/60 rounded-[20px] p-6 lg:p-8 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+          <div>
+            <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-indigo-600" />
+              Network Health & Access Status
+            </h3>
+            <p className="text-xs text-slate-500 font-medium mt-1">Real-time overview of institutional node configurations.</p>
+          </div>
+          <div className="text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+            {schools.length} Total Nodes
+          </div>
+        </div>
+        
+        <div className="flex gap-1 h-3.5 rounded-full overflow-hidden mb-6 bg-slate-100/50 shadow-inner">
+          <div className="bg-emerald-500 transition-all duration-1000" style={{ width: `${(schools.filter(s => s.status === 'active' && s.allowedDomains?.length > 0).length / (schools.length || 1)) * 100}%` }} title="Fully Active" />
+          <div className="bg-amber-400 transition-all duration-1000" style={{ width: `${(schools.filter(s => s.status === 'active' && (!s.allowedDomains || s.allowedDomains.length === 0)).length / (schools.length || 1)) * 100}%` }} title="Pending Domain" />
+          <div className="bg-rose-400 transition-all duration-1000" style={{ width: `${(schools.filter(s => s.status === 'inactive').length / (schools.length || 1)) * 100}%` }} title="Inactive" />
+        </div>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="flex flex-col gap-1.5 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-emerald-50/50 hover:border-emerald-100 transition-colors">
+            <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" /> Fully Provisioned
+            </div>
+            <span className="text-3xl font-black text-slate-900 font-sans">{schools.filter(s => s.status === 'active' && s.allowedDomains?.length > 0).length}</span>
+            <span className="text-[10px] text-slate-400 font-medium">Verified domains & email configured</span>
+          </div>
+          <div className="flex flex-col gap-1.5 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-amber-50/50 hover:border-amber-100 transition-colors">
+            <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]" /> Domain Unverified
+            </div>
+            <span className="text-3xl font-black text-slate-900 font-sans">{schools.filter(s => s.status === 'active' && (!s.allowedDomains || s.allowedDomains.length === 0)).length}</span>
+            <span className="text-[10px] text-slate-400 font-medium">Missing domain whitelisting</span>
+          </div>
+          <div className="flex flex-col gap-1.5 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-rose-50/50 hover:border-rose-100 transition-colors">
+            <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              <div className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]" /> Action Required
+            </div>
+            <span className="text-3xl font-black text-slate-900 font-sans">{schools.filter(s => s.status === 'inactive').length}</span>
+            <span className="text-[10px] text-slate-400 font-medium">Node suspended or inactive</span>
+          </div>
         </div>
       </div>
 

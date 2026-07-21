@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, db, signInWithGoogle as firebaseSignInWithGoogle, signInWithEmail as firebaseSignInWithEmail, signUpWithEmail as firebaseSignUpWithEmail, logout as firebaseLogout } from './firebase';
+import { auth, db, signInWithGoogle as firebaseSignInWithGoogle, signInWithEmail as firebaseSignInWithEmail, signUpWithEmail as firebaseSignUpWithEmail, logout as firebaseLogout, sendPasswordResetEmail as firebaseSendPasswordResetEmail } from './firebase';
 import { UserProfile, AppPermission } from '../types';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
@@ -15,6 +15,7 @@ interface AuthContextType {
   signInWithDemo: (role: 'admin' | 'school' | 'student') => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  sendPasswordResetEmail: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -254,6 +255,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   };
 
+  const sendPasswordResetEmail = async (email: string) => {
+    try {
+      await firebaseSendPasswordResetEmail(email);
+    } catch (err: any) {
+      console.error("Password reset error:", err);
+      throw err;
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -264,7 +274,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signUpWithEmail,
       signInWithDemo,
       signOut,
-      refreshProfile
+      refreshProfile,
+      sendPasswordResetEmail
     }}>
       {children}
     </AuthContext.Provider>

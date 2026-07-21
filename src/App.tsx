@@ -60,11 +60,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; roles?: string[] }> 
   
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4">
         <div className="relative">
-          <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+          <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
         </div>
-        <p className="text-slate-500 font-mono text-[10px] tracking-widest uppercase animate-pulse">Syncing Security Node...</p>
+        <p className="text-slate-400 font-mono text-[10px] tracking-widest uppercase animate-pulse">Syncing Security Node...</p>
       </div>
     );
   }

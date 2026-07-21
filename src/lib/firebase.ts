@@ -6,7 +6,8 @@ import {
   signOut,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail as firebaseSendPasswordResetEmail
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 export { 
@@ -98,3 +99,5 @@ export const signUpWithEmail = async (email: string, pass: string, name: string)
 };
 
 export const logout = () => signOut(auth);
+
+export const sendPasswordResetEmail = (email: string) => firebaseSendPasswordResetEmail(auth, email);

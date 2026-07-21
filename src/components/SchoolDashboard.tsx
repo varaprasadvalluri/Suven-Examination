@@ -13,8 +13,8 @@ import { Button } from './ui/button';
 import { 
   Building2, Users, ClipboardList, BookOpen, GraduationCap, 
   TrendingUp, Award, ShieldCheck, Zap, BrainCircuit, Activity, 
-  Filter, CheckCircle2, ChevronRight, RefreshCw, BarChart4, ArrowUpRight, Sparkles, Inbox, UserCheck2
-} from 'lucide-react';
+  Filter, CheckCircle2, ChevronRight, RefreshCw, BarChart4, ArrowUpRight, Sparkles, Inbox, UserCheck2,
+Loader2 } from 'lucide-react';
 import { 
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, 
   CartesianGrid, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, Cell
@@ -291,6 +291,13 @@ export const SchoolDashboard: React.FC = () => {
     };
   }, [students, attempts, invitations, exams]);
 
+  
+  if (loading) return (
+     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+       <Loader2 className="h-10 w-10 text-indigo-600 animate-spin" />
+       <p className="text-slate-500 font-bold animate-pulse uppercase tracking-widest text-sm">Synchronizing Intelligence Base...</p>
+     </div>
+  );
   return (
     <div className="school-section">
       

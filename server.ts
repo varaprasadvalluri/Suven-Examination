@@ -13,8 +13,16 @@ import { fileURLToPath } from 'url';
 import { GoogleAuth } from 'google-auth-library';
 import { EduKeyFactory } from './src/lib/idGenerator';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+
+let __dirname, __filename;
+try {
+  __filename = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url);
+  __dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(__filename);
+} catch (e) {
+  __filename = '';
+  __dirname = __dirname || process.cwd();
+}
+
 
 const app = express();
 const PORT = 3000;
@@ -1524,6 +1532,31 @@ app.post('/api/auth/create-profile', async (req, res) => {
     return res.status(400).json({ error: 'Missing parameters uid or email' });
   }
 
+  const emailLower = email.toLowerCase();
+  
+  // Server-side validation for school role
+  let validSchoolId = schoolId;
+  if (role === 'school') {
+    let isAuthorized = false;
+    try {
+      const sRef = clientCollection(clientDb, 'allowed_schools');
+      const q = clientQuery(sRef, clientWhere('email', '==', emailLower));
+      const snap = await clientGetDocs(q);
+      
+      if (!snap.empty) {
+        isAuthorized = true;
+        validSchoolId = 'school-' + uid;
+      }
+      
+      if (!isAuthorized) {
+        return res.status(403).json({ error: 'This email address has not been onboarded by the administrator.' });
+      }
+    } catch (err) {
+      console.error("School validation error:", err);
+      return res.status(500).json({ error: 'Internal server error during validation' });
+    }
+  }
+
   const permissions = role === 'admin' 
     ? ['manage_exams', 'view_results'] 
     : role === 'school' 
@@ -1534,11 +1567,11 @@ app.post('/api/auth/create-profile', async (req, res) => {
   const newProfile = {
     uid,
     name,
-    email: email.toLowerCase(),
+    email: emailLower,
     role,
     permissions,
     createdAt: new Date().toISOString(),
-    ...(schoolId ? { schoolId } : {})
+    ...(validSchoolId ? { schoolId: validSchoolId } : {})
   };
 
   try {

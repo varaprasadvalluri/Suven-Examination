@@ -142,15 +142,22 @@ export function handleErrorAndLog(error: any, actionContext: string): CustomAppE
   });
 
   // 4. Dispatch custom window event so centralized ErrorBoundary can show a rich, interactive diagnostic modal
-  const event = new CustomEvent('app-custom-exception', {
-    detail: {
-      action: customException.action,
-      friendlyMessage: customException.friendlyMessage,
-      technicalDetails: customException.technicalDetails,
-      code: customException.code,
-    }
-  });
-  window.dispatchEvent(event);
+  // Skip showing full crash modal for normal form validation / auth errors, they are handled locally in UI
+  const isFatalCrash = !customException.code.startsWith('auth/') && 
+                       !customException.code.startsWith('validation/') && 
+                       !customException.code.startsWith('school/');
+                       
+  if (isFatalCrash) {
+    const event = new CustomEvent('app-custom-exception', {
+      detail: {
+        action: customException.action,
+        friendlyMessage: customException.friendlyMessage,
+        technicalDetails: customException.technicalDetails,
+        code: customException.code,
+      }
+    });
+    window.dispatchEvent(event);
+  }
 
   return customException;
 }

@@ -100,98 +100,13 @@ export class RootSafetyWrapper extends Component<Props, State> {
       this.handleOfflineEvent();
     }
 
-    // 4. Overwrite standard window.fetch to automatically intercept unhandled status codes globally
-    try {
-      const customFetch = async function (...args: any[]) {
-        try {
-          const response = await originalFetch.apply(window, args as any);
-          
-          if (!response.ok) {
-            const status = response.status;
-            
-            // Intercept unhandled critical status codes
-            if ([400, 401, 403, 404, 500].includes(status)) {
-              const event = new CustomEvent<HttpErrorDetail>('global-http-error', { 
-                detail: { status, url: response.url } 
-              });
-              window.dispatchEvent(event);
-            }
-          }
-          return response;
-        } catch (err) {
-          // Handle failed connection / network interruption gracefully
-          if (!navigator.onLine) {
-            const event = new CustomEvent<HttpErrorDetail>('global-http-error', { 
-              detail: { status: 'offline' } 
-            });
-            window.dispatchEvent(event);
-          }
-          throw err;
-        }
-      };
-
-      // Try direct assignment
-      (window as any).fetch = customFetch;
-    } catch (err) {
-      console.warn('[RootSafetyWrapper] Unable to override window.fetch directly. Trying Object.defineProperty...', err);
-      try {
-        const customFetch = async function (...args: any[]) {
-          try {
-            const response = await originalFetch.apply(window, args as any);
-            
-            if (!response.ok) {
-              const status = response.status;
-              
-              // Intercept unhandled critical status codes
-              if ([400, 401, 403, 404, 500].includes(status)) {
-                const event = new CustomEvent<HttpErrorDetail>('global-http-error', { 
-                  detail: { status, url: response.url } 
-                });
-                window.dispatchEvent(event);
-              }
-            }
-            return response;
-          } catch (err) {
-            // Handle failed connection / network interruption gracefully
-            if (!navigator.onLine) {
-              const event = new CustomEvent<HttpErrorDetail>('global-http-error', { 
-                detail: { status: 'offline' } 
-              });
-              window.dispatchEvent(event);
-            }
-            throw err;
-          }
-        };
-
-        Object.defineProperty(window, 'fetch', {
-          value: customFetch,
-          configurable: true,
-          writable: true,
-          enumerable: true
-        });
-      } catch (err2) {
-        console.warn('[RootSafetyWrapper] Could not intercept window.fetch globally due to strict environment restrictions. Utilizing fallback inline interceptions.', err2);
       }
-    }
-  }
 
   componentWillUnmount(): void {
     // Clean up event listeners and restore standard fetch
     window.removeEventListener('global-http-error', this.handleGlobalHttpError);
     window.removeEventListener('offline', this.handleOfflineEvent);
     window.removeEventListener('online', this.handleOnlineEvent);
-    try {
-      (window as any).fetch = originalFetch;
-    } catch (e) {
-      try {
-        Object.defineProperty(window, 'fetch', {
-          value: originalFetch,
-          configurable: true,
-          writable: true,
-          enumerable: true
-        });
-      } catch (e2) {}
-    }
   }
 
   handleReset = (): void => {

@@ -11,7 +11,7 @@ import { db, doc, getDoc, updateDoc, collection, query, where, getDocs, addDoc, 
 import { handleErrorAndLog } from '../lib/customErrors';
 
 export const LoginPage: React.FC = () => {
-  const { user, profile, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithDemo, signOut } = useAuth();
+  const { user, profile, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithDemo, signOut, sendPasswordResetEmail } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'login' | 'signup' | 'migration'>('login');
   
@@ -672,25 +672,13 @@ export const LoginPage: React.FC = () => {
             if (fallbackEmails.includes(checkEmail)) {
               isAuthorized = true;
               schoolId = 'school-fallback-id';
-            } else {
-              // Dynamically create a new school entry in Firestore so they are never blocked!
-              const newSchoolRef = await addDoc(collection(db, 'schools'), {
-                name: `${trimmedName} Academy`,
-                adminEmail: checkEmail,
-                status: 'active',
-                createdAt: new Date().toISOString(),
-                allowedDomains: [checkEmail.split('@')[1] || '']
-              });
-              schoolId = newSchoolRef.id;
-              isAuthorized = true;
-              toast.success(`Registered and provisioned new school branch: ${trimmedName} Academy`);
             }
           }
         }
       }
 
       if (selectedRole === 'school' && !isAuthorized) {
-        setErrorMessage("Registration allowed only for onboarded schools. This email is not authorized.");
+        setErrorMessage("This email address has not been onboarded by the administrator.");
         setIsLoading(false);
         return;
       }
@@ -698,8 +686,46 @@ export const LoginPage: React.FC = () => {
       await signUpWithEmail(trimmedEmail, signUpPassword, trimmedName, selectedRole, schoolId || undefined);
       toast.success("Account created! Access granted to diagnostic portal.");
     } catch (error: any) {
+      if (error.code === 'auth/email-already-in-use' || (error.message && error.message.includes('email-already-in-use'))) {
+        try {
+          // Attempt to sign in instead if they are already registered
+          await signInWithEmail(trimmedEmail, signUpPassword);
+          toast.success("Account already exists. Successfully signed in!");
+          return;
+        } catch (signInErr: any) {
+          // Fallback to original error if password is wrong
+          setErrorMessage("This email is already registered. If you registered via Google SSO, please use 'Continue with Google' on the Sign In tab. Otherwise, use the 'Forgot password?' link on the Sign In tab.");
+          setIsLoading(false);
+          return;
+        }
+      }
+      
       const mapped = handleErrorAndLog(error, "Authorized Portal Account Registration");
       setErrorMessage(mapped.friendlyMessage);
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast.error("Please enter your email address in the Sign In form first.");
+      return;
+    }
+    
+    if (!isValidEmail(email)) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await sendPasswordResetEmail(email.trim());
+      toast.success("Password reset email sent! Please check your inbox.");
+      setErrorMessage("");
+    } catch (error: any) {
+      const mapped = handleErrorAndLog(error, "Password Reset");
+      toast.error(mapped.friendlyMessage);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -714,11 +740,10 @@ export const LoginPage: React.FC = () => {
   const isSignUpEmailValid = isValidEmail(signUpEmail.trim());
   const isEmailOnboarded = signUpEmail 
     ? (selectedRole === 'admin' || 
-       onboardedEmails.includes(signUpEmail.trim().toLowerCase()) ||
-       onboardedEmails.includes(signUpEmail.trim().toLowerCase().split('@')[1] || ''))
+       onboardedEmails.includes(signUpEmail.trim().toLowerCase()))
     : false;
   const isSignUpPasswordValid = signUpPassword.length >= 6;
-  const isSignUpFormValid = isSignUpNameValid && isSignUpEmailValid && isEmailOnboarded && isSignUpPasswordValid && (selectedRole === 'admin' || selectedRole === 'school');
+  const isSignUpFormValid = isSignUpNameValid && isSignUpEmailValid && isSignUpPasswordValid && (selectedRole === 'admin' || selectedRole === 'school');
 
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#f3f6f9] relative overflow-hidden font-sans text-slate-800">
@@ -1060,7 +1085,7 @@ export const LoginPage: React.FC = () => {
                         <label className="text-xs font-semibold text-slate-700 block">Password</label>
                         <button 
                           type="button"
-                          onClick={() => toast.info("Password recovery features active. Please contact your board registrar for keys.")}
+                          onClick={handleForgotPassword}
                           className="text-xs font-semibold text-[#1a56db] hover:underline"
                         >
                           Forgot password?
@@ -1233,24 +1258,9 @@ export const LoginPage: React.FC = () => {
                               <div>
                                 <strong className="font-extrabold text-amber-900 block">Institutional Authorization Required</strong>
                                 <p className="font-medium text-amber-800 mt-0.5">
-                                  Your email address (<span className="font-bold underline text-amber-950">{signUpEmail.trim().toLowerCase()}</span>) or domain is not yet pre-authorized on the Suven Edu school registry.
+                                  Your email address (<span className="font-bold underline text-amber-950">{signUpEmail.trim().toLowerCase()}</span>) is not yet pre-authorized. Please contact the administrator.
                                 </p>
                               </div>
-                            </div>
-                            
-                            <div className="pt-2 border-t border-amber-200/55 space-y-2">
-                              <span className="font-bold text-amber-900 block uppercase tracking-wider text-[9px]">How to resolve (Clear Actions):</span>
-                              <ul className="list-disc pl-4 space-y-1.5 font-medium text-amber-850">
-                                <li>
-                                  <strong className="text-amber-900">Request Admin Onboarding:</strong> Ask your school registrar or institution coordinator to add your email address or your domain (<span className="font-bold">@{signUpEmail.trim().toLowerCase().split('@')[1] || 'domain'}</span>) inside the <span className="font-bold">School Management Dashboard</span> of their Admin account.
-                                </li>
-                                <li>
-                                  <strong className="text-amber-900">Try Sandbox Environment:</strong> To test and evaluate the Suven Edu features immediately, return to <button type="button" onClick={() => { setActiveTab('login'); setEmail('school@suvenedu.demo'); setPassword('demoPassword123!'); setSelectedRole('school'); }} className="underline font-bold text-indigo-700 hover:text-indigo-900 cursor-pointer">Sign In</button> and use the Teacher Demo account: <code className="bg-amber-150/60 px-1 rounded font-mono font-bold text-amber-950 text-[10px]">school@suvenedu.demo</code>.
-                                </li>
-                                <li>
-                                  <strong className="text-amber-900">Auto-Provision Branch:</strong> If you are registering a brand new school division, you can click <span className="font-bold">Register</span> below. Our registry will dynamically auto-provision a new local school branch for your email address.
-                                </li>
-                              </ul>
                             </div>
                           </div>
                         )}
@@ -1285,8 +1295,12 @@ export const LoginPage: React.FC = () => {
                   {/* Sign Up button */}
                   <button 
                     type="submit" 
-                    disabled={isLoading}
-                    className="w-full h-12 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/10 border-none bg-gradient-to-r from-indigo-950 to-indigo-900 hover:from-slate-950 hover:to-slate-900 text-white hover:scale-[1.01] active:scale-[0.99] block opacity-100"
+                    disabled={isLoading || !isSignUpFormValid}
+                    className={`w-full h-12 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg border-none text-white block ${
+                      isLoading || !isSignUpFormValid
+                        ? 'bg-slate-300 shadow-none cursor-not-allowed text-slate-500'
+                        : 'bg-gradient-to-r from-indigo-950 to-indigo-900 hover:from-slate-950 hover:to-slate-900 cursor-pointer shadow-indigo-600/10 hover:scale-[1.01] active:scale-[0.99] opacity-100'
+                    }`}
                   >
                     {isLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin text-white mx-auto" />

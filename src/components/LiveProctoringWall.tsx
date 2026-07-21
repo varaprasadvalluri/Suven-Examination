@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db, handleFirestoreError, OperationType, collection, query, where, limit, onSnapshot } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType, collection, query, where, limit, onSnapshot, orderBy } from '../lib/firebase';
 import { Attempt, ProctoringLog } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Badge } from './ui/badge';
@@ -21,8 +21,19 @@ import { toast } from 'sonner';
 
 export const LiveProctoringWall: React.FC = () => {
   const { profile } = useAuth();
-  const [activeAttempts, setActiveAttempts] = useState<Attempt[]>([]);
+    const [activeAttempts, setActiveAttempts] = useState<Attempt[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!profile) return;
+    const logsQuery = query(collection(db, 'proctoring_logs'), orderBy('timestamp', 'desc'), limit(50));
+    const unsubLogs = onSnapshot(logsQuery, (snap) => {
+      setLogs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubLogs();
+  }, [profile]);
+
 
   useEffect(() => {
     if (!profile) return;
@@ -172,25 +183,24 @@ export const LiveProctoringWall: React.FC = () => {
             <Badge className="bg-indigo-600 text-white font-black text-[10px] uppercase">Processing Live</Badge>
          </CardHeader>
          <CardContent className="p-0 max-h-[300px] overflow-y-auto custom-scrollbar">
-            <div className="divide-y divide-white/5">
-                {[
-                  { time: '14:32:01', user: 'Student #402', event: 'Multiple persons detected in frame', level: 'Critical' },
-                  { time: '14:31:45', user: 'Student #219', event: 'Looked away from screen (3s)', level: 'Warning' },
-                  { time: '14:30:12', user: 'Student #882', event: 'Unauthorized tab focus reset', level: 'Info' },
-                  { time: '14:28:54', user: 'Student #501', event: 'Microphone activity spike detected', level: 'Warning' }
-                ].map((log, i) => (
-                  <div key={i} className="px-10 py-6 flex items-center justify-between hover:bg-white/5 transition-colors group cursor-default">
+                        <div className="divide-y divide-white/5">
+                {logs.length === 0 ? (
+                  <div className="p-10 text-center text-slate-500 font-bold uppercase tracking-widest text-xs">No anomalies detected yet.</div>
+                ) : logs.map((log, i) => {
+                  const isCritical = log.type === 'copy_paste' || log.type === 'tab_switch';
+                  const isWarning = log.type === 'blur' || log.type === 'fullscreen_exit';
+                  return (
+                  <div key={log.id || i} className="px-10 py-6 flex items-center justify-between hover:bg-white/5 transition-colors group cursor-default">
                      <div className="flex items-center gap-6">
-                        <span className="font-mono text-xs text-slate-500">{log.time}</span>
-                        <div className={`h-2 w-2 rounded-full ${log.level === 'Critical' ? 'bg-rose-500 shadow-[0_0_10px_#f43f5e]' : log.level === 'Warning' ? 'bg-amber-400Shadow-[0_0_10px_#fbbf24]' : 'bg-indigo-400'}`} />
+                        <span className="font-mono text-xs text-slate-500">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                        <div className={`h-2 w-2 rounded-full ${isCritical ? 'bg-rose-500 shadow-[0_0_10px_#f43f5e]' : isWarning ? 'bg-amber-400 shadow-[0_0_10px_#fbbf24]' : 'bg-indigo-400'}`} />
                         <div>
-                           <p className="text-sm font-bold tracking-tight">{log.event}</p>
-                           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">{log.user} • Network ID: 192.168.1.1</p>
+                           <p className="text-sm font-bold tracking-tight">{log.description || log.type}</p>
+                           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Student: {log.studentId} • Attempt: {log.attemptId}</p>
                         </div>
                      </div>
-                     <Button variant="ghost" className="opacity-0 group-hover:opacity-100 rounded-xl font-black text-[9px] uppercase tracking-widest text-slate-400 hover:text-white transition-all">Inspect Frame</Button>
                   </div>
-                ))}
+                )})}
             </div>
          </CardContent>
       </Card>
