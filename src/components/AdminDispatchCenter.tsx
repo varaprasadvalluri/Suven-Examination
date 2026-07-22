@@ -112,17 +112,7 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
           .map(d => ({ id: d.id, ...d.data() }))
           .filter((u: any) => u.role === 'student' || !u.role);
         
-        // If no students exist, load some high-fidelity mocks so the admin doesn't look empty!
-        if (studentList.length === 0) {
-          setStudents([
-            { id: 'm1', name: 'Albin Thomas', rollNumber: 'ROLL-1304', email: 'albin@edu.com', phone: '+91 9845302144' },
-            { id: 'm2', name: 'Megha Sastri', rollNumber: 'ROLL-1388', email: 'megha@edu.com', phone: '+91 7402318894' },
-            { id: 'm3', name: 'Tanveer Ahmed', rollNumber: 'ROLL-1402', email: 'tanveer@edu.com', phone: '+91 8055601245' },
-            { id: 'm4', name: 'Christina Paul', rollNumber: 'ROLL-1422', email: 'christina@spam.com', phone: '+91 9901416622' }, // will trigger filter error demo
-          ]);
-        } else {
-          setStudents(studentList);
-        }
+        setStudents(studentList);
       } catch (err) {
         console.error(err);
       } finally {

@@ -321,19 +321,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const firebaseUser = await firebaseSignUpWithEmail(email, pass, name);
       const userRef = doc(db, 'users', firebaseUser.uid);
+      const lowerEmail = email.trim().toLowerCase();
+
+      let resolvedSchoolId = schoolId;
+      if (!resolvedSchoolId) {
+        const schoolLookup = await lookupSchoolByEmail(lowerEmail);
+        if (schoolLookup.schoolId) {
+          resolvedSchoolId = schoolLookup.schoolId;
+        } else if (role === 'school') {
+          resolvedSchoolId = 'school-' + lowerEmail.replace(/[^a-zA-Z0-9]/g, '-');
+        }
+      }
+
+      let assignedRole = role;
+      if (assignedRole === 'admin') {
+        const isAdminInFirestore = await checkFirestoreAdminStatus(firebaseUser, lowerEmail);
+        if (!isAdminInFirestore) {
+          assignedRole = 'school';
+        }
+      }
 
       let permissions: AppPermission[] = [];
-      if (role === 'admin') permissions = ['manage_exams', 'view_results'];
-      else if (role === 'school') permissions = ['manage_exams', 'view_results', 'manage_students'];
+      if (assignedRole === 'admin') permissions = ['manage_exams', 'view_results'];
+      else if (assignedRole === 'school') permissions = ['manage_exams', 'view_results', 'manage_students'];
       else permissions = ['take_exams'];
 
       const newProfile: UserProfile = {
         uid: firebaseUser.uid,
         name,
-        email,
-        role,
+        email: lowerEmail,
+        role: assignedRole,
         permissions,
-        schoolId,
+        schoolId: resolvedSchoolId,
         createdAt: new Date().toISOString()
       };
 

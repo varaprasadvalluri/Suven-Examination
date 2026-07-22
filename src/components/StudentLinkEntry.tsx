@@ -637,15 +637,27 @@ export const StudentLinkEntry: React.FC = () => {
           {/* Badge & Header */}
           <div className="space-y-4">
             <div className="inline-flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-amber-500">
-              📋 EXAMINATION INSTRUCTIONS
+              📋 EXAMINATION INSTRUCTIONS — {exam.title}
             </div>
             <h1 className="text-3xl md:text-5xl font-display font-black tracking-tight text-white leading-none">
               Before You Begin
             </h1>
             <p className="text-slate-400 text-sm md:text-base font-medium max-w-2xl leading-relaxed">
-              Read all instructions carefully. Once the exam starts, the timer cannot be paused.
+              Read all question paper guidelines carefully. Once the exam starts, the timer cannot be paused.
             </p>
           </div>
+
+          {/* Question Paper Custom Instructions & Guidelines (If present in exam metadata) */}
+          {(exam.description || (exam as any).instructions) && (
+            <div className="bg-[#151D30] border-2 border-amber-500/30 p-6 rounded-2xl space-y-3 shadow-xl">
+              <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
+                <Sparkles size={16} /> Question Paper Specific Guidelines
+              </div>
+              <div className="text-sm text-slate-200 font-medium leading-relaxed whitespace-pre-wrap">
+                {exam.description || (exam as any).instructions}
+              </div>
+            </div>
+          )}
 
           {/* Grid of Instruction blocks */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

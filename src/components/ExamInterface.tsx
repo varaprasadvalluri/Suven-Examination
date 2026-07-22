@@ -6,10 +6,11 @@ import { MathInputToolbar } from './MathInputToolbar';
 import { Button } from './ui/button';
 import { Card, CardContent, CardFooter } from './ui/card';
 import { Badge } from './ui/badge';
-import { Clock, ChevronLeft, Circle, ArrowLeft, ArrowRight, ChevronRight, Send, HelpCircle, ShieldAlert, PauseCircle, Eye, Volume2, ListChecks, X, AlertTriangle, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Clock, ChevronLeft, Circle, ArrowLeft, ArrowRight, ChevronRight, Send, HelpCircle, ShieldAlert, PauseCircle, Eye, Volume2, ListChecks, X, AlertTriangle, CheckCircle2, AlertCircle, LogOut, Home, FileQuestion } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
+import { useAuth } from '../lib/AuthContext';
 import {
   Dialog,
   DialogContent,
@@ -32,6 +33,7 @@ import { examAnswerQueue } from '../services/api';
 const ExamInterfaceCore: React.FC = () => {
   const { attemptId } = useParams<{ attemptId: string }>();
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const { isOnline, isSynced, syncAnswers, forceBackgroundSync } = useExamSync();
   
   const [attempt, setAttempt] = useState<Attempt | null>(null);
@@ -46,6 +48,7 @@ const ExamInterfaceCore: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [isSubmitConfirmOpen, setIsSubmitConfirmOpen] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
   const [hasWarnedUnder5Min, setHasWarnedUnder5Min] = useState(false);
   
   const [timePerQuestion, setTimePerQuestion] = useState<Record<number, number>>({});
@@ -1164,8 +1167,39 @@ const ExamInterfaceCore: React.FC = () => {
   
   if (!exam || questions.length === 0 || !attempt) {
     return (
-      <div className="p-8 text-center text-slate-500 font-medium">
-        No questions or attempt node loaded.
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl space-y-6">
+          <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mx-auto">
+            <FileQuestion className="w-8 h-8" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-100">No Questions Found</h2>
+            <p className="text-slate-400 text-sm mt-2 leading-relaxed">
+              No questions were registered under this question paper or examination attempt node. Please contact your examination administrator.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <Button
+              onClick={() => navigate('/')}
+              variant="outline"
+              className="flex-1 border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200"
+            >
+              <Home className="w-4 h-4 mr-2" />
+              Dashboard
+            </Button>
+            <Button
+              onClick={async () => {
+                await signOut();
+                navigate('/login');
+              }}
+              variant="destructive"
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Log Out
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -1305,6 +1339,14 @@ const ExamInterfaceCore: React.FC = () => {
             <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full text-[10px] font-bold hidden sm:flex items-center gap-1.5">
                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> Proctored
             </span>
+            <Button
+              onClick={() => setIsInstructionsOpen(true)}
+              variant="outline"
+              className="bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700 h-9 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            >
+              <HelpCircle size={14} className="text-amber-400" />
+              <span className="hidden md:inline">Instructions</span>
+            </Button>
             <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-1.5 rounded-lg text-slate-200 font-mono font-bold text-sm shadow-inner shadow-black/20">
                <Clock size={14} className="text-slate-500" />
                {formatTime(timeLeft)}
@@ -1612,6 +1654,92 @@ const ExamInterfaceCore: React.FC = () => {
               disabled={loading}
             >
               {loading ? "Transmitting..." : "Yes, Submit Exam"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dynamic Question Paper Instructions Modal */}
+      <Dialog open={isInstructionsOpen} onOpenChange={setIsInstructionsOpen}>
+        <DialogContent className="sm:max-w-2xl bg-[#0f111a] text-slate-200 rounded-3xl border border-slate-800 shadow-2xl p-6 select-none max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-widest mb-1">
+              <FileQuestion size={16} /> Question Paper Guidelines
+            </div>
+            <DialogTitle className="text-2xl font-display font-black text-white tracking-tight">
+              {exam?.title || 'Examination Instructions'}
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs font-medium">
+              Dynamic test instructions for this specific assessment.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Custom Guidelines */}
+            {(exam?.description || (exam as any)?.instructions) && (
+              <div className="bg-[#171a26] p-5 rounded-2xl border border-amber-500/20 space-y-2">
+                <p className="text-xs font-black uppercase text-amber-400 tracking-wider">Paper Specific Syllabus & Guidelines</p>
+                <p className="text-xs text-slate-300 font-medium leading-relaxed whitespace-pre-wrap">
+                  {exam?.description || (exam as any)?.instructions}
+                </p>
+              </div>
+            )}
+
+            {/* Structure Summary Grid */}
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="bg-[#171a26] p-3 rounded-xl border border-slate-800">
+                <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Duration</span>
+                <span className="text-base font-black text-white font-mono">{exam?.duration || 180} min</span>
+              </div>
+              <div className="bg-[#171a26] p-3 rounded-xl border border-slate-800">
+                <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Questions</span>
+                <span className="text-base font-black text-white font-mono">{questions.length}</span>
+              </div>
+              <div className="bg-[#171a26] p-3 rounded-xl border border-slate-800">
+                <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Marks</span>
+                <span className="text-base font-black text-white font-mono">{exam?.totalMarks || 120}</span>
+              </div>
+            </div>
+
+            {/* Marking Rules */}
+            <div className="bg-[#171a26] p-4 rounded-2xl border border-slate-800 space-y-2">
+              <p className="text-xs font-black uppercase text-indigo-400 tracking-wider">Marking Scheme</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex items-center gap-2 text-emerald-400 font-bold bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
+                  <CheckCircle2 size={16} /> Correct Answer: +{currentQuestion?.marks || 4} marks
+                </div>
+                <div className="flex items-center gap-2 text-rose-400 font-bold bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
+                  <AlertCircle size={16} /> Incorrect Answer: -1 mark
+                </div>
+              </div>
+            </div>
+
+            {/* Navigation & Color Legend */}
+            <div className="space-y-2">
+              <p className="text-xs font-black uppercase text-slate-400 tracking-wider">Question Palette Legend</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-bold">
+                <div className="flex items-center gap-2 bg-[#171a26] p-2 rounded-lg border border-slate-800">
+                  <span className="h-3 w-3 rounded-full bg-emerald-500" /> Answered
+                </div>
+                <div className="flex items-center gap-2 bg-[#171a26] p-2 rounded-lg border border-slate-800">
+                  <span className="h-3 w-3 rounded-full bg-rose-500" /> Not Answered
+                </div>
+                <div className="flex items-center gap-2 bg-[#171a26] p-2 rounded-lg border border-slate-800">
+                  <span className="h-3 w-3 rounded-full bg-purple-500" /> Mark for Review
+                </div>
+                <div className="flex items-center gap-2 bg-[#171a26] p-2 rounded-lg border border-slate-800">
+                  <span className="h-3 w-3 rounded-full bg-slate-700" /> Unvisited
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              onClick={() => setIsInstructionsOpen(false)}
+              className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold uppercase tracking-wider text-xs border-none cursor-pointer"
+            >
+              Resume Test
             </Button>
           </DialogFooter>
         </DialogContent>
