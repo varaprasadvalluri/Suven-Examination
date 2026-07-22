@@ -2035,6 +2035,127 @@ app.post('/api/gcp/sync-iam', async (req, res) => {
   }
 });
 
+// GCP LIVE BILLING & INFRASTRUCTURE MONITORING GATEWAY
+app.post('/api/gcp/live-billing', async (req, res) => {
+  const { userAccessToken, projectIdOverride, userEmail } = req.body || {};
+  const targetProjectId = projectIdOverride || detectedContainerProjectId || "project-02bb6275-51ac-45e7-940";
+  const projectNumber = "489976275182";
+  const userAccount = userEmail || "suveen2619@gmail.com";
+  const gcpConsoleUrl = `https://console.cloud.google.com/welcome/new?authuser=1&project=${targetProjectId}`;
+
+  let token = userAccessToken;
+  if (!token) {
+    try {
+      const client = await auth.getClient();
+      const tokenRes = await client.getAccessToken();
+      token = tokenRes.token;
+    } catch (e) {
+      console.warn("Could not retrieve ADC token:", e);
+    }
+  }
+
+  const result: any = {
+    success: true,
+    targetProjectId,
+    projectNumber,
+    userAccount,
+    gcpConsoleUrl,
+    timestamp: new Date().toISOString(),
+    apiStatus: {
+      billingApiEnabled: false,
+      resourceManagerEnabled: false,
+      serviceUsageEnabled: false,
+      enableBillingApiUrl: `https://console.cloud.google.com/apis/library/cloudbilling.googleapis.com?project=${targetProjectId}`,
+      enableResourceManagerUrl: `https://console.cloud.google.com/apis/library/cloudresourcemanager.googleapis.com?project=${targetProjectId}`,
+      enableServiceUsageUrl: `https://console.cloud.google.com/apis/library/serviceusage.googleapis.com?project=${targetProjectId}`
+    },
+    billingInfo: null,
+    projectDetails: null,
+    enabledServices: []
+  };
+
+  if (token) {
+    // 1. Try Billing Info
+    try {
+      const bRes = await fetch(`https://cloudbilling.googleapis.com/v1/projects/${targetProjectId}/billingInfo`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const bData = await bRes.json();
+      if (bRes.ok) {
+        result.apiStatus.billingApiEnabled = true;
+        result.billingInfo = {
+          billingAccountName: bData.billingAccountName || "Not Connected",
+          billingEnabled: bData.billingEnabled || false,
+          name: bData.name || "",
+          projectId: bData.projectId || targetProjectId
+        };
+      } else {
+        result.billingInfoError = bData.error?.message || "Cloud Billing API restricted or disabled";
+      }
+    } catch (err: any) {
+      result.billingInfoError = err.message;
+    }
+
+    // 2. Try Project Info from Resource Manager
+    try {
+      const pRes = await fetch(`https://cloudresourcemanager.googleapis.com/v1/projects/${targetProjectId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const pData = await pRes.json();
+      if (pRes.ok) {
+        result.apiStatus.resourceManagerEnabled = true;
+        result.projectDetails = {
+          projectId: pData.projectId,
+          projectNumber: pData.projectNumber,
+          name: pData.name,
+          lifecycleState: pData.lifecycleState,
+          createTime: pData.createTime
+        };
+      }
+    } catch (err: any) {
+      result.projectError = err.message;
+    }
+
+    // 3. Try Enabled Services
+    try {
+      const sRes = await fetch(`https://serviceusage.googleapis.com/v1/projects/${targetProjectId}/services?filter=state:ENABLED&pageSize=50`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const sData = await sRes.json();
+      if (sRes.ok && sData.services) {
+        result.apiStatus.serviceUsageEnabled = true;
+        result.enabledServices = sData.services.map((s: any) => ({
+          name: s.name,
+          title: s.config?.title || s.name,
+          state: s.state
+        }));
+      }
+    } catch (err: any) {
+      result.servicesError = err.message;
+    }
+  }
+
+  // Fetch Firestore Live Counts from DB
+  try {
+    const usersSnap = await clientGetDocs(clientCollection(clientDb, 'users'));
+    const schoolsSnap = await clientGetDocs(clientCollection(clientDb, 'schools'));
+    const examsSnap = await clientGetDocs(clientCollection(clientDb, 'exams'));
+    const resultsSnap = await clientGetDocs(clientCollection(clientDb, 'results'));
+
+    result.dbStats = {
+      users: usersSnap.size || 0,
+      schools: schoolsSnap.size || 0,
+      exams: examsSnap.size || 0,
+      results: resultsSnap.size || 0,
+      totalDocuments: (usersSnap.size || 0) + (schoolsSnap.size || 0) + (examsSnap.size || 0) + (resultsSnap.size || 0)
+    };
+  } catch (err: any) {
+    result.dbStats = { users: 0, schools: 0, exams: 0, results: 0, totalDocuments: 0 };
+  }
+
+  return res.status(200).json(result);
+});
+
 // CLOUD DATABASE FIRESTORE MIGRATION GATEWAY
 app.post('/api/db/migrate', async (req, res) => {
   const { sourceConfigOverride } = req.body;

@@ -1,10 +1,9 @@
 {
-  "projectId": "project-02bb6275-51ac-45e7-940",
+  "projectId": "gen-lang-client-0086284509",
   "appId": "1:486328864423:web:6a971b689b5a81e51c5582",
   "apiKey": "AIzaSyD-AzMGuVYnFwhFLOStoerl21LSD7vkIvc",
-  "authDomain": "project-02bb6275-51ac-45e7-940.firebaseapp.com",
-  "firestoreDatabaseId": "suven-edu",
-  "storageBucket": "project-02bb6275-51ac-45e7-940.firebasestorage.app",
+  "authDomain": "gen-lang-client-0086284509.firebaseapp.com",
+  "storageBucket": "gen-lang-client-0086284509.firebasestorage.app",
   "messagingSenderId": "486328864423",
   "measurementId": "",
   "oAuthClientId": "486328864423-kgc4l02mssbiqup4qlrpdg8lj0gj93io.apps.googleusercontent.com",

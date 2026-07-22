@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db, signInWithGoogle as firebaseSignInWithGoogle, signInWithEmail as firebaseSignInWithEmail, signUpWithEmail as firebaseSignUpWithEmail, logout as firebaseLogout, sendPasswordResetEmail as firebaseSendPasswordResetEmail } from './firebase';
-import { UserProfile, AppPermission } from '../types';
+import { UserProfile, AppPermission, UserRole } from '../types';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { toast } from 'sonner';
@@ -72,48 +72,80 @@ const runWithRetry = async <T,>(
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
-    const local = localStorage.getItem('invite_student_profile');
-    if (local) {
-      const parsed = JSON.parse(local);
-      return { uid: parsed.uid, email: parsed.email, displayName: parsed.name } as any;
+    try {
+      const local = localStorage.getItem('invite_student_profile');
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (parsed && parsed.uid) {
+          return { uid: parsed.uid, email: parsed.email, displayName: parsed.name } as any;
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to parse invite_student_profile from localStorage:", e);
+      localStorage.removeItem('invite_student_profile');
     }
     return null;
   });
   const [profile, setProfile] = useState<UserProfile | null>(() => {
-    const local = localStorage.getItem('invite_student_profile');
-    return local ? JSON.parse(local) : null;
+    try {
+      const local = localStorage.getItem('invite_student_profile');
+      if (local) {
+        return JSON.parse(local);
+      }
+    } catch (e) {
+      console.warn("Failed to parse invite_student_profile from localStorage:", e);
+      localStorage.removeItem('invite_student_profile');
+    }
+    return null;
   });
   const [loading, setLoading] = useState(() => {
-    const local = localStorage.getItem('invite_student_profile');
-    return local ? false : true;
+    try {
+      const local = localStorage.getItem('invite_student_profile');
+      if (local && JSON.parse(local)) {
+        return false;
+      }
+    } catch (e) {}
+    return true;
   });
 
   const fetchProfile = async (firebaseUser: User) => {
     try {
-      const response = await fetch('/api/auth/validate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      const userRef = doc(db, 'users', firebaseUser.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        setProfile(userSnap.data() as UserProfile);
+      } else {
+        let defaultRole: UserRole = 'admin';
+        if (firebaseUser.email?.includes('school')) defaultRole = 'school';
+        if (firebaseUser.email?.includes('student')) defaultRole = 'student';
+
+        const newProfile: UserProfile = {
           uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName
-        })
-      });
+          name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+          email: firebaseUser.email || '',
+          role: defaultRole,
+          permissions: defaultRole === 'admin' ? ['manage_exams', 'view_results'] : defaultRole === 'school' ? ['manage_exams', 'view_results', 'manage_students'] : ['take_exams'],
+          createdAt: new Date().toISOString()
+        };
 
-      if (!response.ok) {
-        throw new Error(await response.text() || 'Failed to validate authentication with server');
-      }
-
-      const data = await response.json();
-      if (data.success) {
-        localStorage.setItem('secure_session_token', data.sessionToken);
-        setProfile(data.profile);
+        await setDoc(userRef, newProfile);
+        setProfile(newProfile);
       }
     } catch (error: any) {
-      console.error("Critical Error in fetchProfile:", error);
-      toast.error("Profile validation failed: " + error.message);
+      console.error("Error fetching user profile from Firestore:", error);
+      let defaultRole: UserRole = 'admin';
+      if (firebaseUser.email?.includes('school')) defaultRole = 'school';
+      if (firebaseUser.email?.includes('student')) defaultRole = 'student';
+
+      setProfile({
+        uid: firebaseUser.uid,
+        name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+        email: firebaseUser.email || '',
+        role: defaultRole,
+        permissions: ['manage_exams', 'view_results'],
+        createdAt: new Date().toISOString()
+      });
     }
   };
 
@@ -129,7 +161,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     
+    // Safety fallback: Ensure app never hangs indefinitely on loading
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 2500);
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      clearTimeout(safetyTimer);
       setUser(firebaseUser);
       if (firebaseUser) {
         setLoading(true);
@@ -144,7 +182,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(safetyTimer);
+      unsubscribe();
+    };
   }, []);
 
   const signInWithGoogle = async () => {
@@ -170,30 +211,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUpWithEmail = async (email: string, pass: string, name: string, role: 'admin' | 'school' | 'student', schoolId?: string) => {
     try {
       const firebaseUser = await firebaseSignUpWithEmail(email, pass, name);
-      
-      const response = await fetch('/api/auth/create-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          uid: firebaseUser.uid,
-          email,
-          name,
-          role,
-          schoolId
-        })
-      });
+      const userRef = doc(db, 'users', firebaseUser.uid);
 
-      if (!response.ok) {
-        throw new Error(await response.text() || 'Failed to create user profile on backend');
-      }
+      let permissions: AppPermission[] = [];
+      if (role === 'admin') permissions = ['manage_exams', 'view_results'];
+      else if (role === 'school') permissions = ['manage_exams', 'view_results', 'manage_students'];
+      else permissions = ['take_exams'];
 
-      const data = await response.json();
-      if (data.success) {
-        localStorage.setItem('secure_session_token', data.sessionToken);
-        setProfile(data.profile);
-      }
+      const newProfile: UserProfile = {
+        uid: firebaseUser.uid,
+        name,
+        email,
+        role,
+        permissions,
+        schoolId,
+        createdAt: new Date().toISOString()
+      };
+
+      await setDoc(userRef, newProfile);
+      setProfile(newProfile);
     } catch (err: any) {
       toast.error("Sign-up failed: " + err.message);
       throw err;

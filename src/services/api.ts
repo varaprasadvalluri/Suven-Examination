@@ -503,13 +503,6 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
     }
     
     if (!res.ok) {
-      const statusVal = res.status;
-      if ([400, 401, 403, 404, 500].includes(statusVal)) {
-        const event = new CustomEvent('global-http-error', { 
-          detail: { status: statusVal, url } 
-        });
-        window.dispatchEvent(event);
-      }
       let errorMessage = `Request failed with status ${res.status}`;
       
       try {

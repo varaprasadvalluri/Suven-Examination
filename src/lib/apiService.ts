@@ -71,19 +71,9 @@ async function safeFetchJson(url: string, options: RequestInit = {}) {
   try {
     const res = await fetch(url, options);
     
-    if (!res.ok) {
-      const status = res.status;
-      if ([400, 401, 403, 404, 500].includes(status)) {
-        const event = new CustomEvent('global-http-error', { 
-          detail: { status, url } 
-        });
-        window.dispatchEvent(event);
-      }
-    }
-    
     const contentType = res.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
-      throw new Error(`Server returned non-JSON response (status ${res.status}, content-type: ${contentType || 'none'}). This is likely a temporary HTML fallback during server startup or reload.`);
+      throw new Error(`Server returned non-JSON response (status ${res.status}, content-type: ${contentType || 'none'}).`);
     }
 
     const payload = await res.json();
@@ -95,13 +85,6 @@ async function safeFetchJson(url: string, options: RequestInit = {}) {
     return payload;
   } catch (err: any) {
     if (err instanceof TypeError && err.message === 'Failed to fetch') {
-      // Check offline status
-      if (!navigator.onLine) {
-        const event = new CustomEvent('global-http-error', { 
-          detail: { status: 'offline' } 
-        });
-        window.dispatchEvent(event);
-      }
       throw new Error('Failed to connect to server. The backend may be temporarily restarting.');
     }
     throw err;

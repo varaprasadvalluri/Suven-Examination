@@ -35,6 +35,8 @@ export {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.addScope('https://www.googleapis.com/auth/cloud-billing.readonly');
+googleProvider.addScope('https://www.googleapis.com/auth/cloud-platform');
 
 // Performance Optimization: Check connection on boot
 export const testConnection = async () => {
