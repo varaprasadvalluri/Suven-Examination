@@ -12,8 +12,6 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      # Add database or secret keys here as environment variables (or load from a .env file)
-      # - GEMINI_API_KEY=${GEMINI_API_KEY}
     logging:
       driver: "json-file"
       options:

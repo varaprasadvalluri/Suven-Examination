@@ -28,16 +28,16 @@ ENV PORT=3000
 # Copy package manifests
 COPY package*.json ./
 
-# Install ONLY production dependencies to minimize image footprint and security attack surface
-RUN npm ci --only=production
+# Install ONLY production dependencies to minimize image footprint
+RUN npm ci --omit=dev
 
 # Copy compiled files and built assets from builder stage
 COPY --from=builder /usr/src/app/dist ./dist
-# If any extra server assets or parsers are needed in production, copy them here
-COPY --from=builder /usr/src/app/firebase-applet-config.json ./ || true
+COPY --from=builder /usr/src/app/firebase-applet-config.json ./firebase-applet-config.json
 
 # Expose port 3000 for server ingress routing
 EXPOSE 3000
 
 # Start command executes our bundled production CJS server
 CMD ["node", "dist/server.cjs"]
+
