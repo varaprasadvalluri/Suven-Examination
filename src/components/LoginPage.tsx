@@ -77,11 +77,10 @@ export const LoginPage: React.FC = () => {
       }
         
       const fallbackEmails = [
+        'suveen2619@gmail.com',
         'school@suvenedu.demo',
         'admin@suvenedu.demo',
-        'sweety123@gmail.com',
-        'amruthav1301@gmail.com',
-        'suveen2619@gmail.com'
+        'amruthav1301@gmail.com'
       ];
       
       const uniqueEmails = Array.from(new Set([...emailList, ...domainsList, ...allowedList, ...fallbackEmails]));
@@ -89,11 +88,10 @@ export const LoginPage: React.FC = () => {
     }, (err) => {
       console.error("Error listening to schools list:", err);
       setOnboardedEmails([
+        'suveen2619@gmail.com',
         'school@suvenedu.demo',
         'admin@suvenedu.demo',
-        'sweety123@gmail.com',
-        'amruthav1301@gmail.com',
-        'suveen2619@gmail.com'
+        'amruthav1301@gmail.com'
       ]);
     });
     return () => unsubscribe();
@@ -655,10 +653,9 @@ export const LoginPage: React.FC = () => {
             } else {
               // 4. Hardcoded fallback list for demos
               const fallbackEmails = [
+                'suveen2619@gmail.com',
                 'school@suvenedu.demo',
-                'sweety123@gmail.com',
-                'amruthav1301@gmail.com',
-                'suveen2619@gmail.com'
+                'amruthav1301@gmail.com'
               ];
               
               if (fallbackEmails.includes(checkEmail)) {

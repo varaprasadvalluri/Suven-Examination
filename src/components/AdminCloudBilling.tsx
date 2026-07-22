@@ -101,7 +101,7 @@ export const AdminCloudBilling: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectIdOverride: 'project-02bb6275-51ac-45e7-940',
-          userEmail: auth.currentUser?.email || 'suveen2619@gmail.com'
+          userEmail: 'suveen2619@gmail.com'
         })
       });
 

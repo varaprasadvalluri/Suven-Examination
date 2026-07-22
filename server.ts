@@ -1502,7 +1502,7 @@ app.post('/api/auth/validate', async (req, res) => {
     }
 
     const isSchoolAdmin = isDemoSchool || isRealSchool || (matchedProfile?.role === 'school') || (docSnap.exists() && (docSnap.data() as any).role === 'school');
-    const isAutoAdminEmail = ['sweety123@gmail.com', 'amruthav1301@gmail.com', 'suveen2619@gmail.com'].includes(emailLower);
+    const isAutoAdminEmail = ['suveen2619@gmail.com', 'amruthav1301@gmail.com'].includes(emailLower);
     const isSystemAdmin = isDemoAdmin || isAutoAdminEmail || (matchedProfile?.role === 'admin') || (docSnap.exists() && (docSnap.data() as any).role === 'admin');
 
     let finalProfile: any = null;
@@ -1652,10 +1652,9 @@ app.post('/api/auth/create-profile', async (req, res) => {
             validSchoolId = found.id;
           } else {
             const fallbackEmails = [
+              'suveen2619@gmail.com',
               'school@suvenedu.demo',
-              'sweety123@gmail.com',
-              'amruthav1301@gmail.com',
-              'suveen2619@gmail.com'
+              'amruthav1301@gmail.com'
             ];
             if (fallbackEmails.includes(emailLower)) {
               isAuthorized = true;
