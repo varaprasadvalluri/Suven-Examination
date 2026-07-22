@@ -108,24 +108,134 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   });
 
+  const lookupSchoolByEmail = async (emailStr?: string | null): Promise<{ schoolId: string | undefined; isSchool: boolean }> => {
+    if (!emailStr) return { schoolId: undefined, isSchool: false };
+    const lowerEmail = emailStr.trim().toLowerCase();
+    
+    try {
+      // 1. Check schools collection where adminEmail == lowerEmail
+      const schoolsRef = collection(db, 'schools');
+      const qAdmin = query(schoolsRef, where('adminEmail', '==', lowerEmail));
+      const snapAdmin = await getDocs(qAdmin);
+      if (!snapAdmin.empty) {
+        return { schoolId: snapAdmin.docs[0].id, isSchool: true };
+      }
+
+      // 2. Check allowed_schools collection
+      const safeEmailId = lowerEmail.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const allowedDoc = await getDoc(doc(db, 'allowed_schools', safeEmailId));
+      if (allowedDoc.exists() && allowedDoc.data()?.schoolId) {
+        return { schoolId: allowedDoc.data()?.schoolId, isSchool: true };
+      }
+
+      const qAllowed = query(collection(db, 'allowed_schools'), where('email', '==', lowerEmail));
+      const snapAllowed = await getDocs(qAllowed);
+      if (!snapAllowed.empty && snapAllowed.docs[0].data()?.schoolId) {
+        return { schoolId: snapAllowed.docs[0].data()?.schoolId, isSchool: true };
+      }
+
+      // 3. Check allowedDomains in all schools
+      const emailDomain = lowerEmail.split('@')[1];
+      if (emailDomain) {
+        const allSchoolsSnap = await getDocs(schoolsRef);
+        const domainMatch = allSchoolsSnap.docs.find(d => {
+          const domains = d.data()?.allowedDomains;
+          return Array.isArray(domains) && domains.map((dm: string) => dm.trim().toLowerCase()).includes(emailDomain);
+        });
+        if (domainMatch) {
+          return { schoolId: domainMatch.id, isSchool: true };
+        }
+      }
+    } catch (err) {
+      console.warn("Error looking up school by email in AuthContext:", err);
+    }
+
+    return { schoolId: undefined, isSchool: false };
+  };
+
+  const checkFirestoreAdminStatus = async (firebaseUser: User, userEmail: string): Promise<boolean> => {
+    if (!userEmail && !firebaseUser.uid) return false;
+    try {
+      // Check admins or super_admins collection in Firestore
+      const superAdminByUid = await getDoc(doc(db, 'super_admins', firebaseUser.uid));
+      if (superAdminByUid.exists()) return true;
+
+      const adminByUid = await getDoc(doc(db, 'admins', firebaseUser.uid));
+      if (adminByUid.exists()) return true;
+
+      if (userEmail) {
+        const safeEmailId = userEmail.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const superAdminByEmail = await getDoc(doc(db, 'super_admins', safeEmailId));
+        if (superAdminByEmail.exists()) return true;
+
+        const adminByEmail = await getDoc(doc(db, 'admins', safeEmailId));
+        if (adminByEmail.exists()) return true;
+
+        const qSuper = query(collection(db, 'super_admins'), where('email', '==', userEmail));
+        const snapSuper = await getDocs(qSuper);
+        if (!snapSuper.empty) return true;
+
+        const qAdmin = query(collection(db, 'admins'), where('email', '==', userEmail));
+        const snapAdmin = await getDocs(qAdmin);
+        if (!snapAdmin.empty) return true;
+      }
+    } catch (err) {
+      console.warn("Firestore admin check error:", err);
+    }
+    return false;
+  };
+
   const fetchProfile = async (firebaseUser: User) => {
     try {
       const userRef = doc(db, 'users', firebaseUser.uid);
       const userSnap = await getDoc(userRef);
+      const userEmail = firebaseUser.email?.trim().toLowerCase() || '';
+
+      const { schoolId } = await lookupSchoolByEmail(userEmail);
 
       if (userSnap.exists()) {
-        setProfile(userSnap.data() as UserProfile);
+        const existingData = userSnap.data() as UserProfile;
+        
+        // Respect whatever role is in Firestore.
+        // If role is school but schoolId was resolved, update schoolId if missing
+        if (existingData.role === 'school' && !existingData.schoolId && schoolId) {
+          const updatedProfile: UserProfile = {
+            ...existingData,
+            schoolId
+          };
+          await updateDoc(userRef, { schoolId });
+          setProfile(updatedProfile);
+          return;
+        }
+
+        setProfile(existingData);
       } else {
-        let defaultRole: UserRole = 'admin';
-        if (firebaseUser.email?.includes('school')) defaultRole = 'school';
-        if (firebaseUser.email?.includes('student')) defaultRole = 'student';
+        // NEW USER PROFILE CREATION - Check Firestore for admin record or default to school/student
+        const isAdminInFirestore = await checkFirestoreAdminStatus(firebaseUser, userEmail);
+
+        let assignedRole: UserRole = 'school';
+        if (isAdminInFirestore) {
+          assignedRole = 'admin';
+        } else if (userEmail.includes('student')) {
+          assignedRole = 'student';
+        }
+
+        let permissions: AppPermission[] = [];
+        if (assignedRole === 'admin') {
+          permissions = ['manage_exams', 'view_results'];
+        } else if (assignedRole === 'school') {
+          permissions = ['manage_exams', 'view_results', 'manage_students'];
+        } else {
+          permissions = ['take_exams'];
+        }
 
         const newProfile: UserProfile = {
           uid: firebaseUser.uid,
-          name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-          email: firebaseUser.email || '',
-          role: defaultRole,
-          permissions: defaultRole === 'admin' ? ['manage_exams', 'view_results'] : defaultRole === 'school' ? ['manage_exams', 'view_results', 'manage_students'] : ['take_exams'],
+          name: firebaseUser.displayName || userEmail.split('@')[0] || 'User',
+          email: userEmail,
+          role: assignedRole,
+          permissions,
+          schoolId: schoolId || undefined,
           createdAt: new Date().toISOString()
         };
 
@@ -134,16 +244,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error: any) {
       console.error("Error fetching user profile from Firestore:", error);
-      let defaultRole: UserRole = 'admin';
-      if (firebaseUser.email?.includes('school')) defaultRole = 'school';
-      if (firebaseUser.email?.includes('student')) defaultRole = 'student';
+      const userEmail = firebaseUser.email?.trim().toLowerCase() || '';
+      const defaultRole: UserRole = userEmail.includes('student') ? 'student' : 'school';
 
       setProfile({
         uid: firebaseUser.uid,
-        name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-        email: firebaseUser.email || '',
+        name: firebaseUser.displayName || userEmail.split('@')[0] || 'User',
+        email: userEmail,
         role: defaultRole,
-        permissions: ['manage_exams', 'view_results'],
+        permissions: defaultRole === 'school' ? ['manage_exams', 'view_results', 'manage_students'] : ['take_exams'],
         createdAt: new Date().toISOString()
       });
     }

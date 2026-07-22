@@ -590,26 +590,16 @@ const ExamInterfaceCore: React.FC = () => {
     };
   }, [loading, attempt, isWarningModalOpen, handleViolationTrigger]);
 
-  // 1. Initialize secure audio/video capturing
+  // 1. Initialize secure media capturing (Camera disabled per policy, optional audio analysis)
   useEffect(() => {
     if (loading || !attempt || attempt.status === 'completed') return;
 
     const initMedia = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true }).catch(() => null);
-        if (stream) {
-          videoStreamRef.current = stream;
-          setWebcamAllowed(true);
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-          }
-        }
-      } catch (err) {
-        console.warn("Webcam access not allowed or unavailable", err);
-      }
+      // Camera / Video stream request completely removed so students are never prompted for camera access.
+      setWebcamAllowed(false);
 
       try {
-        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+        const audioStream = await navigator.mediaDevices?.getUserMedia({ audio: true }).catch(() => null);
         if (audioStream) {
           audioStreamRef.current = audioStream;
           setMicAllowed(true);

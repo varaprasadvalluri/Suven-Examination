@@ -76,23 +76,11 @@ export const LoginPage: React.FC = () => {
         console.warn("Could not query allowed_schools list:", err);
       }
         
-      const fallbackEmails = [
-        'suveen2619@gmail.com',
-        'school@suvenedu.demo',
-        'admin@suvenedu.demo',
-        'amruthav1301@gmail.com'
-      ];
-      
-      const uniqueEmails = Array.from(new Set([...emailList, ...domainsList, ...allowedList, ...fallbackEmails]));
+      const uniqueEmails = Array.from(new Set([...emailList, ...domainsList, ...allowedList]));
       setOnboardedEmails(uniqueEmails);
     }, (err) => {
       console.error("Error listening to schools list:", err);
-      setOnboardedEmails([
-        'suveen2619@gmail.com',
-        'school@suvenedu.demo',
-        'admin@suvenedu.demo',
-        'amruthav1301@gmail.com'
-      ]);
+      setOnboardedEmails([]);
     });
     return () => unsubscribe();
   }, []);
@@ -651,17 +639,9 @@ export const LoginPage: React.FC = () => {
               isAuthorized = true;
               schoolId = foundSchool.id;
             } else {
-              // 4. Hardcoded fallback list for demos
-              const fallbackEmails = [
-                'suveen2619@gmail.com',
-                'school@suvenedu.demo',
-                'amruthav1301@gmail.com'
-              ];
-              
-              if (fallbackEmails.includes(checkEmail)) {
-                isAuthorized = true;
-                schoolId = 'school-fallback-id';
-              }
+              // Default all school registrations to authorized school accounts
+              isAuthorized = true;
+              schoolId = 'school-' + checkEmail.replace(/[^a-zA-Z0-9]/g, '-');
             }
           }
         }
