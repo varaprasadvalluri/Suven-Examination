@@ -5,6 +5,7 @@ import { Toaster } from './components/ui/sonner';
 import { Layout } from './components/Layout';
 import { RoleSelection } from './components/RoleSelection';
 import { AdminExams } from './components/AdminExams';
+import { AdminCreateExam } from './components/AdminCreateExam';
 import { AdminOverview } from './components/AdminOverview';
 import { ExamQuestions } from './components/ExamQuestions';
 import { ExamInterface } from './components/ExamInterface';
@@ -116,6 +117,11 @@ export default function App() {
           <Route path="/admin/exams" element={
             <ProtectedRoute roles={['admin', 'school']}>
               <Layout><AdminExams /></Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/exams/create" element={
+            <ProtectedRoute roles={['admin', 'school']}>
+              <Layout><AdminCreateExam /></Layout>
             </ProtectedRoute>
           } />
           <Route path="/admin/schools" element={
