@@ -6,19 +6,22 @@ import { Input } from './ui/input';
 import { db, collection, query, where, onSnapshot, getDocs } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { 
-  Trophy, 
-  Search, 
-  Filter, 
-  Download, 
-  TrendingUp, 
+import {
+  Trophy,
+  Search,
+  Filter,
+  Download,
+  TrendingUp,
   Users,
   Target,
   Medal,
   ChevronsUp,
   ArrowUp,
   ArrowDown,
-  ArrowUpDown
+  ArrowUpDown,
+  ChevronRight,
+  ChevronDown,
+  ChevronLeft
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -34,6 +37,22 @@ export const RankingEngine: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
   const [sortField, setSortField] = useState<'rank' | 'percentile'>('rank');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [breakdownPage, setBreakdownPage] = useState<Record<string, number>>({});
+  const BREAKDOWN_PAGE_SIZE = 5;
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+        setBreakdownPage(bp => ({ ...bp, [id]: 1 }));
+      }
+      return next;
+    });
+  };
 
   // Load schools to map branch names dynamically for everyone
   useEffect(() => {
@@ -171,6 +190,16 @@ export const RankingEngine: React.FC = () => {
         improvement = '-';
       }
 
+      const examBreakdown = completedAttempts
+        .map(a => ({
+          examId: a.examId,
+          examTitle: a.examTitle || 'Untitled Exam',
+          score: Math.round(a.score || 0),
+          accuracy: Math.round(a.accuracy !== undefined ? a.accuracy : (a.score || 0)),
+          endTime: a.endTime || null
+        }))
+        .sort((a, b) => (b.endTime ? new Date(b.endTime).getTime() : 0) - (a.endTime ? new Date(a.endTime).getTime() : 0));
+
       list.push({
         id: sId,
         name: stud.name || 'Autonomous Candidate',
@@ -178,6 +207,7 @@ export const RankingEngine: React.FC = () => {
         percentile: averagePercentage,
         examsAttended,
         improvement,
+        examBreakdown,
         branch: stud.schoolName || schoolNameMap[stud.schoolId] || 'Autonomous Hub',
         schoolId: stud.schoolId || '',
         status: (averagePercentage >= 90) ? 'Elite' : (averagePercentage >= 75) ? 'Advanced' : 'Rising'
@@ -225,6 +255,16 @@ export const RankingEngine: React.FC = () => {
           improvement = '-';
         }
 
+        const examBreakdown = completedAttempts
+          .map(a => ({
+            examId: a.examId,
+            examTitle: a.examTitle || 'Untitled Exam',
+            score: Math.round(a.score || 0),
+            accuracy: Math.round(a.accuracy !== undefined ? a.accuracy : (a.score || 0)),
+            endTime: a.endTime || null
+          }))
+          .sort((a, b) => (b.endTime ? new Date(b.endTime).getTime() : 0) - (a.endTime ? new Date(a.endTime).getTime() : 0));
+
         list.push({
           id: sId,
           name: att.studentName || 'Autonomous Candidate',
@@ -232,6 +272,7 @@ export const RankingEngine: React.FC = () => {
           percentile: averagePercentage,
           examsAttended,
           improvement,
+          examBreakdown,
           branch: att.schoolName || schoolNameMap[att.schoolId] || 'Autonomous Hub',
           schoolId: att.schoolId || '',
           status: (averagePercentage >= 90) ? 'Elite' : (averagePercentage >= 75) ? 'Advanced' : 'Rising'
@@ -426,8 +467,8 @@ export const RankingEngine: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-150">
                    {combinedRankings.slice((page - 1) * pageSize, page * pageSize).map((entry, i) => (
-                      <motion.tr 
-                        key={entry.id || i} 
+                    <React.Fragment key={entry.id || i}>
+                      <motion.tr
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: Math.min(i * 0.03, 0.3) }}
@@ -439,12 +480,24 @@ export const RankingEngine: React.FC = () => {
                             </span>
                          </td>
                          <td className="px-6 py-2.5 font-sans">
-                            <div className="flex items-center gap-3">
-                               <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{entry.name}</p>
-                               <Badge className={`${entry.status === 'Elite' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : entry.status === 'Advanced' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'} font-black text-[8px] uppercase px-1.5 py-0.5 rounded-md border`}>
-                                  {entry.status}
-                               </Badge>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => entry.examsAttended > 0 && toggleExpanded(entry.id)}
+                              disabled={entry.examsAttended === 0}
+                              className={`flex items-center gap-2 text-left ${entry.examsAttended > 0 ? 'cursor-pointer' : 'cursor-default'}`}
+                            >
+                               {entry.examsAttended > 0 ? (
+                                 expandedIds.has(entry.id)
+                                   ? <ChevronDown size={13} className="text-slate-400 shrink-0" />
+                                   : <ChevronRight size={13} className="text-slate-400 shrink-0" />
+                               ) : <span className="w-[13px] shrink-0" />}
+                               <div className="flex items-center gap-3">
+                                 <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{entry.name}</p>
+                                 <Badge className={`${entry.status === 'Elite' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : entry.status === 'Advanced' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'} font-black text-[8px] uppercase px-1.5 py-0.5 rounded-md border`}>
+                                    {entry.status}
+                                 </Badge>
+                               </div>
+                            </button>
                          </td>
                          <td className="px-6 py-2.5 text-center font-bold text-slate-850">
                             {Math.round(entry.score)}
@@ -466,6 +519,73 @@ export const RankingEngine: React.FC = () => {
                             <span className="text-xs font-bold text-slate-400 bg-slate-100/100 border border-slate-200 shadow-xs px-2.5 py-0.5 rounded-md uppercase tracking-wider">{entry.branch} Branch</span>
                          </td>
                       </motion.tr>
+                      {expandedIds.has(entry.id) && entry.examBreakdown && entry.examBreakdown.length > 0 && (() => {
+                        const totalPages = Math.ceil(entry.examBreakdown.length / BREAKDOWN_PAGE_SIZE);
+                        const currentPage = Math.min(breakdownPage[entry.id] || 1, totalPages);
+                        const pageItems = entry.examBreakdown.slice(
+                          (currentPage - 1) * BREAKDOWN_PAGE_SIZE,
+                          currentPage * BREAKDOWN_PAGE_SIZE
+                        );
+                        const setPage = (p: number) => setBreakdownPage(bp => ({ ...bp, [entry.id]: p }));
+                        return (
+                        <tr className="bg-slate-50/70">
+                          <td colSpan={6} className="px-6 py-3">
+                            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                              <table className="w-full text-xs font-mono">
+                                <thead>
+                                  <tr className="bg-slate-100/70 text-left">
+                                    <th className="px-4 py-2 font-sans text-[10px] uppercase font-black tracking-wider text-slate-500">Exam</th>
+                                    <th className="px-4 py-2 font-sans text-[10px] uppercase font-black tracking-wider text-slate-500 text-center">Score</th>
+                                    <th className="px-4 py-2 font-sans text-[10px] uppercase font-black tracking-wider text-slate-500 text-center">Percentage</th>
+                                    <th className="px-4 py-2 font-sans text-[10px] uppercase font-black tracking-wider text-slate-500 text-right">Completed</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {pageItems.map((ex: any) => (
+                                    <tr key={ex.examId}>
+                                      <td className="px-4 py-2 font-sans font-semibold text-slate-700">{ex.examTitle}</td>
+                                      <td className="px-4 py-2 text-center font-bold text-slate-800">{ex.score}</td>
+                                      <td className="px-4 py-2 text-center">
+                                        <span className="text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full text-[11px]">{ex.accuracy}%</span>
+                                      </td>
+                                      <td className="px-4 py-2 text-right text-slate-400 font-sans text-[11px]">
+                                        {ex.endTime ? new Date(ex.endTime).toLocaleString() : '—'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              {totalPages > 1 && (
+                                <div className="flex items-center justify-between px-4 py-2 border-t border-slate-100 bg-slate-50/50">
+                                  <span className="text-[10px] font-sans font-semibold text-slate-400">
+                                    Page {currentPage} of {totalPages} ({entry.examBreakdown.length} exams)
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setPage(Math.max(1, currentPage - 1))}
+                                      disabled={currentPage === 1}
+                                      className="p-1 rounded-md border border-slate-200 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100"
+                                    >
+                                      <ChevronLeft size={13} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+                                      disabled={currentPage === totalPages}
+                                      className="p-1 rounded-md border border-slate-200 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100"
+                                    >
+                                      <ChevronRight size={13} />
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        );
+                      })()}
+                    </React.Fragment>
                    ))}
                 </tbody>
              </table>

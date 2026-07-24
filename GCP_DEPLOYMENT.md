@@ -173,4 +173,47 @@ Once linked, the `/health` endpoint will automatically detect the Redis paramete
 * **Clean Purging**: During local testing, you can hit the `/api/health` or `/health` diagnostics route to ensure zero latency between the serverless instance and Firestore.
 
 ---
+
+## 📟 Monitoring & Alerting
+
+The app has no built-in alerting — the only way to know something's wrong today is a user
+reporting it. Set this up once (~10 min) so problems surface via email before students hit
+them.
+
+### 1. Uptime check on `/api/health`
+`/api/health` already returns a non-200 status whenever Firestore is misconfigured or
+unreachable (verified: it caught the `RESOURCE_PROJECT_INVALID` and missing-env-var issues
+during initial deployment).
+
+Console → **Monitoring** → **Uptime checks** → **Create Uptime Check**
+- Protocol: HTTPS, Resource type: URL
+- Hostname: your Cloud Run service's hostname (e.g. `suven-examination-<hash>-<region>.a.run.app`)
+- Path: `/api/health`
+- Check frequency: 1 minute
+- On the same screen, add an **Alert** → notification channel → **Email**
+
+### 2. Alert on repeated 401s (session/auth breakage)
+Console → **Logging** → **Logs Explorer**, filter:
+```
+resource.type="cloud_run_revision"
+resource.labels.service_name="suven-examination"
+httpRequest.status=401
+```
+Run once to confirm matches, then **Create Alert** → condition: count > 20 within 5 minutes →
+same email notification channel.
+
+A burst of 401s across otherwise-working sessions usually means a `JWT_SECRET` mismatch
+between Cloud Run revisions/instances (this happened during a rapid string of redeploys) —
+this alert catches that class of issue specifically.
+
+### 3. Alert on 5xx errors (server/Firestore failures)
+Same Logs Explorer, filter:
+```
+resource.type="cloud_run_revision"
+resource.labels.service_name="suven-examination"
+httpRequest.status>=500
+```
+**Create Alert** → condition: count > 10 within 5 minutes → same email notification channel.
+
+---
 *Created by SuvenEdu Tech Deployment Engineering Team — Last Updated July 2026.*
