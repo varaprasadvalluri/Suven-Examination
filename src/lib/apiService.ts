@@ -6,7 +6,7 @@
  */
 
 import { GlobalDbSubject, CrudType } from './observerPattern';
-import { authHeaders } from './sessionStore';
+import { authHeaders, getSessionToken } from './sessionStore';
 
 export const db = { type: 'firestore_proxy_db' };
 
@@ -68,24 +68,31 @@ export function serverTimestamp() {
 }
 
 // Centralized safe fetch helper to prevent JSON parsing crashes on HTML responses and handle offline states gracefully
-async function safeFetchJson(url: string, options: RequestInit = {}) {
+async function safeFetchJson(url: string, options: RequestInit = {}, _isRetry = false): Promise<any> {
   try {
     const res = await fetch(url, {
       ...options,
       headers: { ...authHeaders(), ...(options.headers || {}) }
     });
-    
+
     const contentType = res.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
       throw new Error(`Server returned non-JSON response (status ${res.status}, content-type: ${contentType || 'none'}).`);
     }
 
     const payload = await res.json();
-    
+
     if (!res.ok) {
+      // A 401 with a token actually present in storage is almost always transient (e.g. a
+      // request landing on a Cloud Run instance mid-rollout to a new revision) rather than a
+      // genuinely invalid session — retry once before surfacing it as a failure to the user.
+      if (res.status === 401 && !_isRetry && getSessionToken()) {
+        await new Promise(resolve => setTimeout(resolve, 800));
+        return safeFetchJson(url, options, true);
+      }
       throw new Error(payload.error || `HTTP error! status: ${res.status}`);
     }
-    
+
     return payload;
   } catch (err: any) {
     if (err instanceof TypeError && err.message === 'Failed to fetch') {
