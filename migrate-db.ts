@@ -27,22 +27,30 @@ import path from 'path';
 
 // --- CONFIGURATION ---
 
+// This is a one-off manual migration tool (npm run db:migrate), not part of the running
+// server — but it still shouldn't carry real API keys in source. Both configs are filled
+// in from environment variables / the checked-in frontend config file at runtime; nothing
+// sensitive is hardcoded here.
 const SOURCE_CONFIG = {
-  projectId: "gen-lang-client-0086284509",
-  appId: "1:486328864423:web:6a971b689b5a81e51c5582",
-  apiKey: "AIzaSyD-AzMGuVYnFwhFLOStoerl21LSD7vkIvc",
-  authDomain: "gen-lang-client-0086284509.firebaseapp.com",
-  firestoreDatabaseId: "ai-studio-8391c2ab-94ef-4c90-9d99-eebfe3329077",
-  storageBucket: "gen-lang-client-0086284509.firebasestorage.app",
-  messagingSenderId: "486328864423"
+  projectId: process.env.MIGRATION_SOURCE_PROJECT_ID || "gen-lang-client-0086284509",
+  appId: process.env.MIGRATION_SOURCE_APP_ID || "1:486328864423:web:6a971b689b5a81e51c5582",
+  apiKey: process.env.MIGRATION_SOURCE_API_KEY || "",
+  authDomain: process.env.MIGRATION_SOURCE_AUTH_DOMAIN || "gen-lang-client-0086284509.firebaseapp.com",
+  firestoreDatabaseId: process.env.MIGRATION_SOURCE_DATABASE_ID || "ai-studio-8391c2ab-94ef-4c90-9d99-eebfe3329077",
+  storageBucket: process.env.MIGRATION_SOURCE_STORAGE_BUCKET || "gen-lang-client-0086284509.firebasestorage.app",
+  messagingSenderId: process.env.MIGRATION_SOURCE_SENDER_ID || "486328864423"
 };
 
-// Target Configuration (Read dynamically from local applet config if possible)
-let targetConfig = {
-  projectId: "project-02bb6275-51ac-45e7-940",
-  firestoreDatabaseId: "suven-edu",
-  appId: "1:your-custom-app-id:web:your-custom-app-hash", // Placeholder or customized in the file
-  apiKey: "AIzaSy-your-custom-gcp-api-key-here"
+if (!SOURCE_CONFIG.apiKey) {
+  console.warn("⚠️  MIGRATION_SOURCE_API_KEY is not set — set it before running a real migration.");
+}
+
+// Target Configuration (Read dynamically from local applet config, then env vars, if possible)
+let targetConfig: any = {
+  projectId: "",
+  firestoreDatabaseId: "(default)",
+  appId: "",
+  apiKey: ""
 };
 
 const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
@@ -53,6 +61,14 @@ if (fs.existsSync(configPath)) {
   } catch (err) {
     console.warn("⚠️  Could not parse local firebase-applet-config.json. Using defaults.");
   }
+}
+
+if (process.env.FIREBASE_PROJECT_ID) targetConfig.projectId = process.env.FIREBASE_PROJECT_ID;
+if (process.env.FIRESTORE_DATABASE_ID) targetConfig.firestoreDatabaseId = process.env.FIRESTORE_DATABASE_ID;
+if (process.env.FIREBASE_API_KEY) targetConfig.apiKey = process.env.FIREBASE_API_KEY;
+
+if (!targetConfig.projectId || !targetConfig.apiKey) {
+  console.warn("⚠️  Target Firebase projectId/apiKey not resolved — set FIREBASE_PROJECT_ID/FIREBASE_API_KEY or provide firebase-applet-config.json.");
 }
 
 const COLLECTIONS = [

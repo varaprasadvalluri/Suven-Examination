@@ -115,6 +115,23 @@ Losing/rotating this secret invalidates every active session (everyone gets logg
 
 ---
 
+## 🔥 Recommended: Firebase Config via Secret Manager
+
+`server.ts` and `migrate-db.ts` no longer hardcode the Firebase `apiKey`/`projectId` — they fall back to the checked-in `firebase-applet-config.json` (needed regardless, since the frontend build ships it to the browser either way), but `FIREBASE_PROJECT_ID` / `FIRESTORE_DATABASE_ID` / `FIREBASE_API_KEY` env vars override it when set. Binding these explicitly means a project/key change is a config update, not a code change, and keeps the value out of source control duplication (`server.ts` previously repeated the same key `migrate-db.ts` also hardcoded).
+
+```bash
+gcloud secrets create firebase-api-key --data-file=- <<< "YOUR_FIREBASE_WEB_API_KEY"
+
+gcloud run services update suvenedu-service \
+    --region=us-central1 \
+    --set-secrets=FIREBASE_API_KEY=firebase-api-key:latest \
+    --update-env-vars FIREBASE_PROJECT_ID=your-project-id,FIRESTORE_DATABASE_ID=your-database-id
+```
+
+Note: a Firebase *web* API key isn't a traditional secret — it ships to every browser in the frontend bundle regardless, and Firebase's own security model relies on Firestore rules / server-side auth, not on this value being hidden. Moving it server-side is about avoiding duplication and hardcoding, not closing an exposure — the real secrets in this app are `JWT_SECRET`, `CLOUDINARY_API_SECRET`, and `REDIS_PASSWORD`, which should always go through Secret Manager.
+
+---
+
 ## 🧠 Optional: Deploying Google Cloud Memorystore (Redis)
 If you configure a Redis cluster to coordinate proctoring state or rate limits, spin up a Cloud Memorystore instance:
 

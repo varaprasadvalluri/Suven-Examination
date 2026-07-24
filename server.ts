@@ -39,10 +39,17 @@ const possibleConfigPaths = [
   '/app/applet/firebase-applet-config.json'
 ];
 
+// No real values hardcoded here — this is just a shape placeholder. Real config comes from
+// firebase-applet-config.json (checked in for the frontend build, which needs it regardless
+// — Firebase web config is meant to ship to the browser) and/or environment variables below,
+// which take priority and are the recommended source for the server process specifically
+// (see GCP_DEPLOYMENT.md — bind FIREBASE_API_KEY/FIREBASE_PROJECT_ID/FIRESTORE_DATABASE_ID
+// via Secret Manager or plain env vars so a project/key change is a config update, not a
+// code change, and isn't duplicated between server.ts and migrate-db.ts).
 let firebaseConfig: any = {
-  projectId: 'project-02bb6275-51ac-45e7-940',
-  firestoreDatabaseId: 'suven-edu',
-  apiKey: 'AIzaSyD-AzMGuVYnFwhFLOStoerl21LSD7vkIvc'
+  projectId: '',
+  firestoreDatabaseId: '(default)',
+  apiKey: ''
 };
 
 let loadedConfig: any = null;
@@ -62,12 +69,24 @@ if (loadedConfig) {
   firebaseConfig = { ...firebaseConfig, ...loadedConfig };
 }
 
-// Allow environment variable overrides ONLY if they are not the default sandbox placeholders
+// Environment variables win over the checked-in file, so a deployment can point at a
+// different Firebase project/key without touching code. Allow environment variable
+// overrides ONLY if they are not the default sandbox placeholders.
 if (process.env.FIREBASE_PROJECT_ID && (!loadedConfig || (process.env.FIREBASE_PROJECT_ID !== 'gen-lang-client-0086284509' && !process.env.FIREBASE_PROJECT_ID.startsWith('gen-lang-client-')))) {
   firebaseConfig.projectId = process.env.FIREBASE_PROJECT_ID;
 }
 if (process.env.FIRESTORE_DATABASE_ID && (!loadedConfig || !process.env.FIRESTORE_DATABASE_ID.startsWith('ai-studio-'))) {
   firebaseConfig.firestoreDatabaseId = process.env.FIRESTORE_DATABASE_ID;
+}
+if (process.env.FIREBASE_API_KEY) {
+  firebaseConfig.apiKey = process.env.FIREBASE_API_KEY;
+}
+
+if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
+  console.warn(
+    '[NODE EXPRESS SERVER] No Firebase projectId/apiKey resolved from firebase-applet-config.json ' +
+    'or FIREBASE_PROJECT_ID/FIREBASE_API_KEY env vars — Firestore REST calls will fail until one is set.'
+  );
 }
 
 // REST Client configuration
