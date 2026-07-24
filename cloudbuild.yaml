@@ -1,3 +1,6 @@
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 steps:
   # Step 1: Build the optimized production Docker image using Cloud Build.
   # Firebase config is baked into the frontend bundle at build time (vite.config.ts), so it
