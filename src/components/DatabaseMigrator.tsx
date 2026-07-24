@@ -275,20 +275,18 @@ export const DatabaseMigrator: React.FC = () => {
             </div>
             <CardTitle className="text-base font-black text-slate-900 mt-3">Configure API Credentials</CardTitle>
             <CardDescription className="text-xs font-semibold leading-normal text-slate-400 mt-1">
-              Configure Web SDK App credentials in the project config file.
+              Configure Web SDK App credentials via environment variables.
             </CardDescription>
           </CardHeader>
           <CardContent className="px-6 pb-6 pt-0 space-y-3">
             <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-              Verify that the Web app is registered in your Firebase project and update <code className="text-amber-600 font-bold">firebase-applet-config.json</code> with:
+              Verify that the Web app is registered in your Firebase project and set these environment variables (see <code className="text-amber-600 font-bold">.env.example</code>):
             </p>
             <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[10px] font-mono text-slate-600 whitespace-pre scroll-x-auto">
-{`{
-  "projectId": "project-02bb6275...",
-  "firestoreDatabaseId": "suven-edu",
-  "appId": "1:your-custom-app-id...",
-  "apiKey": "AIzaSy-your-real-key..."
-}`}
+{`FIREBASE_PROJECT_ID=project-02bb6275...
+FIRESTORE_DATABASE_ID=suven-edu
+FIREBASE_APP_ID=1:your-custom-app-id...
+FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             </div>
           </CardContent>
           <CardFooter className="p-6 bg-slate-50/50 border-t border-slate-100">
