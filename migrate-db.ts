@@ -12,17 +12,19 @@
  *   npm run db:migrate
  */
 
-import 'dotenv/config';
 import { initializeApp, getApps } from 'firebase/app';
-import {
-  getFirestore,
-  collection,
-  getDocs,
-  doc,
+import { 
+  getFirestore, 
+  collection, 
+  getDocs, 
+  doc, 
   writeBatch,
   setDoc,
   DocumentData
 } from 'firebase/firestore';
+import fs from 'fs';
+import path from 'path';
+
 // --- CONFIGURATION ---
 
 // This is a one-off manual migration tool (npm run db:migrate), not part of the running
@@ -43,16 +45,30 @@ if (!SOURCE_CONFIG.apiKey) {
   console.warn("⚠️  MIGRATION_SOURCE_API_KEY is not set — set it before running a real migration.");
 }
 
-// Target Configuration — same env vars server.ts and the frontend build use.
-const targetConfig = {
-  projectId: process.env.FIREBASE_PROJECT_ID || "",
-  firestoreDatabaseId: process.env.FIRESTORE_DATABASE_ID || "(default)",
-  appId: process.env.FIREBASE_APP_ID || "",
-  apiKey: process.env.FIREBASE_API_KEY || ""
+// Target Configuration (Read dynamically from local applet config, then env vars, if possible)
+let targetConfig: any = {
+  projectId: "",
+  firestoreDatabaseId: "(default)",
+  appId: "",
+  apiKey: ""
 };
 
+const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+if (fs.existsSync(configPath)) {
+  try {
+    const loaded = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    targetConfig = { ...targetConfig, ...loaded };
+  } catch (err) {
+    console.warn("⚠️  Could not parse local firebase-applet-config.json. Using defaults.");
+  }
+}
+
+if (process.env.FIREBASE_PROJECT_ID) targetConfig.projectId = process.env.FIREBASE_PROJECT_ID;
+if (process.env.FIRESTORE_DATABASE_ID) targetConfig.firestoreDatabaseId = process.env.FIRESTORE_DATABASE_ID;
+if (process.env.FIREBASE_API_KEY) targetConfig.apiKey = process.env.FIREBASE_API_KEY;
+
 if (!targetConfig.projectId || !targetConfig.apiKey) {
-  console.warn("⚠️  Target Firebase projectId/apiKey not resolved — set FIREBASE_PROJECT_ID/FIREBASE_API_KEY.");
+  console.warn("⚠️  Target Firebase projectId/apiKey not resolved — set FIREBASE_PROJECT_ID/FIREBASE_API_KEY or provide firebase-applet-config.json.");
 }
 
 const COLLECTIONS = [
