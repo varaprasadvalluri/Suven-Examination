@@ -1608,8 +1608,15 @@ function injectReadScope(auth: RequestAuth, collectionName: string, constraints:
 const ownerVerificationCache = new Map<string, { value: string; expiry: number }>();
 const OWNER_CACHE_TTL_MS = 30 * 60 * 1000; // 30 min — comfortably longer than an autosave gap
 
-function getCachedOwner(collectionName: string, docId: string): string | undefined {
-  const key = `${collectionName}/${docId}`;
+// Cache key includes scopeField because collections like `attempts` have TWO distinct scope
+// fields depending on caller role (schoolId for school, studentId for student) — without the
+// scopeField in the key, a student's autosave caching studentId and a school's later write
+// checking against schoolId would collide on the same cache entry, causing a false "you do
+// not own this document" 403 for the school (this is exactly what broke reattempt/regenerate
+// -link: the school's canReattempt write got rejected because a student's own studentId was
+// still cached under the same key).
+function getCachedOwner(collectionName: string, scopeField: string, docId: string): string | undefined {
+  const key = `${collectionName}/${scopeField}/${docId}`;
   const cached = ownerVerificationCache.get(key);
   if (!cached) return undefined;
   if (cached.expiry < Date.now()) {
@@ -1619,8 +1626,8 @@ function getCachedOwner(collectionName: string, docId: string): string | undefin
   return cached.value;
 }
 
-function setCachedOwner(collectionName: string, docId: string, value: string) {
-  ownerVerificationCache.set(`${collectionName}/${docId}`, { value, expiry: Date.now() + OWNER_CACHE_TTL_MS });
+function setCachedOwner(collectionName: string, scopeField: string, docId: string, value: string) {
+  ownerVerificationCache.set(`${collectionName}/${scopeField}/${docId}`, { value, expiry: Date.now() + OWNER_CACHE_TTL_MS });
   // Opportunistic cleanup, same 1%-per-call pattern used for localSubmissionLocks below.
   if (Math.random() < 0.01) {
     const now = Date.now();
@@ -1896,21 +1903,19 @@ async function authorizeWrite(
   // that a school may create/manage its own student accounts (role forced to 'student',
   // schoolId forced to the caller's own school).
   if (collectionName === 'users') {
-    if (data && 'permissions' in data) {
-      return { ok: false, status: 403, error: 'Forbidden: only admins may change permissions' };
-    }
-
     if (auth.role === 'student') {
       if (docId !== auth.uid) {
         return { ok: false, status: 403, error: 'Forbidden: students may only update their own profile' };
       }
-      if (data && ('role' in data || 'schoolId' in data)) {
-        return { ok: false, status: 403, error: 'Forbidden: students cannot change role or schoolId' };
+      if (data && ('role' in data || 'schoolId' in data || 'permissions' in data)) {
+        return { ok: false, status: 403, error: 'Forbidden: students cannot change role, schoolId, or permissions' };
       }
       return { ok: true, data };
     }
 
-    // school
+    // school — may create/manage its own student accounts. `permissions` is never trusted
+    // from the client here: it's forced to the fixed student default rather than rejected,
+    // since onboarding (manual + bulk import) always sends it as part of a normal create.
     if (data && 'role' in data && data.role !== 'student') {
       return { ok: false, status: 403, error: 'Forbidden: schools may only manage student accounts' };
     }
@@ -1926,13 +1931,23 @@ async function authorizeWrite(
         }
       }
     }
-    return { ok: true, data: data ? { ...data, schoolId: auth.schoolId, role: 'student' } : data };
+    return {
+      ok: true,
+      data: data
+        ? {
+            ...data,
+            schoolId: auth.schoolId,
+            role: 'student',
+            ...(('permissions' in data) ? { permissions: ['take_exams'] } : {})
+          }
+        : data
+    };
   }
 
   // `exams` is scoped by creatorId — a school may only create/edit exams it created.
   if (collectionName === 'exams') {
     if (docId) {
-      const cachedCreator = getCachedOwner('exams', docId);
+      const cachedCreator = getCachedOwner('exams', 'creatorId', docId);
       if (cachedCreator !== undefined) {
         if (cachedCreator !== auth.uid) {
           return { ok: false, status: 403, error: 'Forbidden: you may only modify exams you created' };
@@ -1941,7 +1956,7 @@ async function authorizeWrite(
         const existingSnap = await clientGetDoc(clientDoc(clientDb, 'exams', docId));
         if (existingSnap.exists()) {
           const creatorId = (existingSnap.data() as any).creatorId;
-          if (creatorId) setCachedOwner('exams', docId, creatorId);
+          if (creatorId) setCachedOwner('exams', 'creatorId', docId, creatorId);
           if (creatorId !== auth.uid) {
             return { ok: false, status: 403, error: 'Forbidden: you may only modify exams you created' };
           }
@@ -1964,7 +1979,7 @@ async function authorizeWrite(
     if (!targetExamId) {
       return { ok: false, status: 400, error: 'Missing examId for question write' };
     }
-    const cachedCreator = getCachedOwner('exams', targetExamId);
+    const cachedCreator = getCachedOwner('exams', 'creatorId', targetExamId);
     if (cachedCreator !== undefined) {
       if (cachedCreator !== auth.uid) {
         return { ok: false, status: 403, error: 'Forbidden: you may only manage questions on exams you created' };
@@ -1972,7 +1987,7 @@ async function authorizeWrite(
     } else {
       const examSnap = await clientGetDoc(clientDoc(clientDb, 'exams', targetExamId));
       const creatorId = examSnap.exists() ? (examSnap.data() as any).creatorId : undefined;
-      if (creatorId) setCachedOwner('exams', targetExamId, creatorId);
+      if (creatorId) setCachedOwner('exams', 'creatorId', targetExamId, creatorId);
       if (!examSnap.exists() || creatorId !== auth.uid) {
         return { ok: false, status: 403, error: 'Forbidden: you may only manage questions on exams you created' };
       }
@@ -2007,7 +2022,7 @@ async function authorizeWrite(
   // Checked against the owner cache first (see getCachedOwner comment) so that the highest-
   // frequency write in the app — a student's attempt-doc autosave, every ~30s per active
   // exam-taker — does one real Firestore read per attempt, not one per autosave.
-  const cachedOwner = getCachedOwner(collectionName, docId);
+  const cachedOwner = getCachedOwner(collectionName, scopeField, docId);
   if (cachedOwner !== undefined) {
     if (cachedOwner !== requiredValue) {
       return { ok: false, status: 403, error: 'Forbidden: you do not own this document' };
@@ -2025,7 +2040,7 @@ async function authorizeWrite(
   if (existingSnap.exists()) {
     const existing = existingSnap.data() as any;
     if (existing[scopeField] !== undefined) {
-      setCachedOwner(collectionName, docId, existing[scopeField]);
+      setCachedOwner(collectionName, scopeField, docId, existing[scopeField]);
     }
     if (existing[scopeField] !== undefined && existing[scopeField] !== requiredValue) {
       return { ok: false, status: 403, error: 'Forbidden: you do not own this document' };

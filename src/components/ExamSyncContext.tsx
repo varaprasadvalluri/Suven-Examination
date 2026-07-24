@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db, doc, updateDoc, writeBatch } from '../lib/firebase';
-import { Wifi, WifiOff, CloudLightning, ShieldAlert, Loader2 } from 'lucide-react';
+import { Wifi, WifiOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { examAnswerQueue } from '../services/api';
 
@@ -114,8 +114,6 @@ export const ExamSyncProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   return (
     <ExamSyncContext.Provider value={{ isOnline, isSynced, syncAnswers, forceBackgroundSync }}>
       {children}
-      {/* Visual Network Status Bar */}
-      <NetworkStatusBar isOnline={isOnline} isSynced={isSynced} />
     </ExamSyncContext.Provider>
   );
 };
@@ -126,34 +124,4 @@ export const useExamSync = () => {
     throw new Error('useExamSync must be used within an ExamSyncProvider context wrapper');
   }
   return context;
-};
-
-// Component for the Visual Connection Status Banner
-const NetworkStatusBar: React.FC<{ isOnline: boolean; isSynced: boolean }> = ({ isOnline, isSynced }) => {
-  return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none select-none">
-      <div className="max-w-md mx-auto p-3 bg-transparent flex justify-center">
-        <div className={`flex items-center gap-2.5 px-4 py-2 rounded-full border shadow-xl backdrop-blur-md transition-all pointer-events-auto ${isOnline ? (isSynced ? 'bg-[#f0fdf4]/95 border-emerald-250 text-emerald-800' : 'bg-amber-50/95 border-amber-250 text-amber-800') : 'bg-rose-50/95 border-rose-250 text-rose-800 animate-pulse'}`}>
-          {isOnline ? (
-            isSynced ? (
-              <>
-                <Wifi className="h-4 w-4 text-emerald-500" />
-                <span className="text-[10px] font-black uppercase tracking-wider">Protected Online Core &bull; Synced</span>
-              </>
-            ) : (
-              <>
-                <Loader2 className="h-4 w-4 text-amber-500 animate-spin" />
-                <span className="text-[10px] font-black uppercase tracking-wider">Synchronizing Offline Queue...</span>
-              </>
-            )
-          ) : (
-            <>
-              <WifiOff className="h-4 w-4 text-rose-500 animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-wider">Local Cached Offline Mode &bull; Safe Save Active</span>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 };

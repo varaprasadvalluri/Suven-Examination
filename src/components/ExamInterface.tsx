@@ -6,7 +6,7 @@ import { MathInputToolbar } from './MathInputToolbar';
 import { Button } from './ui/button';
 import { Card, CardContent, CardFooter } from './ui/card';
 import { Badge } from './ui/badge';
-import { Clock, ChevronLeft, Circle, ArrowLeft, ArrowRight, ChevronRight, Send, HelpCircle, ShieldAlert, PauseCircle, Eye, Volume2, ListChecks, X, AlertTriangle, CheckCircle2, AlertCircle, LogOut, Home, FileQuestion } from 'lucide-react';
+import { Clock, ChevronLeft, Circle, ArrowLeft, ArrowRight, ChevronRight, Send, HelpCircle, ShieldAlert, PauseCircle, Volume2, ListChecks, X, AlertTriangle, CheckCircle2, AlertCircle, LogOut, Home, FileQuestion } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
@@ -74,20 +74,6 @@ const ExamInterfaceCore: React.FC = () => {
   const audioAnalyserRef = useRef<AnalyserNode | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const videoStreamRef = useRef<MediaStream | null>(null);
-
-  // Challenge-Response Biometric Presence Invariant States (Anti-Distraction, Anti-Phone Copying)
-  const [challengeActive, setChallengeActive] = useState<boolean>(false);
-  const [challengeTimeLeft, setChallengeTimeLeft] = useState<number>(0);
-  const [challengeCoords, setChallengeCoords] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
-  const challengeIntervalRef = useRef<any>(null);
-  const challengeCountdownRef = useRef<any>(null);
-
-  const handlePassChallenge = () => {
-    setChallengeActive(false);
-    toast.success("Active presence confirmed. Focus alignment synchronized successfully.", {
-      icon: "🛡️"
-    });
-  };
 
   const logProctorAnomaly = useCallback(async (type: string, description: string) => {
     if (!attemptId || !attempt) return;
@@ -359,16 +345,18 @@ const ExamInterfaceCore: React.FC = () => {
 
   const handleSubmit = useCallback(async () => {
     if (!attemptId || !exam || questions.length === 0 || !attempt) return;
-    
-    setIsSubmitConfirmOpen(false);
 
     // MODULE 3: Offline Safe-Wall Intercept
     if (!isOnline) {
+      setIsSubmitConfirmOpen(false);
       setOfflineAnswersSnapshot([...answers]);
       setShowOfflineWall(true);
       return;
     }
-    
+
+    // Dialog stays open (buttons disabled, "Transmitting..." shown via `loading`) for the
+    // whole submit so the student always sees feedback — it only goes away when navigate()
+    // below unmounts this screen, on both the success and error paths.
     setLoading(true);
     try {
       // Flush any queued answers immediately to DB before scoring/finalizing
@@ -440,41 +428,44 @@ const ExamInterfaceCore: React.FC = () => {
         examId: attempt.examId || exam.id
       };
 
-      let isCompletedInDb = false;
+      // The main attempt write and the error-book write are independent — run them
+      // concurrently instead of back-to-back so submission only waits on the slower of the
+      // two round trips, not both added together.
+      const submitAttempt = async () => {
+        let isCompletedInDb = false;
 
-      // Primary Channel: Direct Firestore Client Update
-      try {
-        await updateDoc(doc(db, 'attempts', attemptId), submissionPayload);
-        isCompletedInDb = true;
-      } catch (err) {
-        console.warn("Client-side updateDoc failed, attempting Express API proxy submission:", err);
-      }
-
-      // Fallback Channel: Express Server Proxy Write
-      if (!isCompletedInDb) {
+        // Primary Channel: Direct Firestore Client Update
         try {
-          const res = await fetch('/api/db/write', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
-            body: JSON.stringify({
-              type: 'update',
-              collectionName: 'attempts',
-              docId: attemptId,
-              data: submissionPayload
-            })
-          });
-          if (res.ok) {
-            isCompletedInDb = true;
-          } else {
-            console.warn("Express write API returned non-OK response:", await res.text());
-          }
-        } catch (apiErr) {
-          console.error("Express write API fetch error:", apiErr);
+          await updateDoc(doc(db, 'attempts', attemptId), submissionPayload);
+          isCompletedInDb = true;
+        } catch (err) {
+          console.warn("Client-side updateDoc failed, attempting Express API proxy submission:", err);
         }
-      }
 
-      // Secondary logging: Error books
-      if (errorBookEntries.length > 0) {
+        // Fallback Channel: Express Server Proxy Write
+        if (!isCompletedInDb) {
+          try {
+            const res = await fetch('/api/db/write', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...authHeaders() },
+              body: JSON.stringify({
+                type: 'update',
+                collectionName: 'attempts',
+                docId: attemptId,
+                data: submissionPayload
+              })
+            });
+            if (!res.ok) {
+              console.warn("Express write API returned non-OK response:", await res.text());
+            }
+          } catch (apiErr) {
+            console.error("Express write API fetch error:", apiErr);
+          }
+        }
+      };
+
+      const submitErrorBook = async () => {
+        if (errorBookEntries.length === 0) return;
         try {
           const batch = writeBatch(db);
           errorBookEntries.forEach(entry => {
@@ -500,7 +491,9 @@ const ExamInterfaceCore: React.FC = () => {
             console.warn("Server proxy write error_books failed, continuing with submission completion:", ebErr);
           }
         }
-      }
+      };
+
+      await Promise.all([submitAttempt(), submitErrorBook()]);
 
       localStorage.removeItem(`exam_visited_${attemptId}`);
       localStorage.removeItem(`exam_review_${attemptId}`);
@@ -688,73 +681,6 @@ const ExamInterfaceCore: React.FC = () => {
     
     return () => clearInterval(interval);
   }, [micAllowed, handleViolationTrigger]);
-
-  // 3. Random challenge-response presence challenge (forces focus alignment to block phone copying / side-help)
-  useEffect(() => {
-    if (loading || !attempt || attempt.status === 'completed' || isPaused) return;
-
-    const triggerChallenge = () => {
-      setChallengeActive(prevActive => {
-        if (prevActive) return true;
-        
-        // Compute randomized placement coordinates to verify active eye gaze and attention
-        const rx = Math.floor(Math.random() * 60) + 20; 
-        const ry = Math.floor(Math.random() * 60) + 20; 
-        setChallengeCoords({ x: rx, y: ry });
-        setChallengeTimeLeft(7); 
-        
-        toast.warning("BIOMETRIC FOCUS CHALLENGE: Please look directly at the green target node to verify active screen presence.", {
-          icon: <ShieldAlert className="h-5 w-5 text-amber-500 animate-bounce" />,
-          duration: 6000
-        });
-
-        return true;
-      });
-    };
-
-    // Trigger biometric check challenge randomly every 35 to 65 seconds
-    const intervalTime = (Math.floor(Math.random() * 30) + 35) * 1000;
-    challengeIntervalRef.current = setInterval(triggerChallenge, intervalTime);
-
-    return () => {
-      if (challengeIntervalRef.current) clearInterval(challengeIntervalRef.current);
-    };
-  }, [loading, attempt, isPaused]);
-
-  // Challenge Countdown Ticker
-  useEffect(() => {
-    if (!challengeActive) {
-      if (challengeCountdownRef.current) {
-        clearInterval(challengeCountdownRef.current);
-        challengeCountdownRef.current = null;
-      }
-      return;
-    }
-
-    if (!challengeCountdownRef.current) {
-      challengeCountdownRef.current = setInterval(() => {
-        setChallengeTimeLeft(prev => {
-          if (prev <= 1) {
-            clearInterval(challengeCountdownRef.current);
-            challengeCountdownRef.current = null;
-            setChallengeActive(false);
-            
-            // FAILED challenge - student was copying from phone/talking/distracted
-            handleViolationTrigger('active_presence_failed', 'Failed active biometric presence audit (Off-screen distraction / device look-away suspected)');
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-
-    return () => {
-      if (challengeCountdownRef.current) {
-        clearInterval(challengeCountdownRef.current);
-        challengeCountdownRef.current = null;
-      }
-    };
-  }, [challengeActive, handleViolationTrigger]);
 
   useEffect(() => {
     if (!attempt || attempt.status === 'completed' || loading) return;
@@ -1785,51 +1711,6 @@ const ExamInterfaceCore: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Biometric Active Gaze Presence Challenge Backdrop Overlay */}
-      {challengeActive && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[9999] flex flex-col items-center justify-center p-6 select-none animate-in fade-in duration-300">
-          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-[32px] p-8 shadow-2xl text-center space-y-6 relative overflow-hidden">
-            <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-amber-500 to-rose-500 animate-pulse" />
-            
-            <div className="h-16 w-16 mx-auto rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
-              <Eye className="h-8 w-8 text-amber-400 animate-pulse" />
-            </div>
-
-            <div className="space-y-2">
-              <h3 className="text-lg font-black text-white uppercase tracking-tight">Active Presence Verification</h3>
-              <p className="text-xs text-slate-400 font-semibold leading-relaxed">
-                A randomized gaze presence verification is active. 
-                This ensures students do not look down at mobile devices or search external aids.
-              </p>
-            </div>
-
-            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between text-xs font-mono">
-              <span className="text-slate-500 font-bold">COUNTDOWN</span>
-              <span className="text-rose-400 font-black text-sm animate-pulse">{challengeTimeLeft}s REMAINING</span>
-            </div>
-
-            <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider animate-bounce">
-              🔍 Click the flashing target confirmation node floating on the screen!
-            </p>
-          </div>
-
-          {/* Floated green target verify node */}
-          <button
-            type="button"
-            onClick={handlePassChallenge}
-            style={{ 
-              top: `${challengeCoords.y}%`, 
-              left: `${challengeCoords.x}%` 
-            }}
-            className="absolute -translate-x-1/2 -translate-y-1/2 h-20 w-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center cursor-pointer shadow-lg shadow-emerald-500/30 hover:scale-110 active:scale-95 transition-all animate-pulse z-[10000]"
-          >
-            <div className="h-4 w-4 rounded-full bg-emerald-400" />
-            <span className="absolute -bottom-6 text-[9px] font-black font-mono text-emerald-400 bg-slate-900 px-2 py-0.5 rounded border border-emerald-500/30 uppercase tracking-widest whitespace-nowrap">
-              CONFIRM PRESENT
-            </span>
-          </button>
-        </div>
-      )}
     </div>
   );
 };
