@@ -1,45 +1,45 @@
-availableSecrets:
-  secretManager:
-    - versionName: projects/$PROJECT_ID/secrets/firebase-api-key/versions/latest
-      env: 'FIREBASE_API_KEY'
-
 steps:
   # Step 1: Build the optimized production Docker image using Cloud Build.
   # Firebase config is baked into the frontend bundle at build time (vite.config.ts), so it
-  # has to be passed as --build-arg here — the project/database IDs come from substitution
-  # variables (not secret, same values ship in every Firebase web app's JS bundle anyway),
-  # the API key comes from Secret Manager. See GCP_DEPLOYMENT.md for one-time setup.
+  # has to be passed as --build-arg here. All values (including the API key) come from
+  # substitutions — none of this is a real secret, it's the same public Firebase web config
+  # that ships in every Firebase web app's JS bundle. See GCP_DEPLOYMENT.md.
   - name: 'gcr.io/cloud-builders/docker'
-    entrypoint: 'bash'
     args:
-      - '-c'
-      - |
-        docker build \
-          --build-arg FIREBASE_PROJECT_ID="$_FIREBASE_PROJECT_ID" \
-          --build-arg FIRESTORE_DATABASE_ID="$_FIRESTORE_DATABASE_ID" \
-          --build-arg FIREBASE_API_KEY="$$FIREBASE_API_KEY" \
-          --build-arg FIREBASE_APP_ID="$_FIREBASE_APP_ID" \
-          --build-arg FIREBASE_AUTH_DOMAIN="$_FIREBASE_AUTH_DOMAIN" \
-          --build-arg FIREBASE_STORAGE_BUCKET="$_FIREBASE_STORAGE_BUCKET" \
-          --build-arg FIREBASE_MESSAGING_SENDER_ID="$_FIREBASE_MESSAGING_SENDER_ID" \
-          -t "gcr.io/$PROJECT_ID/suvenedu-service:latest" \
-          -t "gcr.io/$PROJECT_ID/suvenedu-service:$COMMIT_SHA" \
-          .
-    secretEnv: ['FIREBASE_API_KEY']
+      - 'build'
+      - '--build-arg'
+      - 'FIREBASE_PROJECT_ID=$_FIREBASE_PROJECT_ID'
+      - '--build-arg'
+      - 'FIRESTORE_DATABASE_ID=$_FIRESTORE_DATABASE_ID'
+      - '--build-arg'
+      - 'FIREBASE_API_KEY=$_FIREBASE_API_KEY'
+      - '--build-arg'
+      - 'FIREBASE_APP_ID=$_FIREBASE_APP_ID'
+      - '--build-arg'
+      - 'FIREBASE_AUTH_DOMAIN=$_FIREBASE_AUTH_DOMAIN'
+      - '--build-arg'
+      - 'FIREBASE_STORAGE_BUCKET=$_FIREBASE_STORAGE_BUCKET'
+      - '--build-arg'
+      - 'FIREBASE_MESSAGING_SENDER_ID=$_FIREBASE_MESSAGING_SENDER_ID'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/suven-examination:latest'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/suven-examination:$COMMIT_SHA'
+      - '.'
 
   # Step 2: Push the image to Google Container Registry (GCR)
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/suvenedu-service:$COMMIT_SHA']
+    args: ['push', 'gcr.io/$PROJECT_ID/suven-examination:$COMMIT_SHA']
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/suvenedu-service:latest']
+    args: ['push', 'gcr.io/$PROJECT_ID/suven-examination:latest']
 
   # Step 3: Deploy to Google Cloud Run with custom autoscaling rules for high-concurrency (10k users)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'gcloud'
     args: [
-      'run', 'deploy', 'suvenedu-service',
-      '--image', 'gcr.io/$PROJECT_ID/suvenedu-service:$COMMIT_SHA',
-      '--region', 'us-central1',
+      'run', 'deploy', 'suven-examination',
+      '--image', 'gcr.io/$PROJECT_ID/suven-examination:$COMMIT_SHA',
+      '--region', 'asia-south1',
       '--platform', 'managed',
       '--allow-unauthenticated',
       '--port', '3000',
@@ -52,8 +52,8 @@ steps:
     ]
 
 images:
-  - 'gcr.io/$PROJECT_ID/suvenedu-service:latest'
-  - 'gcr.io/$PROJECT_ID/suvenedu-service:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/suven-examination:latest'
+  - 'gcr.io/$PROJECT_ID/suven-examination:$COMMIT_SHA'
 
 # Non-secret Firebase web config (same values that ship in any Firebase web app's JS bundle
 # regardless — see GCP_DEPLOYMENT.md). Override at trigger time with
@@ -61,6 +61,7 @@ images:
 substitutions:
   _FIREBASE_PROJECT_ID: 'project-02bb6275-51ac-45e7-940'
   _FIRESTORE_DATABASE_ID: 'suven-edu'
+  _FIREBASE_API_KEY: 'AIzaSyD-AzMGuVYnFwhFLOStoerl21LSD7vkIvc'
   _FIREBASE_APP_ID: '1:486328864423:web:6a971b689b5a81e51c5582'
   _FIREBASE_AUTH_DOMAIN: 'project-02bb6275-51ac-45e7-940.firebaseapp.com'
   _FIREBASE_STORAGE_BUCKET: 'project-02bb6275-51ac-45e7-940.firebasestorage.app'
