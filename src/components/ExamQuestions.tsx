@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
+import { authHeaders } from '../lib/sessionStore';
 import { db, handleFirestoreError, OperationType, collection, query, where, getDocs, doc, getDoc, onSnapshot, addDoc, updateDoc, deleteDoc, writeBatch } from '../lib/firebase';
 import { Question, Exam } from '../types';
 import { MathRenderer } from './MathRenderer';
@@ -319,7 +320,8 @@ export const ExamQuestions: React.FC = () => {
     if (!confirm("Are you sure you want to delete this question? Any uploaded image for this question will also be permanently deleted. Do you want to proceed?")) return;
     try {
       const response = await fetch(`/api/questions/${qId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { ...authHeaders() }
       });
       if (!response.ok) {
         throw new Error(await response.text() || 'Failed to delete question via API');
@@ -375,7 +377,8 @@ export const ExamQuestions: React.FC = () => {
           const response = await fetch(`/api/exams/${examId}/import-doc`, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              ...authHeaders()
             },
             body: JSON.stringify({
               base64Data,

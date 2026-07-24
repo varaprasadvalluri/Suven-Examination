@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, db, signInWithGoogle as firebaseSignInWithGoogle, signInWithEmail as firebaseSignInWithEmail, signUpWithEmail as firebaseSignUpWithEmail, logout as firebaseLogout, sendPasswordResetEmail as firebaseSendPasswordResetEmail } from './firebase';
-import { UserProfile, AppPermission, UserRole } from '../types';
+import { auth, signInWithGoogle as firebaseSignInWithGoogle, signInWithEmail as firebaseSignInWithEmail, signUpWithEmail as firebaseSignUpWithEmail, logout as firebaseLogout, sendPasswordResetEmail as firebaseSendPasswordResetEmail } from './firebase';
+import { UserProfile, UserRole } from '../types';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { toast } from 'sonner';
+import { setSessionToken, clearSessionToken } from './sessionStore';
 
 interface AuthContextType {
   user: User | null;
@@ -108,145 +108,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   });
 
-  const lookupSchoolByEmail = async (emailStr?: string | null): Promise<{ schoolId: string | undefined; isSchool: boolean }> => {
-    if (!emailStr) return { schoolId: undefined, isSchool: false };
-    const lowerEmail = emailStr.trim().toLowerCase();
-    
-    try {
-      // 1. Check schools collection where adminEmail == lowerEmail
-      const schoolsRef = collection(db, 'schools');
-      const qAdmin = query(schoolsRef, where('adminEmail', '==', lowerEmail));
-      const snapAdmin = await getDocs(qAdmin);
-      if (!snapAdmin.empty) {
-        return { schoolId: snapAdmin.docs[0].id, isSchool: true };
-      }
-
-      // 2. Check allowed_schools collection
-      const safeEmailId = lowerEmail.replace(/[^a-zA-Z0-9_-]/g, '_');
-      const allowedDoc = await getDoc(doc(db, 'allowed_schools', safeEmailId));
-      if (allowedDoc.exists() && allowedDoc.data()?.schoolId) {
-        return { schoolId: allowedDoc.data()?.schoolId, isSchool: true };
-      }
-
-      const qAllowed = query(collection(db, 'allowed_schools'), where('email', '==', lowerEmail));
-      const snapAllowed = await getDocs(qAllowed);
-      if (!snapAllowed.empty && snapAllowed.docs[0].data()?.schoolId) {
-        return { schoolId: snapAllowed.docs[0].data()?.schoolId, isSchool: true };
-      }
-
-      // 3. Check allowedDomains in all schools
-      const emailDomain = lowerEmail.split('@')[1];
-      if (emailDomain) {
-        const allSchoolsSnap = await getDocs(schoolsRef);
-        const domainMatch = allSchoolsSnap.docs.find(d => {
-          const domains = d.data()?.allowedDomains;
-          return Array.isArray(domains) && domains.map((dm: string) => dm.trim().toLowerCase()).includes(emailDomain);
-        });
-        if (domainMatch) {
-          return { schoolId: domainMatch.id, isSchool: true };
-        }
-      }
-    } catch (err) {
-      console.warn("Error looking up school by email in AuthContext:", err);
-    }
-
-    return { schoolId: undefined, isSchool: false };
-  };
-
-  const checkFirestoreAdminStatus = async (firebaseUser: User, userEmail: string): Promise<boolean> => {
-    if (!userEmail && !firebaseUser.uid) return false;
-    try {
-      // Check admins or super_admins collection in Firestore
-      const superAdminByUid = await getDoc(doc(db, 'super_admins', firebaseUser.uid));
-      if (superAdminByUid.exists()) return true;
-
-      const adminByUid = await getDoc(doc(db, 'admins', firebaseUser.uid));
-      if (adminByUid.exists()) return true;
-
-      if (userEmail) {
-        const safeEmailId = userEmail.replace(/[^a-zA-Z0-9_-]/g, '_');
-        const superAdminByEmail = await getDoc(doc(db, 'super_admins', safeEmailId));
-        if (superAdminByEmail.exists()) return true;
-
-        const adminByEmail = await getDoc(doc(db, 'admins', safeEmailId));
-        if (adminByEmail.exists()) return true;
-
-        const qSuper = query(collection(db, 'super_admins'), where('email', '==', userEmail));
-        const snapSuper = await getDocs(qSuper);
-        if (!snapSuper.empty) return true;
-
-        const qAdmin = query(collection(db, 'admins'), where('email', '==', userEmail));
-        const snapAdmin = await getDocs(qAdmin);
-        if (!snapAdmin.empty) return true;
-      }
-    } catch (err) {
-      console.warn("Firestore admin check error:", err);
-    }
-    return false;
-  };
-
+  // Delegates profile lookup/creation and role assignment entirely to the server
+  // (/api/auth/validate), which verifies the caller's Firebase ID token and applies the
+  // real authorization rules (e.g. admin self-registration is blocked). This also mints
+  // the session token that authorizes every subsequent /api/db/query and /api/db/write call.
   const fetchProfile = async (firebaseUser: User) => {
     try {
-      const userRef = doc(db, 'users', firebaseUser.uid);
-      const userSnap = await getDoc(userRef);
-      const userEmail = firebaseUser.email?.trim().toLowerCase() || '';
-
-      const { schoolId } = await lookupSchoolByEmail(userEmail);
-
-      if (userSnap.exists()) {
-        const existingData = userSnap.data() as UserProfile;
-        
-        // Respect whatever role is in Firestore.
-        // If role is school but schoolId was resolved, update schoolId if missing
-        if (existingData.role === 'school' && !existingData.schoolId && schoolId) {
-          const updatedProfile: UserProfile = {
-            ...existingData,
-            schoolId
-          };
-          await updateDoc(userRef, { schoolId });
-          setProfile(updatedProfile);
-          return;
-        }
-
-        setProfile(existingData);
-      } else {
-        // NEW USER PROFILE CREATION - Check Firestore for admin record or default to school/student
-        const isAdminInFirestore = await checkFirestoreAdminStatus(firebaseUser, userEmail);
-
-        let assignedRole: UserRole = 'school';
-        if (isAdminInFirestore) {
-          assignedRole = 'admin';
-        } else if (userEmail.includes('student')) {
-          assignedRole = 'student';
-        }
-
-        let permissions: AppPermission[] = [];
-        if (assignedRole === 'admin') {
-          permissions = ['manage_exams', 'view_results'];
-        } else if (assignedRole === 'school') {
-          permissions = ['manage_exams', 'view_results', 'manage_students'];
-        } else {
-          permissions = ['take_exams'];
-        }
-
-        const newProfile: UserProfile = {
-          uid: firebaseUser.uid,
-          name: firebaseUser.displayName || userEmail.split('@')[0] || 'User',
-          email: userEmail,
-          role: assignedRole,
-          permissions,
-          schoolId: schoolId || undefined,
-          createdAt: new Date().toISOString()
-        };
-
-        await setDoc(userRef, newProfile);
-        setProfile(newProfile);
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/auth/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ displayName: firebaseUser.displayName })
+      });
+      const payload = await res.json();
+      if (!res.ok || !payload.success) {
+        throw new Error(payload.error || 'Failed to validate session');
       }
+      setSessionToken(payload.sessionToken);
+      setProfile(payload.profile);
     } catch (error: any) {
-      console.error("Error fetching user profile from Firestore:", error);
+      console.error("Error validating session with server:", error);
       const userEmail = firebaseUser.email?.trim().toLowerCase() || '';
       const defaultRole: UserRole = userEmail.includes('student') ? 'student' : 'school';
 
+      // Offline/network-failure fallback: a local-only best-guess profile so the UI doesn't
+      // hard-fail. No session token is issued, so subsequent DB proxy calls will 401 until
+      // connectivity is restored and the next fetchProfile succeeds.
       setProfile({
         uid: firebaseUser.uid,
         name: firebaseUser.displayName || userEmail.split('@')[0] || 'User',
@@ -318,47 +205,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signUpWithEmail = async (email: string, pass: string, name: string, role: 'admin' | 'school' | 'student', schoolId?: string) => {
+    let firebaseUser: User | null = null;
     try {
-      const firebaseUser = await firebaseSignUpWithEmail(email, pass, name);
-      const userRef = doc(db, 'users', firebaseUser.uid);
-      const lowerEmail = email.trim().toLowerCase();
+      firebaseUser = await firebaseSignUpWithEmail(email, pass, name);
+      const idToken = await firebaseUser.getIdToken();
 
-      let resolvedSchoolId = schoolId;
-      if (!resolvedSchoolId) {
-        const schoolLookup = await lookupSchoolByEmail(lowerEmail);
-        if (schoolLookup.schoolId) {
-          resolvedSchoolId = schoolLookup.schoolId;
-        } else if (role === 'school') {
-          resolvedSchoolId = 'school-' + lowerEmail.replace(/[^a-zA-Z0-9]/g, '-');
-        }
+      // Server enforces the real rules here: admin self-registration is hard-blocked, and a
+      // 'school' role is only granted if the email is verified against allowed_schools/schools.
+      const res = await fetch('/api/auth/create-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ name, role, schoolId })
+      });
+      const payload = await res.json();
+      if (!res.ok || !payload.success) {
+        throw new Error(payload.error || 'Failed to create profile');
       }
-
-      let assignedRole = role;
-      if (assignedRole === 'admin') {
-        const isAdminInFirestore = await checkFirestoreAdminStatus(firebaseUser, lowerEmail);
-        if (!isAdminInFirestore) {
-          assignedRole = 'school';
-        }
-      }
-
-      let permissions: AppPermission[] = [];
-      if (assignedRole === 'admin') permissions = ['manage_exams', 'view_results'];
-      else if (assignedRole === 'school') permissions = ['manage_exams', 'view_results', 'manage_students'];
-      else permissions = ['take_exams'];
-
-      const newProfile: UserProfile = {
-        uid: firebaseUser.uid,
-        name,
-        email: lowerEmail,
-        role: assignedRole,
-        permissions,
-        schoolId: resolvedSchoolId,
-        createdAt: new Date().toISOString()
-      };
-
-      await setDoc(userRef, newProfile);
-      setProfile(newProfile);
+      setSessionToken(payload.sessionToken);
+      setProfile(payload.profile);
     } catch (err: any) {
+      // The Firebase Auth account is created before the server-side authorization check
+      // runs (it has to be — we need a UID/ID token to call that check at all). If the
+      // check then rejects the signup, roll the just-created account back so the user
+      // isn't left with an orphaned, unusable "already registered" account on retry.
+      if (firebaseUser) {
+        try {
+          await firebaseUser.delete();
+        } catch (cleanupErr) {
+          console.warn("Could not roll back orphaned signup account:", cleanupErr);
+        }
+      }
       toast.error("Sign-up failed: " + err.message);
       throw err;
     }
@@ -405,6 +281,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Ignore firebase auth logout if offline/demo
     }
     // Properly clear all session data, tokens (JWT/Cookies), and local cache upon logout
+    clearSessionToken(); // clears the in-memory cache too, not just localStorage
     localStorage.clear();
     sessionStorage.clear();
     

@@ -63,7 +63,7 @@ console.log(`
 `);
 
 // Helper to make custom HTTP/HTTPS requests
-function makeRequest(method, endpoint, payload = null) {
+function makeRequest(method, endpoint, payload = null, sessionToken = null) {
   return new Promise((resolve) => {
     const urlString = `${CONFIG.targetUrl}${endpoint}`;
     const parsedUrl = new URL(urlString);
@@ -77,7 +77,8 @@ function makeRequest(method, endpoint, payload = null) {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'x-load-test': 'true'
+        'x-load-test': 'true',
+        ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {})
       }
     };
 
@@ -134,12 +135,12 @@ function makeRequest(method, endpoint, payload = null) {
 }
 
 // Throttled request runner to implement strict connection limits
-function enqueueRequest(method, endpoint, payload = null) {
+function enqueueRequest(method, endpoint, payload = null, sessionToken = null) {
   return new Promise((resolve) => {
     const run = async () => {
       activeRequestsCount++;
       try {
-        const result = await makeRequest(method, endpoint, payload);
+        const result = await makeRequest(method, endpoint, payload, sessionToken);
         resolve(result);
       } finally {
         activeRequestsCount--;
@@ -195,9 +196,11 @@ async function simulateStudent(studentIndex) {
   }
 
   let attemptId = null;
+  let sessionToken = null;
   try {
     const parsed = JSON.parse(enrollRes.data);
     attemptId = parsed.attemptIdRaw;
+    sessionToken = parsed.sessionToken || null;
   } catch (e) {
     attemptId = `att_${examId}_${matchedStudentId}`;
   }
@@ -213,7 +216,7 @@ async function simulateStudent(studentIndex) {
         status: 'in-progress'
       }
     };
-    await enqueueRequest('POST', '/api/db/write', heartbeatPayload);
+    await enqueueRequest('POST', '/api/db/write', heartbeatPayload, sessionToken);
   }, CONFIG.heartbeatIntervalMs);
 
   // Keep simulator active for configured duration, then submit
@@ -235,7 +238,7 @@ async function simulateStudent(studentIndex) {
     }
   };
 
-  await enqueueRequest('POST', '/api/db/write', submitPayload);
+  await enqueueRequest('POST', '/api/db/write', submitPayload, sessionToken);
 }
 
 // Print real-time diagnostics metrics progress

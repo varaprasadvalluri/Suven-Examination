@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { createServer as createViteServer } from 'vite';
 import 'dotenv/config';
 import { v2 as cloudinary } from 'cloudinary';
@@ -11,6 +11,9 @@ import Redis from 'ioredis';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { GoogleAuth } from 'google-auth-library';
+import { initializeApp as initializeAdminApp, getApps as getAdminApps } from 'firebase-admin/app';
+import { getAuth as getAdminAuth } from 'firebase-admin/auth';
+import jwt from 'jsonwebtoken';
 import { EduKeyFactory } from './src/lib/idGenerator';
 
 
@@ -120,6 +123,103 @@ async function getAuthHeader(): Promise<Record<string, string>> {
 }
 
 console.log(`[NODE EXPRESS SERVER] Routed safely via Firestore REST API Gateway to DB: "${firebaseConfig.firestoreDatabaseId}"`);
+
+// Firebase Admin is used ONLY to cryptographically verify client-supplied Firebase Auth ID
+// tokens (via public certs, no service-account credential required for verification).
+// Firestore access itself still goes through the REST client above via ADC.
+//
+// In this environment, Firebase Auth and Firestore data can live in DIFFERENT GCP
+// projects: the platform auto-provisions a `gen-lang-client-*` project for Auth, while
+// Firestore data lives in whatever `firebaseConfig.projectId` points at (see the
+// isTargetingPlatformProject comment above for the same split). A token's "aud" claim
+// must exactly match the project an admin app was initialized for, so we lazily create
+// one admin app per project actually seen — but only for projects on this allowlist, so
+// we never silently accept a validly-signed token from some unrelated Firebase project.
+const ALLOWED_AUTH_PROJECT_IDS = Array.from(new Set([
+  firebaseConfig.projectId,
+  'gen-lang-client-0086284509',
+  ...(process.env.FIREBASE_AUTH_PROJECT_ID ? [process.env.FIREBASE_AUTH_PROJECT_ID] : [])
+].filter(Boolean)));
+
+const adminAppsByProject = new Map<string, ReturnType<typeof initializeAdminApp>>();
+
+function getAdminAppForProject(projectId: string) {
+  let app = adminAppsByProject.get(projectId);
+  if (app) return app;
+  const appName = `verify-${projectId}`;
+  app = getAdminApps().find(a => a.name === appName) || initializeAdminApp({ projectId }, appName);
+  adminAppsByProject.set(projectId, app);
+  return app;
+}
+
+async function verifyFirebaseIdToken(idToken: string): Promise<{ uid: string; email: string | null; name: string | null }> {
+  const parts = idToken.split('.');
+  if (parts.length !== 3) throw new Error('Malformed ID token');
+  const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+  const tokenProjectId = payload.aud;
+  if (!tokenProjectId || !ALLOWED_AUTH_PROJECT_IDS.includes(tokenProjectId)) {
+    throw new Error(`ID token audience "${tokenProjectId}" is not an allowed project`);
+  }
+
+  const decoded = await getAdminAuth(getAdminAppForProject(tokenProjectId)).verifyIdToken(idToken);
+  return { uid: decoded.uid, email: decoded.email || null, name: (decoded.name as string) || null };
+}
+
+// ==========================================
+// SESSION TOKENS (JWT)
+// ==========================================
+// App-level sessions (as opposed to the Firebase ID token used only once, to call
+// /api/auth/validate) are signed JWTs, not opaque tokens looked up in Firestore. This
+// means requireSession/resolveAuth — which runs on every /api/db/query and /api/db/write
+// call, i.e. the highest-traffic code path in the app during an exam window — does zero
+// Firestore reads: just signature + expiry verification. At up to ~100k concurrent
+// students autosaving every ~30s, that's the difference between 2 reads/request and 0.
+//
+// Trade-off: a JWT can't be revoked server-side without extra bookkeeping, so a role/
+// schoolId change only takes effect the next time the affected user's session is reissued
+// (next login, or completing RoleSelection/create-profile/toggleSchoolContext — all of
+// which already mint a fresh token and the frontend already reloads/re-stores it after
+// each of those). Given role changes are rare and happen at well-defined points, not
+// continuously, this is an acceptable trade for removing the per-request DB cost.
+const JWT_SESSION_TTL_SECONDS = 24 * 60 * 60; // 24h — matches the previous Firestore session TTL
+
+const JWT_SECRET: string = (() => {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  const generated = crypto.randomBytes(48).toString('hex');
+  console.warn(
+    '[Auth] JWT_SECRET is not set — generated a random signing key for this process only. ' +
+    'Every existing session will be invalidated on the next restart, and multiple server ' +
+    'instances would each sign with a different key. Set JWT_SECRET in the environment for ' +
+    'any real deployment (see .env.example).'
+  );
+  return generated;
+})();
+
+interface SessionClaims {
+  uid: string;
+  role: string;
+  schoolId: string | null;
+  email: string | null;
+}
+
+function signSessionToken(claims: SessionClaims): string {
+  return jwt.sign(claims, JWT_SECRET, { expiresIn: JWT_SESSION_TTL_SECONDS });
+}
+
+function verifySessionToken(token: string): SessionClaims | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload;
+    if (!decoded || typeof decoded !== 'object' || !decoded.uid || !decoded.role) return null;
+    return {
+      uid: decoded.uid as string,
+      role: decoded.role as string,
+      schoolId: (decoded.schoolId as string) || null,
+      email: (decoded.email as string) || null
+    };
+  } catch {
+    return null;
+  }
+}
 
 const clientDb = { type: 'db' };
 
@@ -714,6 +814,61 @@ async function checkDuplicateSubmission(req: any, res: any, next: () => void) {
   next();
 }
 
+interface RequestAuth {
+  uid: string;
+  email: string | null;
+  role: 'admin' | 'school' | 'student' | string;
+  schoolId: string | null;
+}
+
+// Resolves the caller's identity from a Bearer session token, without writing a response.
+// Shared by the requireSession middleware and routes (like /api/db/query) that only need
+// auth conditionally, depending on which collection is being accessed. Pure JWT signature
+// verification — no Firestore reads, since role/schoolId are already inside the token.
+async function resolveAuth(req: any): Promise<RequestAuth | null> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const claims = verifySessionToken(authHeader.split(' ')[1]);
+  if (!claims) return null;
+
+  return {
+    uid: claims.uid,
+    email: claims.email,
+    role: claims.role,
+    schoolId: claims.schoolId
+  };
+}
+
+// Session-based authentication middleware: validates the Bearer session token issued by
+// /api/auth/validate, /api/auth/create-profile, or /api/gatekeeper/enroll, and attaches
+// the caller's identity/role/schoolId to req.auth for downstream authorization checks.
+async function requireSession(req: any, res: any, next: () => void) {
+  try {
+    const auth = await resolveAuth(req);
+    if (!auth) {
+      return res.status(401).json({ error: 'Unauthorized: Missing, invalid, or expired session' });
+    }
+    req.auth = auth;
+    next();
+  } catch (err: any) {
+    console.error('[Auth] Session validation error:', err);
+    return res.status(500).json({ error: err.message || String(err) });
+  }
+}
+
+// Role gate — use after requireSession.
+function requireRole(...roles: string[]) {
+  return (req: any, res: any, next: () => void) => {
+    if (!req.auth || !roles.includes(req.auth.role)) {
+      return res.status(403).json({ error: 'Forbidden: insufficient role permissions' });
+    }
+    next();
+  };
+}
+
 // CLOUDINARY CONFIGURATION & UTILS
 function cleanEnvValue(val: string | undefined): string {
   if (!val) return '';
@@ -867,7 +1022,7 @@ app.post('/api/cloudinary/delete', async (req, res) => {
 });
 
 // 3. Question deletion with automatic Cloudinary image cleanup
-app.delete('/api/questions/:questionId', async (req, res) => {
+app.delete('/api/questions/:questionId', requireSession, requireRole('admin'), async (req, res) => {
   const { questionId } = req.params;
   try {
     const qRef = clientDoc(clientDb, 'questions', questionId);
@@ -894,7 +1049,7 @@ app.delete('/api/questions/:questionId', async (req, res) => {
 });
 
 // 4. Exam deletion with automatic Cloudinary image cleanup for all its questions
-app.delete('/api/exams/:examId', async (req, res) => {
+app.delete('/api/exams/:examId', requireSession, requireRole('admin'), async (req, res) => {
   const { examId } = req.params;
   try {
     // A. Find the exam document first
@@ -934,17 +1089,237 @@ app.delete('/api/exams/:examId', async (req, res) => {
 // In-Memory Store for High-Concurrency Load Tests to prevent consuming Cloud Firestore quota
 const mockLoadTestStore = new Map<string, any>();
 
+// Pre-session identity verification for the invite-link student flow: resolves (or
+// auto-onboards) a student by roll number + school, exactly mirroring what the client used
+// to do via direct (now-unauthenticated-blocked) Firestore calls to the `users` collection.
+// Runs before any session exists — same trust model as /api/gatekeeper/enroll itself, which
+// is the only reason this needs to be its own public route rather than going through the
+// now-authenticated /api/db/query proxy.
+app.post('/api/gatekeeper/verify-identity', async (req, res) => {
+  const { rollNumber, schoolId: finalSchoolId, username } = req.body;
+  if (!rollNumber || !finalSchoolId || !username) {
+    return res.status(400).json({ error: 'Missing rollNumber, schoolId, or username.' });
+  }
+
+  try {
+    const usersRef = clientCollection(clientDb, 'users');
+    let querySnap = await clientGetDocs(clientQuery(
+      usersRef,
+      clientWhere('schoolId', '==', finalSchoolId),
+      clientWhere('rollNumber', '==', rollNumber.trim()),
+      clientWhere('role', '==', 'student')
+    ));
+
+    if (querySnap.empty) {
+      querySnap = await clientGetDocs(clientQuery(
+        usersRef,
+        clientWhere('rollNumber', '==', rollNumber.trim()),
+        clientWhere('role', '==', 'student')
+      ));
+    }
+
+    let profileData: any;
+
+    if (!querySnap.empty) {
+      const matchedDoc = querySnap.docs[0];
+      const matchedStudentData = matchedDoc.data() as any;
+
+      profileData = {
+        uid: matchedDoc.id,
+        id: matchedDoc.id,
+        ...matchedStudentData,
+        name: matchedStudentData.name || username.trim(),
+        schoolId: matchedStudentData.schoolId || finalSchoolId
+      };
+    } else {
+      // Auto-onboard student for seamless link entry
+      const newStudentId = EduKeyFactory.getInstance().generateKey('users');
+      profileData = {
+        uid: newStudentId,
+        id: newStudentId,
+        name: username.trim(),
+        rollNumber: rollNumber.trim(),
+        schoolId: finalSchoolId,
+        role: 'student',
+        permissions: ['take_exams'],
+        createdAt: new Date().toISOString(),
+        class: 'Adaptive Grade'
+      };
+      await clientSetDoc(clientDoc(clientDb, 'users', newStudentId), profileData);
+    }
+
+    return res.status(200).json({ success: true, profileData });
+  } catch (err: any) {
+    console.error("Gatekeeper identity verification error:", err);
+    return res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+// Pre-session metadata lookup for the per-student invite-link flow (`/login?invite=<token>`,
+// generated by SchoolStudentOnboarding.tsx). Mirrors the old client-side direct-Firestore
+// version exactly, just moved server-side since `invitations`/`users` now require a session.
+app.post('/api/gatekeeper/invite-metadata', async (req, res) => {
+  const { inviteToken } = req.body;
+  if (!inviteToken) {
+    return res.status(400).json({ error: 'Missing inviteToken.' });
+  }
+
+  try {
+    const inviteSnap = await clientGetDoc(clientDoc(clientDb, 'invitations', inviteToken));
+
+    if (!inviteSnap.exists()) {
+      // Previously fell back to a schoolless, platform-wide roll-number search — that let
+      // anyone with zero information (no valid invite needed) query any student's profile
+      // by guessing a roll number, with no tenant boundary. A broken/expired link should
+      // fail cleanly instead; the properly-scoped exam-entry link is unaffected.
+      return res.status(404).json({ error: 'This invitation link is invalid or has expired. Please contact your school for a new link.' });
+    }
+
+    const iData = { id: inviteSnap.id, ...inviteSnap.data() } as any;
+    const resolvedStudentId = iData.studentId || `student-${inviteToken}`;
+
+    let studentProfile: any;
+    try {
+      const studentSnap = await clientGetDoc(clientDoc(clientDb, 'users', resolvedStudentId));
+      if (!studentSnap.exists()) {
+        studentProfile = {
+          uid: resolvedStudentId,
+          name: iData.studentName || 'Candidate',
+          rollNumber: 'ROLL-TEMP',
+          schoolId: iData.schoolId || 'school-core-node-1',
+          role: 'student',
+          permissions: ['take_exams'],
+          createdAt: new Date().toISOString(),
+          class: 'Adaptive Grade'
+        };
+        await clientSetDoc(clientDoc(clientDb, 'users', resolvedStudentId), studentProfile);
+      } else {
+        studentProfile = { uid: studentSnap.id, ...studentSnap.data() };
+      }
+    } catch (studentErr) {
+      console.warn("Could not retrieve/create user profile directly:", studentErr);
+      studentProfile = {
+        uid: resolvedStudentId,
+        name: iData.studentName || 'Candidate',
+        rollNumber: 'ROLL-TEMP',
+        schoolId: iData.schoolId || 'school-core-node-1',
+        role: 'student',
+        permissions: ['take_exams'],
+        createdAt: new Date().toISOString(),
+        class: 'Adaptive Grade'
+      };
+    }
+
+    let school: any = null;
+    if (iData.schoolId) {
+      try {
+        const schoolSnap = await clientGetDoc(clientDoc(clientDb, 'schools', iData.schoolId));
+        if (schoolSnap.exists()) school = { id: schoolSnap.id, ...schoolSnap.data() };
+      } catch (e) { /* non-fatal */ }
+    }
+
+    return res.status(200).json({ success: true, inviteData: iData, studentProfile, school });
+  } catch (err: any) {
+    console.error("Invitation gateway error:", err);
+    return res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+// Pre-session identity + target-exam resolution for the per-student invite-link flow. The
+// actual attempt creation/resume is deliberately NOT done here — the client follows this
+// call with /api/gatekeeper/enroll (passing this route's output plus inviteToken), reusing
+// its already-correct resume/reattempt/already-completed transaction logic instead of a
+// second, divergent copy of it.
+app.post('/api/gatekeeper/verify-invite', async (req, res) => {
+  const { inviteToken, enteredName, enteredRoll } = req.body;
+  if (!enteredName || !enteredRoll) {
+    return res.status(400).json({ error: 'Please enter both your Full Name and Register / Roll Number' });
+  }
+
+  const containsHTMLOrScripts = (val: string) => {
+    const lowercase = val.toLowerCase();
+    return lowercase.includes('<script') || lowercase.includes('javascript:') || lowercase.includes('<') || lowercase.includes('>') || lowercase.includes('onload');
+  };
+  const trimmedName = enteredName.trim();
+  const trimmedRoll = enteredRoll.trim();
+  if (containsHTMLOrScripts(trimmedName) || containsHTMLOrScripts(trimmedRoll)) {
+    return res.status(400).json({ error: 'Invalid credentials provided' });
+  }
+
+  try {
+    // A valid, existing invitation is required — no schoolless fallback search. That
+    // fallback used to let anyone query any student's profile platform-wide by guessing a
+    // roll number with zero prior information (no invite needed at all), since roll
+    // numbers are only unique within a school and there was no school to scope by.
+    const inviteSnap = inviteToken ? await clientGetDoc(clientDoc(clientDb, 'invitations', inviteToken)) : null;
+    if (!inviteSnap || !inviteSnap.exists()) {
+      return res.status(404).json({ error: 'This invitation link is invalid or has expired. Please contact your school for a new link.' });
+    }
+    const iData: any = { id: inviteSnap.id, ...inviteSnap.data() };
+
+    let targetExamId = iData.examId;
+    let targetExamTitle = iData.examTitle || 'Institution Secure Exam';
+    const targetSchoolId = iData.schoolId || 'school-core-node-1';
+
+    let resolvedStudentProfile: any;
+    const usersRef = clientCollection(clientDb, 'users');
+
+    const querySnap = await clientGetDocs(clientQuery(
+      usersRef,
+      clientWhere('rollNumber', '==', trimmedRoll),
+      clientWhere('schoolId', '==', targetSchoolId)
+    ));
+
+    if (!querySnap.empty) {
+      const matchProfile = querySnap.docs[0].data() as any;
+      const matchId = querySnap.docs[0].id;
+      resolvedStudentProfile = { uid: matchId, ...matchProfile, name: matchProfile.name || trimmedName };
+      if (!matchProfile.name) {
+        await clientSetDoc(clientDoc(clientDb, 'users', matchId), resolvedStudentProfile);
+      }
+    } else {
+      const newStudentId = EduKeyFactory.getInstance().generateKey('users');
+      resolvedStudentProfile = {
+        uid: newStudentId,
+        name: trimmedName,
+        rollNumber: trimmedRoll,
+        schoolId: targetSchoolId,
+        role: 'student',
+        permissions: ['take_exams'],
+        createdAt: new Date().toISOString(),
+        class: 'Adaptive Grade'
+      };
+      await clientSetDoc(clientDoc(clientDb, 'users', newStudentId), resolvedStudentProfile);
+    }
+
+    return res.status(200).json({
+      success: true,
+      matchedStudentId: resolvedStudentProfile.uid,
+      matchedStudentData: resolvedStudentProfile,
+      finalSchoolId: targetSchoolId,
+      finalExamId: targetExamId,
+      examTitle: targetExamTitle,
+      isFallback: false
+    });
+  } catch (err: any) {
+    console.error("Invite verification error:", err);
+    return res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
 // 2. BACKEND API FOR HEAVY WRITES: THE GATEKEEPER TRANSACTION
 app.post('/api/gatekeeper/enroll', async (req, res) => {
-  const { 
-    matchedStudentId, 
-    matchedStudentData, 
-    username, 
-    rollNumber, 
-    finalSchoolId, 
-    finalExamId, 
-    examTitle, 
-    clientFootprint 
+  const {
+    matchedStudentId,
+    matchedStudentData,
+    username,
+    rollNumber,
+    finalSchoolId,
+    finalExamId,
+    examTitle,
+    clientFootprint,
+    inviteToken,
+    inviteIsFallback
   } = req.body;
 
   if (!finalSchoolId || !finalExamId || !rollNumber) {
@@ -992,16 +1367,28 @@ app.post('/api/gatekeeper/enroll', async (req, res) => {
     mockLoadTestStore.set(`users_${resolvedStudentId}`, mockProfile);
     mockLoadTestStore.set(`attempts_${attemptIdRaw}`, mockAttempt);
 
+    // A signed JWT needs no Firestore write/lookup either way, so the load-test path now
+    // gets a real session token for free — no more special-cased in-memory session map.
+    const loadTestSessionToken = signSessionToken({
+      uid: resolvedStudentId,
+      role: 'student',
+      schoolId: finalSchoolId,
+      email: null
+    });
+
     return res.status(200).json({
       success: true,
       resolvedStudentId,
       attemptIdRaw,
       finalStudentProfile: mockProfile,
+      sessionToken: loadTestSessionToken,
       isSimulatedLoadTest: true
     });
   }
 
   let finalStudentProfile: any = null;
+  let isNewAttempt = false;
+  let attemptAction: 'created' | 'resumed' | 'reattempted' = 'resumed';
 
   try {
     // Atomic Database Transaction running on Node.js Server using Client SDK
@@ -1035,6 +1422,7 @@ app.post('/api/gatekeeper/enroll', async (req, res) => {
 
         if (attemptData.status === 'completed') {
           if (attemptData.canReattempt) {
+            attemptAction = 'reattempted';
             transaction.update(attemptDocRef, {
               status: 'started',
               score: 0,
@@ -1058,6 +1446,8 @@ app.post('/api/gatekeeper/enroll', async (req, res) => {
         }
       } else {
         // Initial clean session booking
+        isNewAttempt = true;
+        attemptAction = 'created';
         const newAttemptData = {
           examId: finalExamId,
           examTitle: examTitle || 'Single Term Link Entry Exam',
@@ -1077,20 +1467,46 @@ app.post('/api/gatekeeper/enroll', async (req, res) => {
       }
     });
 
+    // Invite-link students never go through Firebase Auth, so this is the only place that
+    // can mint their session — without it, every subsequent /api/db/write during the exam
+    // (autosave, proctoring logs, final submit) would 401.
+    const sessionToken = signSessionToken({
+      uid: resolvedStudentId,
+      role: 'student',
+      schoolId: finalSchoolId,
+      email: finalStudentProfile?.email || `${rollNumber.trim().toLowerCase()}@school.com`
+    });
+
+    // Best-effort: mark a per-student invitation link as consumed once it has actually
+    // produced a brand-new attempt (not a resume of an existing one).
+    if (inviteToken && !inviteIsFallback && isNewAttempt) {
+      try {
+        await clientUpdateDoc(clientDoc(clientDb, 'invitations', inviteToken), {
+          status: 'used',
+          consumedAt: now.toISOString()
+        });
+      } catch (inviteErr) {
+        console.warn("Failed to mark invitation as consumed (non-fatal):", inviteErr);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       resolvedStudentId,
       attemptIdRaw,
-      finalStudentProfile
+      finalStudentProfile,
+      sessionToken,
+      isNewAttempt,
+      attemptAction
     });
 
   } catch (transErr: any) {
     const errMsg = transErr?.message || String(transErr);
-    
+
     // Provide explicit parseable error responses
     if (errMsg.includes("EXAM_ALREADY_COMPLETED")) {
       console.warn("Handled Gatekeeper rule: EXAM_ALREADY_COMPLETED");
-      return res.status(409).json({ code: "EXAM_ALREADY_COMPLETED", error: " This assessment attempt has already been submitted and completed." });
+      return res.status(409).json({ code: "EXAM_ALREADY_COMPLETED", error: " This assessment attempt has already been submitted and completed.", attemptIdRaw });
     }
     if (errMsg.includes("SESSION_HIJACK_BLOCKED")) {
       console.warn("Handled Gatekeeper rule:", errMsg);
@@ -1116,6 +1532,125 @@ const CACHE_TTLS: Record<string, number> = {
   'login_options': 60000, // 60s cache
   'invitations': 5000,    // 5s cache
 };
+
+// ==========================================
+// COLLECTION-LEVEL AUTHORIZATION (DB PROXY)
+// ==========================================
+// Every collection the app touches through /api/db/query and /api/db/write, and which
+// roles may read/write it. Catalog-style content (exam listings, school directory,
+// syllabus, question banks, login screen config) stays publicly readable because it's
+// needed to render pre-login/pre-enrollment screens (the login page, and the invite-link
+// "join this exam" preview) and carries no per-user secrets. Everything else requires a
+// valid session, with tenant scoping enforced below for school/student roles.
+type ProxyRole = 'admin' | 'school' | 'student';
+
+const PUBLIC_READ_COLLECTIONS = new Set(['login_options', 'exams', 'schools', 'questions', 'syllabus']);
+
+// secure_exam_links holds exam-entry tokens — not publicly listable, but a pre-session
+// visitor following an invite link must be able to look up the one doc matching their
+// token to see the "join this exam" preview screen.
+const TOKEN_LOOKUP_COLLECTIONS = new Set(['secure_exam_links']);
+
+const COLLECTION_ACCESS: Record<string, { read: ProxyRole[]; write: ProxyRole[] }> = {
+  users:               { read: ['admin', 'school', 'student'], write: ['admin', 'school', 'student'] },
+  // Per intended role model: school views exams/question papers only, does not author them.
+  exams:               { read: ['admin', 'school', 'student'], write: ['admin'] },
+  questions:           { read: ['admin', 'school', 'student'], write: ['admin'] },
+  schools:             { read: ['admin', 'school', 'student'], write: ['admin'] },
+  attempts:            { read: ['admin', 'school', 'student'], write: ['admin', 'school', 'student'] },
+  results:             { read: ['admin'], write: ['admin'] },
+  admins:              { read: ['admin'], write: [] },
+  super_admins:        { read: ['admin'], write: [] },
+  allowed_schools:     { read: ['admin'], write: ['admin'] },
+  syllabus:            { read: ['admin', 'school', 'student'], write: ['admin', 'school'] },
+  invitations:         { read: ['admin', 'school'], write: ['admin', 'school'] },
+  notifications_queue: { read: ['admin'], write: ['admin'] },
+  proctoring_logs:     { read: ['admin', 'school'], write: ['admin', 'school', 'student'] },
+  error_book:          { read: ['admin', 'school'], write: ['admin', 'school'] },
+  error_books:         { read: ['admin', 'school', 'student'], write: ['admin', 'school', 'student'] },
+  benchmarks:          { read: ['admin'], write: ['admin'] },
+  secure_exam_links:   { read: ['admin', 'school', 'student'], write: ['admin', 'school'] },
+  report_jobs:         { read: ['admin', 'school'], write: ['admin', 'school'] },
+};
+
+// For non-admin roles, which field on each collection's documents must match the caller's
+// own schoolId/uid. 'exams' is scoped by creatorId (the school that created it), not
+// schoolId, since schools also legitimately read/act on exams assigned to them by admins.
+const SCOPE_FIELD: Record<string, { school?: string; student?: string }> = {
+  users:             { school: 'schoolId' },
+  exams:             { school: 'creatorId' },
+  attempts:          { school: 'schoolId', student: 'studentId' },
+  syllabus:          { school: 'schoolId' },
+  invitations:       { school: 'schoolId' },
+  // proctoring_logs/error_books documents carry studentId but never schoolId in practice
+  // (verified against actual write payloads) — school-role access to these is trusted at
+  // the COLLECTION_ACCESS level rather than scope-injected, since injecting a schoolId
+  // constraint that matches no document would silently break school's real query pattern
+  // (querying by studentId, e.g. SchoolStudentOnboarding's per-student cascade delete).
+  proctoring_logs:   { student: 'studentId' },
+  error_books:       { student: 'studentId' },
+  secure_exam_links: { school: 'schoolId' },
+  report_jobs:       { school: 'schoolId' },
+};
+
+function scopeFieldFor(collectionName: string, role: ProxyRole): string | undefined {
+  const scope = SCOPE_FIELD[collectionName];
+  if (!scope) return undefined;
+  return role === 'school' ? scope.school : role === 'student' ? scope.student : undefined;
+}
+
+function scopeValueFor(auth: RequestAuth, role: ProxyRole): string | null {
+  return role === 'school' ? auth.schoolId : role === 'student' ? auth.uid : null;
+}
+
+// Injects (or validates) the tenant-scoping `where` constraint for a school/student read
+// query. Returns null if the caller already specified a scope constraint pointing at
+// someone else's data (hard block), otherwise returns the (possibly augmented) constraints.
+function injectReadScope(auth: RequestAuth, collectionName: string, constraints: any[]): any[] | null {
+  if (auth.role === 'admin') return constraints;
+  const field = scopeFieldFor(collectionName, auth.role as ProxyRole);
+  if (!field) return constraints;
+  const requiredValue = scopeValueFor(auth, auth.role as ProxyRole);
+  if (!requiredValue) return null;
+
+  const existing = (constraints || []).find((c: any) => c.type === 'where' && c.field === field);
+  if (existing) {
+    return existing.op === '==' && existing.value === requiredValue ? constraints : null;
+  }
+  return [...(constraints || []), { type: 'where', field, op: '==', value: requiredValue }];
+}
+
+// Caches the verified owner value (e.g. a student's uid on their own attempt doc, or a
+// school's creatorId on an exam) for scoped-write ownership checks. Ownership fields are
+// never reassigned after doc creation in this app, so this is safe to trust for its TTL.
+// Exists to keep authorizeWrite() from doing an extra synchronous Firestore read on every
+// single write — critical during exam windows where up to ~100k students are each
+// autosaving their attempt doc every ~30s; without this cache that overhead would double
+// the read load on the hottest collection in the app for the entire exam duration.
+const ownerVerificationCache = new Map<string, { value: string; expiry: number }>();
+const OWNER_CACHE_TTL_MS = 30 * 60 * 1000; // 30 min — comfortably longer than an autosave gap
+
+function getCachedOwner(collectionName: string, docId: string): string | undefined {
+  const key = `${collectionName}/${docId}`;
+  const cached = ownerVerificationCache.get(key);
+  if (!cached) return undefined;
+  if (cached.expiry < Date.now()) {
+    ownerVerificationCache.delete(key);
+    return undefined;
+  }
+  return cached.value;
+}
+
+function setCachedOwner(collectionName: string, docId: string, value: string) {
+  ownerVerificationCache.set(`${collectionName}/${docId}`, { value, expiry: Date.now() + OWNER_CACHE_TTL_MS });
+  // Opportunistic cleanup, same 1%-per-call pattern used for localSubmissionLocks below.
+  if (Math.random() < 0.01) {
+    const now = Date.now();
+    for (const [key, entry] of ownerVerificationCache.entries()) {
+      if (entry.expiry < now) ownerVerificationCache.delete(key);
+    }
+  }
+}
 
 // Helper to invalidate all cache entries for a given collection on write
 function invalidateCache(collectionName: string) {
@@ -1145,18 +1680,13 @@ interface WriteTask {
 const writeQueue: WriteTask[] = [];
 let isProcessingQueue = false;
 
-// Process the cushioned queue every 1.2 seconds to absorb user bursts
-setInterval(async () => {
-  if (writeQueue.length === 0 || isProcessingQueue) return;
-  isProcessingQueue = true;
+const WRITE_BATCH_SIZE = 500; // Firestore's actual per-batch operation limit
+const MAX_CONCURRENT_BATCHES = 12; // bounds how many batch-commit calls run at once per tick
 
-  const batchToProcess = writeQueue.splice(0, 400); // Keep well under Firestore's 500 limit
-  console.log(`[WRITE CUSHION] Processing buffered chunk of ${batchToProcess.length} operations...`);
-
+async function processWriteBatch(batchToProcess: WriteTask[]): Promise<void> {
   try {
     const batch = clientWriteBatch(clientDb);
 
-    // Prepare each operation in the batch
     for (const task of batchToProcess) {
       if (task.type === 'add' && !task.docId) {
         // Generate an edu-autogenerated unique key using pattern strategy
@@ -1173,17 +1703,14 @@ setInterval(async () => {
       }
     }
 
-    // Commit the batch atomically
     await batch.commit();
 
-    // Invalidate cached reads for impacted collections
     const impactedCollections = new Set<string>();
     for (const task of batchToProcess) {
       impactedCollections.add(task.collectionName);
     }
     impactedCollections.forEach(col => invalidateCache(col));
 
-    // Resolve all client promises in the processed chunk
     for (const task of batchToProcess) {
       task.resolve({ success: true, id: task.docId });
     }
@@ -1193,7 +1720,6 @@ setInterval(async () => {
     for (const task of batchToProcess) {
       try {
         if (task.type === 'add' && !task.docId) {
-          // Generate an edu-autogenerated unique key using pattern strategy
           task.docId = EduKeyFactory.getInstance().generateKey(task.collectionName);
         }
         const ref = clientDoc(clientDb, task.collectionName, task.docId!);
@@ -1211,6 +1737,29 @@ setInterval(async () => {
         task.reject(individualErr);
       }
     }
+  }
+}
+
+// Process the cushioned queue every 1.2 seconds to absorb user bursts. Drains the FULL
+// backlog each tick — in parallel batches, bounded by MAX_CONCURRENT_BATCHES — rather than
+// a single fixed-size batch per tick. A single-batch-per-tick design caps throughput at
+// ~333 writes/sec (400 ops / 1.2s); at up to ~100k concurrent students each autosaving
+// every ~30s, sustained demand is ~3,300 writes/sec, so a fixed single batch would fall
+// permanently behind under real exam-day load and grow an ever-larger in-memory backlog.
+setInterval(async () => {
+  if (writeQueue.length === 0 || isProcessingQueue) return;
+  isProcessingQueue = true;
+
+  try {
+    while (writeQueue.length > 0) {
+      const group: WriteTask[][] = [];
+      for (let i = 0; i < MAX_CONCURRENT_BATCHES && writeQueue.length > 0; i++) {
+        group.push(writeQueue.splice(0, WRITE_BATCH_SIZE));
+      }
+      const totalOps = group.reduce((sum, b) => sum + b.length, 0);
+      console.log(`[WRITE CUSHION] Processing ${group.length} batch(es), ${totalOps} operations...`);
+      await Promise.all(group.map(processWriteBatch));
+    }
   } finally {
     isProcessingQueue = false;
   }
@@ -1223,13 +1772,36 @@ app.post('/api/db/query', async (req, res) => {
     return res.status(400).json({ error: 'Missing collectionName specification.' });
   }
 
-  const cacheKey = JSON.stringify({ collectionName, constraints, docId, countOnly });
-  const cached = queryCache.get(cacheKey);
-  const ttl = CACHE_TTLS[collectionName] || 0;
+  const isPublic = PUBLIC_READ_COLLECTIONS.has(collectionName);
+  let auth: RequestAuth | null = null;
 
-  if (ttl > 0 && cached && (Date.now() - cached.timestamp < ttl)) {
-    return res.status(200).json({ success: true, data: cached.data, fromCache: true });
+  if (!isPublic) {
+    auth = await resolveAuth(req);
+
+    if (!auth) {
+      // Pre-session exception: a visitor following a shared exam-invite link needs to look
+      // up the one secure_exam_links doc matching their token before they have a session —
+      // but only a targeted lookup by that token, never an unscoped collection dump.
+      const isTokenLookup = TOKEN_LOOKUP_COLLECTIONS.has(collectionName) &&
+        !docId && constraints.length === 1 &&
+        constraints[0]?.type === 'where' && constraints[0]?.op === '==' &&
+        (constraints[0]?.field === 'id' || constraints[0]?.field === 'token') &&
+        !!constraints[0]?.value;
+
+      if (!isTokenLookup) {
+        return res.status(401).json({ error: 'Unauthorized: Missing, invalid, or expired session' });
+      }
+    } else {
+      const access = COLLECTION_ACCESS[collectionName];
+      if (!access || !access.read.includes(auth.role as ProxyRole)) {
+        return res.status(403).json({ error: 'Forbidden: role cannot read this collection' });
+      }
+    }
   }
+
+  const scopedNonAdmin = !!auth && auth.role !== 'admin';
+  const scopeField = scopedNonAdmin ? scopeFieldFor(collectionName, auth!.role as ProxyRole) : undefined;
+  const scopeValue = scopedNonAdmin ? scopeValueFor(auth!, auth!.role as ProxyRole) : null;
 
   try {
     // A. Single Document Fetch
@@ -1237,8 +1809,20 @@ app.post('/api/db/query', async (req, res) => {
       const docRef = clientDoc(clientDb, collectionName, docId);
       const snap = await clientGetDoc(docRef);
       if (snap.exists()) {
-        const result = { id: snap.id, exists: true, data: snap.data() };
-        if (ttl > 0) queryCache.set(cacheKey, { timestamp: Date.now(), data: result });
+        const docData = snap.data();
+        const scopeFieldValue = scopeField ? (docData as any)?.[scopeField] : undefined;
+        if (scopeField && scopeFieldValue !== undefined && scopeFieldValue !== scopeValue) {
+          // Report as not-found rather than 403 to avoid confirming out-of-scope doc existence.
+          return res.status(200).json({ success: true, data: { id: docId, exists: false } });
+        }
+        const result = { id: snap.id, exists: true, data: docData };
+        if (!scopeField) {
+          const ttl = CACHE_TTLS[collectionName] || 0;
+          if (ttl > 0) {
+            const cacheKey = JSON.stringify({ collectionName, docId });
+            queryCache.set(cacheKey, { timestamp: Date.now(), data: result });
+          }
+        }
         return res.status(200).json({ success: true, data: result });
       } else {
         const result = { id: docId, exists: false };
@@ -1247,10 +1831,27 @@ app.post('/api/db/query', async (req, res) => {
     }
 
     // B. Structured Collection Queries with sorting/filtering limits
+    let effectiveConstraints = constraints;
+    if (scopeField) {
+      const injected = injectReadScope(auth!, collectionName, constraints);
+      if (injected === null) {
+        return res.status(403).json({ error: 'Forbidden: query scope does not match your account' });
+      }
+      effectiveConstraints = injected;
+    }
+
+    const cacheKey = JSON.stringify({ collectionName, constraints: effectiveConstraints, docId, countOnly });
+    const cached = queryCache.get(cacheKey);
+    const ttl = CACHE_TTLS[collectionName] || 0;
+
+    if (ttl > 0 && cached && (Date.now() - cached.timestamp < ttl)) {
+      return res.status(200).json({ success: true, data: cached.data, fromCache: true });
+    }
+
     const colRef = clientCollection(clientDb, collectionName);
     const queryArgs: any[] = [colRef];
 
-    for (const c of constraints) {
+    for (const c of effectiveConstraints) {
       if (c.type === 'where') {
         queryArgs.push(clientWhere(c.field, c.op, c.value));
       } else if (c.type === 'orderBy') {
@@ -1295,14 +1896,177 @@ app.post('/api/db/query', async (req, res) => {
   }
 });
 
+// Authorizes a single /api/db/write operation for a non-admin caller. Admins bypass this
+// entirely. Returns the (possibly scope-injected) data to actually write, or a rejection.
+async function authorizeWrite(
+  auth: RequestAuth,
+  type: string,
+  collectionName: string,
+  docId: string | undefined,
+  data: any
+): Promise<{ ok: true; data: any } | { ok: false; status: number; error: string }> {
+  if (auth.role === 'admin') {
+    return { ok: true, data };
+  }
+
+  const access = COLLECTION_ACCESS[collectionName];
+  if (!access || !access.write.includes(auth.role as ProxyRole)) {
+    return { ok: false, status: 403, error: 'Forbidden: role cannot write to this collection' };
+  }
+
+  // `users` is field-protected: role/permissions/schoolId may only be set by admins, except
+  // that a school may create/manage its own student accounts (role forced to 'student',
+  // schoolId forced to the caller's own school).
+  if (collectionName === 'users') {
+    if (data && 'permissions' in data) {
+      return { ok: false, status: 403, error: 'Forbidden: only admins may change permissions' };
+    }
+
+    if (auth.role === 'student') {
+      if (docId !== auth.uid) {
+        return { ok: false, status: 403, error: 'Forbidden: students may only update their own profile' };
+      }
+      if (data && ('role' in data || 'schoolId' in data)) {
+        return { ok: false, status: 403, error: 'Forbidden: students cannot change role or schoolId' };
+      }
+      return { ok: true, data };
+    }
+
+    // school
+    if (data && 'role' in data && data.role !== 'student') {
+      return { ok: false, status: 403, error: 'Forbidden: schools may only manage student accounts' };
+    }
+    if (data && 'schoolId' in data && data.schoolId !== auth.schoolId) {
+      return { ok: false, status: 403, error: 'Forbidden: schoolId must match your own school' };
+    }
+    if (docId) {
+      const existingSnap = await clientGetDoc(clientDoc(clientDb, 'users', docId));
+      if (existingSnap.exists()) {
+        const existing = existingSnap.data() as any;
+        if (existing.schoolId !== auth.schoolId || (existing.role && existing.role !== 'student')) {
+          return { ok: false, status: 403, error: 'Forbidden: you may only manage your own students' };
+        }
+      }
+    }
+    return { ok: true, data: data ? { ...data, schoolId: auth.schoolId, role: 'student' } : data };
+  }
+
+  // `exams` is scoped by creatorId — a school may only create/edit exams it created.
+  if (collectionName === 'exams') {
+    if (docId) {
+      const cachedCreator = getCachedOwner('exams', docId);
+      if (cachedCreator !== undefined) {
+        if (cachedCreator !== auth.uid) {
+          return { ok: false, status: 403, error: 'Forbidden: you may only modify exams you created' };
+        }
+      } else {
+        const existingSnap = await clientGetDoc(clientDoc(clientDb, 'exams', docId));
+        if (existingSnap.exists()) {
+          const creatorId = (existingSnap.data() as any).creatorId;
+          if (creatorId) setCachedOwner('exams', docId, creatorId);
+          if (creatorId !== auth.uid) {
+            return { ok: false, status: 403, error: 'Forbidden: you may only modify exams you created' };
+          }
+        }
+      }
+    }
+    if (data && 'creatorId' in data && data.creatorId !== auth.uid) {
+      return { ok: false, status: 403, error: 'Forbidden: creatorId must match your own uid' };
+    }
+    return { ok: true, data: data ? { ...data, creatorId: auth.uid } : data };
+  }
+
+  // `questions` inherits authorization from its parent exam's creatorId.
+  if (collectionName === 'questions') {
+    let targetExamId = data?.examId;
+    if (!targetExamId && docId) {
+      const existingQ = await clientGetDoc(clientDoc(clientDb, 'questions', docId));
+      if (existingQ.exists()) targetExamId = (existingQ.data() as any).examId;
+    }
+    if (!targetExamId) {
+      return { ok: false, status: 400, error: 'Missing examId for question write' };
+    }
+    const cachedCreator = getCachedOwner('exams', targetExamId);
+    if (cachedCreator !== undefined) {
+      if (cachedCreator !== auth.uid) {
+        return { ok: false, status: 403, error: 'Forbidden: you may only manage questions on exams you created' };
+      }
+    } else {
+      const examSnap = await clientGetDoc(clientDoc(clientDb, 'exams', targetExamId));
+      const creatorId = examSnap.exists() ? (examSnap.data() as any).creatorId : undefined;
+      if (creatorId) setCachedOwner('exams', targetExamId, creatorId);
+      if (!examSnap.exists() || creatorId !== auth.uid) {
+        return { ok: false, status: 403, error: 'Forbidden: you may only manage questions on exams you created' };
+      }
+    }
+    return { ok: true, data };
+  }
+
+  // Generic tenant-scoped collections: attempts, invitations, proctoring_logs, error_books,
+  // secure_exam_links, report_jobs, syllabus. school scoped by schoolId, student by studentId.
+  // Collections allowed in COLLECTION_ACCESS but with no scope field defined (e.g. error_book,
+  // singular — deleted by studentId+examId, not schoolId) are trusted as-is: the caller
+  // already had to reach a specific docId/query through a properly-scoped read elsewhere.
+  const scopeField = scopeFieldFor(collectionName, auth.role as ProxyRole);
+  if (!scopeField) {
+    return { ok: true, data };
+  }
+  const requiredValue = scopeValueFor(auth, auth.role as ProxyRole);
+  if (!requiredValue) {
+    return { ok: false, status: 403, error: 'Forbidden' };
+  }
+
+  if (!docId) {
+    // Creating a new doc — inject/verify the scope field.
+    const existingVal = data?.[scopeField];
+    if (existingVal !== undefined && existingVal !== requiredValue) {
+      return { ok: false, status: 403, error: 'Forbidden: scope mismatch' };
+    }
+    return { ok: true, data: { ...data, [scopeField]: requiredValue } };
+  }
+
+  // Updating/deleting/setting an existing doc — verify it currently belongs to the caller.
+  // Checked against the owner cache first (see getCachedOwner comment) so that the highest-
+  // frequency write in the app — a student's attempt-doc autosave, every ~30s per active
+  // exam-taker — does one real Firestore read per attempt, not one per autosave.
+  const cachedOwner = getCachedOwner(collectionName, docId);
+  if (cachedOwner !== undefined) {
+    if (cachedOwner !== requiredValue) {
+      return { ok: false, status: 403, error: 'Forbidden: you do not own this document' };
+    }
+    if (data && data[scopeField] !== undefined && data[scopeField] !== requiredValue) {
+      return { ok: false, status: 403, error: 'Forbidden: cannot move document out of your scope' };
+    }
+    return { ok: true, data };
+  }
+
+  // A doc that simply doesn't carry the scope field (e.g. proctoring_logs/error_books have
+  // no schoolId of their own) is allowed through rather than blocked, since reaching a
+  // specific docId already required a properly-scoped read (e.g. the parent attempt/exam).
+  const existingSnap = await clientGetDoc(clientDoc(clientDb, collectionName, docId));
+  if (existingSnap.exists()) {
+    const existing = existingSnap.data() as any;
+    if (existing[scopeField] !== undefined) {
+      setCachedOwner(collectionName, docId, existing[scopeField]);
+    }
+    if (existing[scopeField] !== undefined && existing[scopeField] !== requiredValue) {
+      return { ok: false, status: 403, error: 'Forbidden: you do not own this document' };
+    }
+  }
+  if (data && data[scopeField] !== undefined && data[scopeField] !== requiredValue) {
+    return { ok: false, status: 403, error: 'Forbidden: cannot move document out of your scope' };
+  }
+  return { ok: true, data };
+}
+
 // Proxy Route for Cushioning and Batching Writes
-app.post('/api/db/write', checkDuplicateSubmission, (req, res) => {
+app.post('/api/db/write', requireSession, checkDuplicateSubmission, async (req: any, res) => {
   const { type, collectionName, docId, data } = req.body;
   if (!type || !collectionName) {
     return res.status(400).json({ error: 'Missing type or collectionName parameters.' });
   }
 
-  const isLoadTestWrite = 
+  const isLoadTestWrite =
     req.headers['x-load-test'] === 'true' ||
     docId?.includes('test-roll-') ||
     docId?.includes('StressTester') ||
@@ -1316,6 +2080,18 @@ app.post('/api/db/write', checkDuplicateSubmission, (req, res) => {
     return res.status(200).json({ success: true, id: docId || 'mock_task_id', isSimulatedLoadTest: true });
   }
 
+  let authorizedData = data;
+  try {
+    const decision = await authorizeWrite(req.auth, type, collectionName, docId, data);
+    if (decision.ok === false) {
+      return res.status(decision.status).json({ error: decision.error });
+    }
+    authorizedData = decision.data;
+  } catch (err: any) {
+    console.error('[DB Proxy Write Auth Error]', err);
+    return res.status(500).json({ error: err.message || String(err) });
+  }
+
   // Push to write queue, creating a promise that resolves upon the queue flush cycle
   new Promise((resolve, reject) => {
     writeQueue.push({
@@ -1323,7 +2099,7 @@ app.post('/api/db/write', checkDuplicateSubmission, (req, res) => {
       type,
       collectionName,
       docId,
-      data,
+      data: authorizedData,
       resolve,
       reject
     });
@@ -1444,9 +2220,23 @@ app.get('/api/health', handleHealthCheck);
 
 // SECURE SERVER-SIDE AUTHENTICATION ENDPOINTS
 app.post('/api/auth/validate', async (req, res) => {
-  const { uid, email, displayName } = req.body;
-  if (!uid) {
-    return res.status(400).json({ error: 'Missing user UID' });
+  // uid/email must come from a verified Firebase ID token, never trusted from the request
+  // body directly — otherwise any client could mint a session for an arbitrary uid.
+  const authHeader = req.headers.authorization;
+  const idToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : req.body.idToken;
+  if (!idToken) {
+    return res.status(401).json({ error: 'Missing Firebase ID token' });
+  }
+
+  let uid: string, email: string | null, displayName: string | null;
+  try {
+    const decoded = await verifyFirebaseIdToken(idToken);
+    uid = decoded.uid;
+    email = decoded.email;
+    displayName = decoded.name || req.body.displayName || null;
+  } catch (err: any) {
+    console.error("[Auth] Firebase ID token verification failed:", err?.message || err);
+    return res.status(401).json({ error: 'Invalid or expired authentication token' });
   }
 
   const emailLower = email?.toLowerCase() || '';
@@ -1501,8 +2291,41 @@ app.post('/api/auth/validate', async (req, res) => {
       }
     }
 
+    // Admin accounts are provisioned manually by an administrator directly in Firestore
+    // (self-registration is blocked in /api/auth/create-profile) — typically as an entry in
+    // the `admins`/`super_admins` collections, which may predate (or never touch) this
+    // user's own `users/{uid}` doc. Check those collections directly rather than relying
+    // only on whatever role happens to already be on the users doc.
+    let isAdminInFirestore = false;
+    try {
+      const safeEmailId = emailLower.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const superAdminByUid = await clientGetDoc(clientDoc(clientDb, 'super_admins', uid));
+      const adminByUid = await clientGetDoc(clientDoc(clientDb, 'admins', uid));
+      isAdminInFirestore = superAdminByUid.exists() || adminByUid.exists();
+
+      if (!isAdminInFirestore && emailLower) {
+        const superAdminByEmail = await clientGetDoc(clientDoc(clientDb, 'super_admins', safeEmailId));
+        const adminByEmail = await clientGetDoc(clientDoc(clientDb, 'admins', safeEmailId));
+        isAdminInFirestore = superAdminByEmail.exists() || adminByEmail.exists();
+      }
+
+      if (!isAdminInFirestore && emailLower) {
+        const qSuper = clientQuery(clientCollection(clientDb, 'super_admins'), clientWhere('email', '==', emailLower));
+        const snapSuper = await clientGetDocs(qSuper);
+        isAdminInFirestore = !snapSuper.empty;
+      }
+
+      if (!isAdminInFirestore && emailLower) {
+        const qAdmin = clientQuery(clientCollection(clientDb, 'admins'), clientWhere('email', '==', emailLower));
+        const snapAdmin = await clientGetDocs(qAdmin);
+        isAdminInFirestore = !snapAdmin.empty;
+      }
+    } catch (err) {
+      console.error("admins/super_admins verification error in server:", err);
+    }
+
     const isSchoolAdmin = isDemoSchool || isRealSchool || (matchedProfile?.role === 'school') || (docSnap.exists() && (docSnap.data() as any).role === 'school');
-    const isSystemAdmin = isDemoAdmin || (matchedProfile?.role === 'admin') || (docSnap.exists() && (docSnap.data() as any).role === 'admin');
+    const isSystemAdmin = isDemoAdmin || isAdminInFirestore || (matchedProfile?.role === 'admin') || (docSnap.exists() && (docSnap.data() as any).role === 'admin');
 
     let finalProfile: any = null;
 
@@ -1573,15 +2396,11 @@ app.post('/api/auth/validate', async (req, res) => {
       finalProfile = updatedProfile;
     }
 
-    // Generate secure session token
-    const sessionToken = crypto.randomBytes(32).toString('hex');
-    const sessionRef = clientDoc(clientDb, 'sessions', sessionToken);
-    
-    await clientSetDoc(sessionRef, {
+    const sessionToken = signSessionToken({
       uid,
-      email: emailLower,
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
+      role: finalProfile.role,
+      schoolId: finalProfile.schoolId || null,
+      email: emailLower
     });
 
     return res.status(200).json({
@@ -1597,9 +2416,27 @@ app.post('/api/auth/validate', async (req, res) => {
 });
 
 app.post('/api/auth/create-profile', async (req, res) => {
-  const { uid, email, name, role, schoolId } = req.body;
+  // uid/email must come from a verified Firebase ID token, never trusted from the request
+  // body directly — otherwise any client could create/overwrite a profile for an arbitrary uid.
+  const authHeader = req.headers.authorization;
+  const idToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : req.body.idToken;
+  if (!idToken) {
+    return res.status(401).json({ error: 'Missing Firebase ID token' });
+  }
+
+  let uid: string, email: string;
+  try {
+    const decoded = await verifyFirebaseIdToken(idToken);
+    uid = decoded.uid;
+    email = decoded.email || '';
+  } catch (err: any) {
+    console.error("[Auth] Firebase ID token verification failed:", err?.message || err);
+    return res.status(401).json({ error: 'Invalid or expired authentication token' });
+  }
+
+  const { name, role, schoolId } = req.body;
   if (!uid || !email) {
-    return res.status(400).json({ error: 'Missing parameters uid or email' });
+    return res.status(400).json({ error: 'Verified token is missing uid or email' });
   }
 
   const emailLower = email.toLowerCase();
@@ -1687,15 +2524,11 @@ app.post('/api/auth/create-profile', async (req, res) => {
   try {
     await clientSetDoc(userRef, newProfile);
 
-    // Generate secure session token
-    const sessionToken = crypto.randomBytes(32).toString('hex');
-    const sessionRef = clientDoc(clientDb, 'sessions', sessionToken);
-    
-    await clientSetDoc(sessionRef, {
+    const sessionToken = signSessionToken({
       uid,
-      email: email.toLowerCase(),
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      role,
+      schoolId: validSchoolId || null,
+      email: emailLower
     });
 
     return res.status(200).json({
@@ -1709,43 +2542,23 @@ app.post('/api/auth/create-profile', async (req, res) => {
   }
 });
 
-app.get('/api/auth/session', async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized: Missing or invalid token format' });
-  }
-
-  const sessionToken = authHeader.split(' ')[1];
-  const sessionRef = clientDoc(clientDb, 'sessions', sessionToken);
-
+// Returns the caller's full current profile (session tokens only carry uid/role/schoolId,
+// not name/permissions/etc.) — a deliberate Firestore read, since this is a low-frequency
+// "fetch my full profile" call, not the hot exam-taking path.
+app.get('/api/auth/session', requireSession, async (req: any, res) => {
   try {
-    const sessionSnap = await clientGetDoc(sessionRef);
-    if (!sessionSnap.exists()) {
-      return res.status(401).json({ error: 'Session not found or expired' });
-    }
-
-    const sessionData = sessionSnap.data() as any;
-    if (new Date(sessionData.expiresAt) < new Date()) {
-      return res.status(401).json({ error: 'Session expired' });
-    }
-
-    const userRef = clientDoc(clientDb, 'users', sessionData.uid);
-    const userSnap = await clientGetDoc(userRef);
+    const userSnap = await clientGetDoc(clientDoc(clientDb, 'users', req.auth.uid));
     if (!userSnap.exists()) {
       return res.status(404).json({ error: 'User profile not found' });
     }
-
-    return res.status(200).json({
-      success: true,
-      profile: userSnap.data()
-    });
+    return res.status(200).json({ success: true, profile: userSnap.data() });
   } catch (err: any) {
     console.error("Error validating session token in server:", err);
     return res.status(500).json({ error: err.message || String(err) });
   }
 });
 
-app.put('/api/exams/:examId', async (req, res) => {
+app.put('/api/exams/:examId', requireSession, async (req: any, res) => {
   const { examId } = req.params;
   const { title, description, subject, difficulty, duration, totalMarks, startTime, endTime, assignedSchoolIds } = req.body;
 
@@ -1755,6 +2568,11 @@ app.put('/api/exams/:examId', async (req, res) => {
 
     if (!examSnap.exists()) {
       return res.status(404).json({ error: 'Exam paper not found.' });
+    }
+
+    // Schools view exams/question papers only; only admins author them.
+    if (req.auth.role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden: only admins may modify exams' });
     }
 
     const updateData: any = {
@@ -1818,12 +2636,21 @@ app.put('/api/exams/:examId', async (req, res) => {
   }
 });
 
-app.post('/api/exams/:examId/import-doc', async (req, res) => {
+app.post('/api/exams/:examId/import-doc', requireSession, async (req: any, res) => {
   const { examId } = req.params;
   const { base64Data, fileName, subject } = req.body;
 
   if (!base64Data || !fileName) {
     return res.status(400).json({ error: 'Missing required parameters: base64Data or fileName.' });
+  }
+
+  const examSnapForAuth = await clientGetDoc(clientDoc(clientDb, 'exams', examId));
+  if (!examSnapForAuth.exists()) {
+    return res.status(404).json({ error: 'Exam paper not found.' });
+  }
+  // Schools view exams/question papers only; only admins author them.
+  if (req.auth.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden: only admins may modify exams' });
   }
 
   const tempDir = os.tmpdir ? os.tmpdir() : '/tmp';
@@ -1835,9 +2662,10 @@ app.post('/api/exams/:examId/import-doc', async (req, res) => {
     fs.writeFileSync(tempFilePath, buffer);
 
     const safeSubject = (subject || 'General').replace(/["'\\]/g, '');
-    const pythonCmd = `python3 docx_parser.py "${tempFilePath.replace(/"/g, '\\"')}" "${examId.replace(/"/g, '\\"')}" "${safeSubject}"`;
 
-    exec(pythonCmd, { env: { ...process.env } }, async (error, stdout, stderr) => {
+    // execFile (not exec) passes each argument literally — no shell parsing, so examId/
+    // fileName/subject can never break out into shell metacharacters (command injection).
+    execFile('python3', ['docx_parser.py', tempFilePath, examId, safeSubject], { env: { ...process.env } }, async (error, stdout, stderr) => {
       try {
         if (fs.existsSync(tempFilePath)) {
           fs.unlinkSync(tempFilePath);
@@ -1906,7 +2734,7 @@ app.post('/api/exams/:examId/import-doc', async (req, res) => {
 });
 
 // CLOUD RESOURCE MANAGER - GCP IAM POLICY SYNC GATEWAY
-app.post('/api/gcp/sync-iam', async (req, res) => {
+app.post('/api/gcp/sync-iam', requireSession, requireRole('admin'), async (req, res) => {
   const logs: string[] = [];
   const stats: Record<string, any> = {
     usersScanned: 0,
@@ -2027,7 +2855,7 @@ app.post('/api/gcp/sync-iam', async (req, res) => {
 });
 
 // GCP LIVE BILLING & INFRASTRUCTURE MONITORING GATEWAY
-app.post('/api/gcp/live-billing', async (req, res) => {
+app.post('/api/gcp/live-billing', requireSession, requireRole('admin'), async (req, res) => {
   const { userAccessToken, projectIdOverride, userEmail } = req.body || {};
   const targetProjectId = projectIdOverride || detectedContainerProjectId || "project-02bb6275-51ac-45e7-940";
   const projectNumber = "489976275182";
@@ -2148,7 +2976,7 @@ app.post('/api/gcp/live-billing', async (req, res) => {
 });
 
 // CLOUD DATABASE FIRESTORE MIGRATION GATEWAY
-app.post('/api/db/migrate', async (req, res) => {
+app.post('/api/db/migrate', requireSession, requireRole('admin'), async (req, res) => {
   const { sourceConfigOverride } = req.body;
   
   // Default to the previous Firebase configuration details
@@ -2287,7 +3115,7 @@ app.post('/api/db/migrate', async (req, res) => {
 });
 
 // --- FRESH DATABASE BOOTSTRAPPER & SEEDER GATEWAY ---
-app.post('/api/db/seed', async (req, res) => {
+app.post('/api/db/seed', requireSession, requireRole('admin'), async (req, res) => {
   const logs: string[] = [];
   const stats: Record<string, number> = {
     schools: 0,

@@ -7,8 +7,9 @@ import { useAuth } from '../lib/AuthContext';
 import { DatabaseMigrator } from './DatabaseMigrator';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, doc, getDoc, updateDoc, collection, query, where, getDocs, addDoc, setDoc, onSnapshot } from '../lib/firebase';
+import { db, doc, getDoc, collection, query, where, getDocs, onSnapshot } from '../lib/firebase';
 import { handleErrorAndLog } from '../lib/customErrors';
+import { setSessionToken } from '../lib/sessionStore';
 
 export const LoginPage: React.FC = () => {
   const { user, profile, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithDemo, signOut, sendPasswordResetEmail } = useAuth();
@@ -160,84 +161,30 @@ export const LoginPage: React.FC = () => {
       const toastId = "meta-toast";
       toast.loading("De-escalating token credentials securely...", { id: toastId });
       try {
-        const inviteDocRef = doc(db, 'invitations', inviteToken);
-        const inviteSnap = await getDoc(inviteDocRef);
-
-        if (!inviteSnap.exists()) {
-          // Dynamic Recovery Fallback Mode: create a dynamic virtual invitation payload
-          const fallbackInvite = {
-            id: inviteToken,
-            isFallback: true,
-            examTitle: "Secured Term Portal Exam",
-            schoolId: "school-core-node-1"
-          };
-          setInviteData(fallbackInvite);
-          
-          const schoolSnap = await getDoc(doc(db, 'schools', 'school-core-node-1'));
-          if (schoolSnap.exists()) {
-            setInviteSchool({ id: schoolSnap.id, ...schoolSnap.data() });
-          }
-          
-          setIsVerifyingInvite(false);
-          toast.success("Secured assessment pass active! Please enter your credentials to unlock.", { id: toastId });
-          return;
+        // Resolved server-side now (invitations/users require a session the student
+        // doesn't have yet at this point) — same result shape as the old direct lookup.
+        const res = await fetch('/api/gatekeeper/invite-metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inviteToken })
+        });
+        const payload = await res.json();
+        if (!res.ok || !payload.success) {
+          throw new Error(payload.error || 'Failed to resolve invitation');
         }
 
-        const iData = { id: inviteSnap.id, ...inviteSnap.data() } as any;
-        const resolvedStudentId = iData.studentId || `student-${inviteToken}`;
-
-        let studentProfile: any;
-        try {
-          const studentRef = doc(db, 'users', resolvedStudentId);
-          const studentSnap = await getDoc(studentRef);
-
-          if (!studentSnap.exists()) {
-            // Re-onboard student automatically if not present
-            studentProfile = {
-              uid: resolvedStudentId,
-              name: iData.studentName || "Candidate",
-              rollNumber: "ROLL-TEMP",
-              schoolId: iData.schoolId || "school-core-node-1",
-              role: 'student',
-              permissions: ['take_exams'],
-              createdAt: new Date().toISOString(),
-              class: 'Adaptive Grade'
-            };
-            await setDoc(studentRef, studentProfile);
-          } else {
-            studentProfile = { uid: studentSnap.id, ...studentSnap.data() } as any;
-          }
-        } catch (studentErr) {
-          console.warn("Could not retrieve/create user profile directly:", studentErr);
-          // Auto-synthesize a profile in-memory to prevent total blocking
-          studentProfile = {
-            uid: resolvedStudentId,
-            name: iData.studentName || "Candidate",
-            rollNumber: "ROLL-TEMP",
-            schoolId: iData.schoolId || "school-core-node-1",
-            role: 'student',
-            permissions: ['take_exams'],
-            createdAt: new Date().toISOString(),
-            class: 'Adaptive Grade'
-          };
+        setInviteData(payload.inviteData);
+        setInviteStudentProfile(payload.studentProfile);
+        if (payload.school) {
+          setInviteSchool(payload.school);
         }
 
-        // Fetch school info if possible for visual richness
-        try {
-          if (iData.schoolId) {
-            const schoolSnap = await getDoc(doc(db, 'schools', iData.schoolId));
-            if (schoolSnap.exists()) {
-              setInviteSchool({ id: schoolSnap.id, ...schoolSnap.data() });
-            }
-          }
-        } catch (schoolErr) {
-          console.warn("Could not retrieve school doc directly, using default settings:", schoolErr);
-        }
-
-        // Set state for user input verification
-        setInviteData(iData);
-        setInviteStudentProfile(studentProfile);
-        toast.success("Secured assessment pass active! Please enter your credentials to unpack.", { id: toastId });
+        toast.success(
+          payload.inviteData?.isFallback
+            ? "Secured assessment pass active! Please enter your credentials to unlock."
+            : "Secured assessment pass active! Please enter your credentials to unpack.",
+          { id: toastId }
+        );
       } catch (err: any) {
         console.error("Invitation gateway error:", err);
         const detailedMessage = err?.message || err?.toString() || "Firestore authentication or metadata restriction";
@@ -266,195 +213,85 @@ export const LoginPage: React.FC = () => {
     const toastId = toast.loading("Verifying security parameters...");
 
     try {
-      let resolvedStudentProfile = inviteStudentProfile;
-      let targetExamId = inviteData.examId;
-      let targetExamTitle = inviteData.examTitle || 'Institution Secure Exam';
-      let targetSchoolId = resolvedStudentProfile?.schoolId || inviteData.schoolId || 'school-core-node-1';
-
-      // HTML/Script Tag Injection Detection
-      const containsHTMLOrScripts = (val: string) => {
-        const lowercase = val.toLowerCase();
-        return lowercase.includes('<script') || lowercase.includes('javascript:') || lowercase.includes('<') || lowercase.includes('>') || lowercase.includes('onload');
-      };
-
-      const trimmedName = enteredName.trim();
-      const trimmedRoll = enteredRoll.trim();
-
-      if (containsHTMLOrScripts(trimmedName) || containsHTMLOrScripts(trimmedRoll)) {
-        toast.error("Invalid credentials provided", { id: toastId });
+      // Identity + target-exam resolution now happens server-side (users/invitations
+      // require a session the student doesn't have yet at this point) — same lookup/
+      // auto-onboard logic as before, just moved behind /api/gatekeeper/verify-invite.
+      const verifyRes = await fetch('/api/gatekeeper/verify-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inviteToken,
+          enteredName: enteredName.trim(),
+          enteredRoll: enteredRoll.trim()
+        })
+      });
+      const verifyPayload = await verifyRes.json();
+      if (!verifyRes.ok || !verifyPayload.success) {
+        toast.error(verifyPayload.error || "Invalid credentials provided", { id: toastId });
         setIsVerifyingDetails(false);
         return;
       }
 
-      if (inviteData.isFallback) {
-        // Fallback search: Find student by Roll/Register ID strictly in Firestore
-        const usersRef = collection(db, 'users');
-        const q = query(
-          usersRef, 
-          where('rollNumber', '==', trimmedRoll),
-          where('role', '==', 'student')
-        );
-        const querySnap = await getDocs(q);
+      const {
+        matchedStudentId,
+        matchedStudentData,
+        finalSchoolId,
+        finalExamId,
+        examTitle: targetExamTitle,
+        isFallback
+      } = verifyPayload;
 
-        if (!querySnap.empty) {
-          const matchProfile = querySnap.docs[0].data() as any;
-          const matchId = querySnap.docs[0].id;
-          resolvedStudentProfile = { uid: matchId, ...matchProfile, name: matchProfile.name || trimmedName };
-          if (!matchProfile.name) {
-            await setDoc(doc(db, 'users', matchId), resolvedStudentProfile);
-          }
-        } else {
-          // Auto onboard student if not pre-registered
-          const newStudentRef = doc(collection(db, 'users'));
-          const newStudentData = {
-            uid: newStudentRef.id,
-            name: trimmedName,
-            rollNumber: trimmedRoll,
-            schoolId: targetSchoolId,
-            role: 'student',
-            permissions: ['take_exams'],
-            createdAt: new Date().toISOString(),
-            class: 'Adaptive Grade'
-          };
-          await setDoc(newStudentRef, newStudentData);
-          resolvedStudentProfile = newStudentData;
-        }
+      const clientFootprint = btoa([navigator.userAgent, screen.width, screen.height, navigator.language].join('|')).substring(0, 32);
 
-        // Locate an active assessment to link
-        const examsSnap = await getDocs(collection(db, 'exams'));
-        if (!examsSnap.empty) {
-          const availableExam = examsSnap.docs[0];
-          targetExamId = availableExam.id;
-          targetExamTitle = (availableExam.data() as any).title || "Secure Examination";
-        } else {
-          toast.error("No active examinations found", { id: toastId });
-          setIsVerifyingDetails(false);
-          return;
-        }
-      } else {
-        // Retrieve and evaluate dynamic profile settings based on entered Roll Number and School ID
-        const usersRef = collection(db, 'users');
-        const q = query(
-          usersRef, 
-          where('rollNumber', '==', trimmedRoll),
-          where('schoolId', '==', targetSchoolId)
-        );
-        const querySnap = await getDocs(q);
+      // Attempt creation/resume/reattempt — reuses the same transaction-backed logic as
+      // the roll-number/link exam entry flow, and mints the session this passwordless
+      // student needs for every subsequent exam-taking API call.
+      const enrollRes = await fetch('/api/gatekeeper/enroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matchedStudentId,
+          matchedStudentData,
+          username: enteredName.trim(),
+          rollNumber: enteredRoll.trim(),
+          finalSchoolId,
+          finalExamId,
+          examTitle: targetExamTitle,
+          clientFootprint,
+          inviteToken,
+          inviteIsFallback: isFallback
+        })
+      });
+      const enrollPayload = await enrollRes.json();
 
-        if (!querySnap.empty) {
-          const matchProfile = querySnap.docs[0].data() as any;
-          const matchId = querySnap.docs[0].id;
-          resolvedStudentProfile = { uid: matchId, ...matchProfile, name: matchProfile.name || trimmedName };
-          
-          if (!matchProfile.name) {
-            await setDoc(doc(db, 'users', matchId), resolvedStudentProfile);
-          }
-        } else {
-          // Dynamically onboard student profile under school so they are never blocked!
-          const newStudentRef = doc(collection(db, 'users'));
-          const newStudentData = {
-            uid: newStudentRef.id,
-            name: trimmedName,
-            rollNumber: trimmedRoll,
-            schoolId: targetSchoolId,
-            role: 'student',
-            permissions: ['take_exams'],
-            createdAt: new Date().toISOString(),
-            class: 'Adaptive Grade'
-          };
-          await setDoc(newStudentRef, newStudentData);
-          resolvedStudentProfile = newStudentData;
-        }
-      }
-
-      if (!resolvedStudentProfile) {
-        toast.error("Internal discrepancy verifying identity parameters.", { id: toastId });
-        setIsVerifyingDetails(false);
-        return;
-      }
-
-      // Check for existing attempts for this exam by this student
-      const attemptsQuery = query(
-        collection(db, 'attempts'),
-        where('studentId', '==', resolvedStudentProfile.uid),
-        where('examId', '==', targetExamId)
-      );
-      const attemptsSnap = await getDocs(attemptsQuery);
-
-      let attemptId = '';
-
-      if (!attemptsSnap.empty) {
-        const existingAttempt = attemptsSnap.docs[0].data() as any;
-        attemptId = attemptsSnap.docs[0].id;
-
-        // Set passwordless active session profile in localStorage
-        localStorage.setItem('invite_student_profile', JSON.stringify(resolvedStudentProfile));
-        
-        if (existingAttempt.status === 'completed') {
-          if (existingAttempt.canReattempt) {
-            const attemptRef = doc(db, 'attempts', attemptId);
-            await updateDoc(attemptRef, {
-              status: 'started',
-              score: 0,
-              answers: [],
-              startTime: new Date().toISOString(),
-              canReattempt: false
-            });
-            toast.success(`Re-attempt authorized! Re-launching assessment for ${resolvedStudentProfile.name}...`, { id: toastId });
-            setTimeout(() => {
-              window.location.href = `/exam/${attemptId}`;
-            }, 800);
-            return;
-          }
-
-          toast.success(`Welcome back, ${resolvedStudentProfile.name}! This assessment was already submitted. Redirecting to results...`, { id: toastId });
+      if (!enrollRes.ok || !enrollPayload.success) {
+        if (enrollPayload.code === 'EXAM_ALREADY_COMPLETED' && enrollPayload.attemptIdRaw) {
+          localStorage.setItem('invite_student_profile', JSON.stringify(matchedStudentData));
+          toast.success(`Welcome back, ${matchedStudentData.name}! This assessment was already submitted. Redirecting to results...`, { id: toastId });
           setTimeout(() => {
-            window.location.href = `/result/${attemptId}`;
+            window.location.href = `/result/${enrollPayload.attemptIdRaw}`;
           }, 800);
           return;
         }
-
-        toast.success(`Resuming secure diagnostic session for ${resolvedStudentProfile.name}...`, { id: toastId });
-        setTimeout(() => {
-          window.location.href = `/exam/${attemptId}`;
-        }, 800);
-        return;
+        throw new Error(enrollPayload.error || 'Enrollment failed.');
       }
 
-      // Mark the token as consumed
-      if (!inviteData.isFallback) {
-        const inviteDocRef = doc(db, 'invitations', inviteToken!);
-        await updateDoc(inviteDocRef, {
-          status: 'used',
-          consumedAt: new Date().toISOString()
-        });
+      if (enrollPayload.sessionToken) {
+        setSessionToken(enrollPayload.sessionToken);
+      }
+      localStorage.setItem('invite_student_profile', JSON.stringify(enrollPayload.finalStudentProfile || matchedStudentData));
+
+      const name = (enrollPayload.finalStudentProfile || matchedStudentData)?.name;
+      if (enrollPayload.attemptAction === 'reattempted') {
+        toast.success(`Re-attempt authorized! Re-launching assessment for ${name}...`, { id: toastId });
+      } else if (enrollPayload.attemptAction === 'created') {
+        toast.success(`Verification Successful! Welcome ${name}! Launching secure exam...`, { id: toastId });
+      } else {
+        toast.success(`Resuming secure diagnostic session for ${name}...`, { id: toastId });
       }
 
-      // Set passwordless active session profile in localStorage
-      localStorage.setItem('invite_student_profile', JSON.stringify(resolvedStudentProfile));
-
-      // Create a new assessment attempt document
-      const attemptData = {
-        examId: targetExamId,
-        examTitle: targetExamTitle,
-        studentId: resolvedStudentProfile.uid,
-        studentName: resolvedStudentProfile.name,
-        studentEmail: resolvedStudentProfile.email || `${resolvedStudentProfile.rollNumber}@school.com`,
-        schoolId: targetSchoolId,
-        answers: [],
-        score: 0,
-        startTime: new Date().toISOString(),
-        status: 'started'
-      };
-
-      const docRef = await addDoc(collection(db, 'attempts'), attemptData);
-      attemptId = docRef.id;
-
-      toast.success(`Verification Successful! Welcome ${resolvedStudentProfile.name}! Launching secure exam...`, { id: toastId });
-
-      // Redirect directly to the student exam taking page
       setTimeout(() => {
-        window.location.href = `/exam/${attemptId}`;
+        window.location.href = `/exam/${enrollPayload.attemptIdRaw}`;
       }, 800);
     } catch (err) {
       toast.dismiss(toastId);
@@ -664,8 +501,12 @@ export const LoginPage: React.FC = () => {
           toast.success("Account already exists. Successfully signed in!");
           return;
         } catch (signInErr: any) {
-          // Fallback to original error if password is wrong
-          setErrorMessage("This email is already registered. If you registered via Google SSO, please use 'Continue with Google' on the Sign In tab. Otherwise, use the 'Forgot password?' link on the Sign In tab.");
+          // The password they just tried didn't match an existing account for this email —
+          // route them straight to Sign In with the email pre-filled and 'Forgot password?'
+          // one click away, instead of leaving them on a dead-end error on the Signup tab.
+          setEmail(trimmedEmail);
+          setActiveTab('login');
+          toast.error(`An account already exists for ${trimmedEmail}. Use "Forgot password?" below to set a new one, or sign in with Google if that's how you registered.`, { duration: 8000 });
           setIsLoading(false);
           return;
         }

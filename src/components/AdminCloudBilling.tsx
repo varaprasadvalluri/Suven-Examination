@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth, googleProvider } from '../lib/firebase';
 import { collection, getDocs, getCountFromServer } from 'firebase/firestore';
+import { authHeaders } from '../lib/sessionStore';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -98,7 +99,7 @@ export const AdminCloudBilling: React.FC = () => {
     try {
       const response = await fetch('/api/gcp/live-billing', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           projectIdOverride: 'project-02bb6275-51ac-45e7-940',
           userEmail: 'suveen2619@gmail.com'

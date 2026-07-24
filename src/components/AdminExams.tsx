@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { db, handleFirestoreError, OperationType, collection, query, where, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDocs, setDoc, getDoc } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
+import { authHeaders } from '../lib/sessionStore';
 import { Exam } from '../types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { ConfirmationDialog } from './ConfirmationDialog';
@@ -342,7 +343,8 @@ export const AdminExams: React.FC = () => {
     setIsDeletingExam(true);
     try {
       const response = await fetch(`/api/exams/${examToDelete.id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { ...authHeaders() }
       });
       if (!response.ok) {
         throw new Error(await response.text() || 'Failed to delete exam via API');

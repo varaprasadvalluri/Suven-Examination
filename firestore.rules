@@ -2,24 +2,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper verifying if incoming client request IP complies with permitted laboratory addresses
-    function getSchool(schoolId) {
-      return get(/databases/$(database)/documents/schools/$(schoolId));
-    }
-
-    // Rules governing exam attempts
-    match /attempts/{attemptId} {
-      allow create, update, read, write: if true;
-    }
-
-    // Error books logging
-    match /error_books/{entryId} {
-      allow create, update, read, write: if true;
-    }
-
-    // Generic development & student link access permissions
+    // The app never talks to Firestore directly from the browser — every read/write goes
+    // through the Node server (server.ts), which authenticates to Firestore with its own
+    // service-account credentials (not subject to these rules) and enforces its own
+    // session/role/tenant authorization before touching any collection. These rules exist
+    // only as a backstop in case a direct client SDK call is ever introduced by mistake, so
+    // default-deny is safe and has no effect on current app behavior.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

@@ -6,7 +6,8 @@
  */
 
 import { toast } from 'sonner';
-import { 
+import { authHeaders } from '../lib/sessionStore';
+import {
   db as proxyDb,
   collection,
   doc,
@@ -482,7 +483,10 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
   }
   
   try {
-    const res = await fetch(url, options);
+    const res = await fetch(url, {
+      ...options,
+      headers: { ...authHeaders(), ...(options.headers || {}) }
+    });
     status = res.status;
     
     const durationMs = performance.now() - startTime;

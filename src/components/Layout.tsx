@@ -433,15 +433,18 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
           
           <div className="flex items-center space-x-4">
-            {/* Global/Specific School Scope Switcher Button - always visible and clickable */}
-            <Button
-              onClick={toggleSchoolContext}
-              variant="outline"
-              className="h-11 px-4 bg-white hover:bg-slate-50 text-slate-700 border-2 border-b-[4px] border-slate-200 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-wider shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Globe className={`h-4 w-4 ${profile?.schoolId ? 'text-indigo-500 animate-pulse' : 'text-emerald-500'}`} />
-              Scope: <span className="text-indigo-650">{profile?.schoolId ? "Specific School" : "Global System"}</span>
-            </Button>
+            {/* Global/Specific School Scope Switcher — system-admin only; the server only
+                permits schoolId changes on a users doc from an admin session. */}
+            {profile?.role === 'admin' && (
+              <Button
+                onClick={toggleSchoolContext}
+                variant="outline"
+                className="h-11 px-4 bg-white hover:bg-slate-50 text-slate-700 border-2 border-b-[4px] border-slate-200 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-wider shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Globe className={`h-4 w-4 ${profile?.schoolId ? 'text-indigo-500 animate-pulse' : 'text-emerald-500'}`} />
+                Scope: <span className="text-indigo-650">{profile?.schoolId ? "Specific School" : "Global System"}</span>
+              </Button>
+            )}
 
             {/* Active notifications indicator - customized for children's star themes */}
             <Button variant="ghost" size="icon" className="h-11 w-11 text-amber-500 hover:text-amber-600 bg-amber-50 hover:bg-amber-100 border-2 border-b-[4px] border-amber-200/80 rounded-xl relative transition-transform hover:scale-105">

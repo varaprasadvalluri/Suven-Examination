@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { Button } from './ui/button';
-import { db, collection, getDocs, query, orderBy, doc, updateDoc } from '../lib/firebase';
+import { db, collection, getDocs, query, orderBy } from '../lib/firebase';
+import { setSessionToken } from '../lib/sessionStore';
 import { Card, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { ShieldCheck, User as UserIcon, Building2, Search, Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -64,24 +65,34 @@ export const RoleSelection: React.FC = () => {
           }
         }
 
-        let permissions: string[] = [];
-        
-        if (selectedRole === 'admin') permissions = ['manage_exams', 'view_results'];
-        else if (selectedRole === 'school') permissions = ['manage_exams', 'view_results', 'manage_students'];
-        else permissions = ['take_exams'];
-          
-        const userRef = doc(db, 'users', profile.uid);
-        await updateDoc(userRef, { 
-          role: selectedRole, 
-          permissions, 
-          schoolId: selectedSchool || null 
+        // Routed through the server so the real authorization rules apply: admin
+        // self-selection is hard-blocked there, and 'school' is re-verified against
+        // allowed_schools/schools before being granted.
+        if (!user) {
+          throw new Error('No authenticated user session found.');
+        }
+        const idToken = await user.getIdToken();
+        const res = await fetch('/api/auth/create-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+          body: JSON.stringify({
+            name: profile.name,
+            role: selectedRole,
+            schoolId: selectedSchool || undefined
+          })
         });
+        const payload = await res.json();
+        if (!res.ok || !payload.success) {
+          throw new Error(payload.error || 'Failed to finalize role');
+        }
+        setSessionToken(payload.sessionToken);
 
         toast.success("Security profile established.");
         await refreshProfile();
-      } catch (err) {
+      } catch (err: any) {
         console.error("Profile update failed:", err);
-        toast.error("An unexpected error occurred during profile setup.");
+        toast.error(err?.message || "An unexpected error occurred during profile setup.");
+        setSelectedRole(null); // return to the picker instead of getting stuck on a spinner
       } finally {
         setIsUpdating(false);
       }

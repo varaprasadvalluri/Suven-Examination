@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../lib/AuthContext';
+import { authHeaders } from '../lib/sessionStore';
 import {
   Dialog,
   DialogContent,
@@ -454,7 +455,7 @@ const ExamInterfaceCore: React.FC = () => {
         try {
           const res = await fetch('/api/db/write', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify({
               type: 'update',
               collectionName: 'attempts',
@@ -487,7 +488,7 @@ const ExamInterfaceCore: React.FC = () => {
             for (const entry of errorBookEntries) {
               await fetch('/api/db/write', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
                 body: JSON.stringify({
                   type: 'add',
                   collectionName: 'error_books',
@@ -544,19 +545,25 @@ const ExamInterfaceCore: React.FC = () => {
       console.error("Error updates:", err);
     }
 
+    // Violations are logged and shown to the student, but never force-submit the exam —
+    // momentary idle/look-away is common normal behavior (thinking, checking scratch work)
+    // and shouldn't cost a student their attempt. Schools/admins can review the logged
+    // violation count and proctoring_logs entries after the fact if action is warranted.
     if (newCount === 1) {
       setIsWarningModalOpen(true);
-      toast.error(`SECURITY WARNING: ${eventDetail} (Violation 1 of 2 logged).`, {
+      toast.error(`SECURITY WARNING: ${eventDetail} (Violation 1 logged).`, {
         icon: <ShieldAlert className="h-5 w-5 text-red-600" />,
         duration: 6000,
       });
       await logProctorAnomaly(eventType, `First level warning: ${eventDetail}`);
-    } else if (newCount >= 2) {
-      toast.error(`CRITICAL SECURITY ALERT: ${eventDetail} (Violation ${newCount}). FORCING SUBMISSION.`);
-      await logProctorAnomaly(eventType + '_force_submit', `Force-submitted owing to multiple violations: ${eventDetail}`);
-      handleSubmit();
+    } else {
+      toast.error(`SECURITY WARNING: ${eventDetail} (Violation ${newCount} logged).`, {
+        icon: <ShieldAlert className="h-5 w-5 text-red-600" />,
+        duration: 6000,
+      });
+      await logProctorAnomaly(eventType, `Repeated warning (${newCount}): ${eventDetail}`);
     }
-  }, [loading, attempt, attemptId, violationsCount, logProctorAnomaly, handleSubmit]);
+  }, [loading, attempt, attemptId, violationsCount, logProctorAnomaly]);
 
   useEffect(() => {
     // Sync initial state
@@ -1351,9 +1358,6 @@ const ExamInterfaceCore: React.FC = () => {
                <Clock size={14} className="text-slate-500" />
                {formatTime(timeLeft)}
             </div>
-            <Button onClick={() => setIsSubmitConfirmOpen(true)} className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-black px-6 h-9 text-xs rounded-md shadow-lg shadow-amber-500/10 cursor-pointer border-none">
-               Submit Exam
-            </Button>
          </div>
       </header>
 
@@ -1448,6 +1452,9 @@ const ExamInterfaceCore: React.FC = () => {
                   </Button>
                   <Button onClick={handleSaveAndNext} className="bg-amber-400 hover:bg-amber-500 text-slate-950 h-11 px-6 md:px-8 rounded-xl font-black text-xs flex items-center gap-2 cursor-pointer border-none shadow-lg shadow-amber-500/10">
                     Save & Next <ArrowRight size={16} />
+                  </Button>
+                  <Button onClick={() => setIsSubmitConfirmOpen(true)} variant="outline" className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 bg-transparent h-11 px-4 md:px-6 rounded-xl font-black text-xs cursor-pointer">
+                    Submit Exam
                   </Button>
                </div>
             </div>

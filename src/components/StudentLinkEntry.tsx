@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
-import { db, doc, getDoc, getDocs, collection, query, where, addDoc, setDoc, runTransaction } from '../lib/firebase';
+import { db, doc, getDoc, getDocs, collection, query, where, runTransaction } from '../lib/firebase';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { Sparkles, GraduationCap, ArrowRight, ShieldCheck, Clock, BookOpen, AlertCircle, HelpCircle, UserCheck, ShieldAlert, Lock, User2, Key, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../lib/AuthContext';
+import { setSessionToken } from '../lib/sessionStore';
 
 export const StudentLinkEntry: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -269,53 +270,24 @@ export const StudentLinkEntry: React.FC = () => {
         }
       }
 
-      // Search for any existing student profile with this roll number
-      const usersRef = collection(db, 'users');
-      let querySnap = await getDocs(query(
-        usersRef,
-        where('schoolId', '==', finalSchoolId),
-        where('rollNumber', '==', rollNumber.trim()),
-        where('role', '==', 'student')
-      ));
-
-      if (querySnap.empty) {
-        querySnap = await getDocs(query(
-          usersRef,
-          where('rollNumber', '==', rollNumber.trim()),
-          where('role', '==', 'student')
-        ));
-      }
-
-      let profileData: any;
-
-      if (!querySnap.empty) {
-        const matchedDoc = querySnap.docs[0];
-        const matchedStudentId = matchedDoc.id;
-        const matchedStudentData = matchedDoc.data();
-
-        profileData = { 
-          uid: matchedStudentId, 
-          id: matchedStudentId, 
-          ...matchedStudentData,
-          name: matchedStudentData.name || username.trim(),
-          schoolId: matchedStudentData.schoolId || finalSchoolId
-        };
-      } else {
-        // Auto-onboard student for seamless link entry
-        const newStudentRef = doc(collection(db, 'users'));
-        profileData = {
-          uid: newStudentRef.id,
-          id: newStudentRef.id,
-          name: username.trim(),
+      // Search for (or auto-onboard) the student by roll number — done server-side since
+      // there's no session yet at this point in the flow (identical result to the old
+      // direct-Firestore lookup, just routed through a route that runs before auth exists).
+      const verifyRes = await fetch('/api/gatekeeper/verify-identity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           rollNumber: rollNumber.trim(),
           schoolId: finalSchoolId,
-          role: 'student',
-          permissions: ['take_exams'],
-          createdAt: new Date().toISOString(),
-          class: 'Adaptive Grade'
-        };
-        await setDoc(newStudentRef, profileData);
+          username: username.trim()
+        })
+      });
+      const verifyPayload = await verifyRes.json();
+      if (!verifyRes.ok || !verifyPayload.success) {
+        throw new Error(verifyPayload.error || 'Identity verification failed.');
       }
+
+      const profileData = verifyPayload.profileData;
 
       setMatchedStudentProfile(profileData);
       
@@ -385,6 +357,11 @@ export const StudentLinkEntry: React.FC = () => {
             finalStudentProfile = resData.finalStudentProfile;
             attemptIdRaw = resData.attemptIdRaw;
             backendSuccess = true;
+            // Invite-link students never authenticate via Firebase, so this session token is
+            // the only thing that authorizes their subsequent exam-taking API calls.
+            if (resData.sessionToken) {
+              setSessionToken(resData.sessionToken);
+            }
             console.log("Successfully processed gatekeeper enrollment via Node.js API backend.");
           }
         } else {

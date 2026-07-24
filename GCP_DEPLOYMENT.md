@@ -91,6 +91,30 @@ To ensure maximum performance during the exam launch peak (e.g., exactly at 9:00
 
 ---
 
+## 🔑 Required: Session Signing Secret (`JWT_SECRET`)
+
+Because multiple Cloud Run instances run simultaneously (`--min-instances 5`, up to `--max-instances 50`), every instance **must share the same `JWT_SECRET`** — it's what signs/verifies student and staff session tokens. If it isn't set, each instance generates its own random secret at boot, and users will get random 401 errors as their requests land on different instances. This must be set **once** before (or right after) the first deploy — `gcloud run deploy` preserves existing environment variables/secrets across future deploys, so `cloudbuild.yaml` doesn't need to reference it.
+
+**Recommended (Secret Manager):**
+```bash
+openssl rand -hex 48 | gcloud secrets create jwt-secret --data-file=-
+
+gcloud run services update suvenedu-service \
+    --region=us-central1 \
+    --set-secrets=JWT_SECRET=jwt-secret:latest
+```
+
+**Simpler alternative (plain env var, fine for smaller deployments):**
+```bash
+gcloud run services update suvenedu-service \
+    --region=us-central1 \
+    --update-env-vars JWT_SECRET=$(openssl rand -hex 48)
+```
+
+Losing/rotating this secret invalidates every active session (everyone gets logged out) — that's expected, not a bug, if you ever need to rotate it.
+
+---
+
 ## 🧠 Optional: Deploying Google Cloud Memorystore (Redis)
 If you configure a Redis cluster to coordinate proctoring state or rate limits, spin up a Cloud Memorystore instance:
 

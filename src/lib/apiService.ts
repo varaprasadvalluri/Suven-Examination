@@ -6,6 +6,7 @@
  */
 
 import { GlobalDbSubject, CrudType } from './observerPattern';
+import { authHeaders } from './sessionStore';
 
 export const db = { type: 'firestore_proxy_db' };
 
@@ -69,7 +70,10 @@ export function serverTimestamp() {
 // Centralized safe fetch helper to prevent JSON parsing crashes on HTML responses and handle offline states gracefully
 async function safeFetchJson(url: string, options: RequestInit = {}) {
   try {
-    const res = await fetch(url, options);
+    const res = await fetch(url, {
+      ...options,
+      headers: { ...authHeaders(), ...(options.headers || {}) }
+    });
     
     const contentType = res.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
@@ -355,11 +359,14 @@ export function onSnapshot(
   // Run initial pull immediately
   runQuery();
 
-  // Fine-tuned polling times per collection to conserve cloud credits
+  // Fine-tuned polling times per collection to conserve cloud credits. `attempts` in
+  // particular is polled once per active exam-taker (their own attempt doc) — at up to
+  // ~100k concurrent students, every second shaved off this interval is ~33k reads/sec of
+  // difference, so this is the single biggest lever on read cost/scale for this app.
   const colName = ref.collectionName;
   let pollInterval = 6000; // Default: 6 seconds
   if (colName === 'attempts' || colName === 'proctor_logs' || colName === 'report_jobs') {
-    pollInterval = 3000; // Fast: 3 seconds for active tests, exam answers, live proctoring
+    pollInterval = 8000; // 8 seconds for active tests, exam answers, live proctoring
   } else if (colName === 'schools' || colName === 'syllabus' || colName === 'login_options') {
     pollInterval = 12000; // Slow: 12 seconds for lists that rarely change
   }

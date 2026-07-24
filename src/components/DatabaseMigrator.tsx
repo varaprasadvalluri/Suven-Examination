@@ -31,6 +31,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { authHeaders } from '../lib/sessionStore';
 
 export const DatabaseMigrator: React.FC = () => {
   const [isMigrating, setIsMigrating] = useState(false);
@@ -118,7 +119,7 @@ export const DatabaseMigrator: React.FC = () => {
     try {
       const res = await fetch('/api/db/migrate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
       });
 
       const data = await res.json();
@@ -152,7 +153,7 @@ export const DatabaseMigrator: React.FC = () => {
     try {
       const res = await fetch('/api/db/seed', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
       });
 
       const data = await res.json();
@@ -186,7 +187,7 @@ export const DatabaseMigrator: React.FC = () => {
     try {
       const res = await fetch('/api/gcp/sync-iam', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
       });
 
       const data = await res.json();

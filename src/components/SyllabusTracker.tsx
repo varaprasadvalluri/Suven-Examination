@@ -370,11 +370,12 @@ export const SyllabusTracker: React.FC = () => {
           </p>
         </div>
 
+        {canManage && (
         <Dialog open={isManageOpen} onOpenChange={setIsManageOpen}>
           <DialogTrigger
               render={
-                <Button 
-                  variant="default" 
+                <Button
+                  variant="default"
                   size="lg"
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl px-6 py-5 flex items-center gap-2 shadow-lg shadow-indigo-100 cursor-pointer animate-none"
                   onClick={() => {
@@ -636,6 +637,7 @@ export const SyllabusTracker: React.FC = () => {
               </div>
             </DialogContent>
           </Dialog>
+        )}
       </header>
 
       <DataLoader
