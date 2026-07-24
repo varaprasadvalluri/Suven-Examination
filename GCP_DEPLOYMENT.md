@@ -115,20 +115,33 @@ Losing/rotating this secret invalidates every active session (everyone gets logg
 
 ---
 
-## 🔥 Recommended: Firebase Config via Secret Manager
+## 🔥 Firebase Config: One Source, No Checked-In File
 
-`server.ts` and `migrate-db.ts` no longer hardcode the Firebase `apiKey`/`projectId` — they fall back to the checked-in `firebase-applet-config.json` (needed regardless, since the frontend build ships it to the browser either way), but `FIREBASE_PROJECT_ID` / `FIRESTORE_DATABASE_ID` / `FIREBASE_API_KEY` env vars override it when set. Binding these explicitly means a project/key change is a config update, not a code change, and keeps the value out of source control duplication (`server.ts` previously repeated the same key `migrate-db.ts` also hardcoded).
+There is no `firebase-applet-config.json` in the repo anymore. `server.ts`, `migrate-db.ts`, and the frontend build (via `vite.config.ts`'s `define` block, same pattern already used for `GEMINI_API_KEY`) all read the same seven env vars: `FIREBASE_PROJECT_ID`, `FIRESTORE_DATABASE_ID`, `FIREBASE_API_KEY`, `FIREBASE_APP_ID`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_MESSAGING_SENDER_ID`. One set of values, no duplication between server and frontend, no drift.
+
+**Local dev**: put these in a `.env` file (gitignored) — see `.env.example` for the full list. `npm run dev` and `npm run build` both pick it up automatically.
+
+**Production build (Cloud Build)**: because Vite bakes these into the frontend bundle at *build* time, not runtime, `cloudbuild.yaml` passes them as Docker `--build-arg`s — non-secret values (project ID, database ID, app ID, etc.) come from `substitutions` at the bottom of `cloudbuild.yaml`, and `FIREBASE_API_KEY` comes from Secret Manager via `availableSecrets`/`secretEnv`. One-time setup:
 
 ```bash
 gcloud secrets create firebase-api-key --data-file=- <<< "YOUR_FIREBASE_WEB_API_KEY"
 
+# Cloud Build's own service account needs read access to the secret:
+gcloud secrets add-iam-policy-binding firebase-api-key \
+    --member="serviceAccount:$(gcloud projects describe $(gcloud config get-value project) --format='value(projectNumber)')@cloudbuild.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor"
+```
+
+**Production runtime (the running Cloud Run container)**: the server process also needs these at runtime for its own Firestore REST calls — bind them the same way as `JWT_SECRET` above:
+
+```bash
 gcloud run services update suvenedu-service \
     --region=us-central1 \
     --set-secrets=FIREBASE_API_KEY=firebase-api-key:latest \
     --update-env-vars FIREBASE_PROJECT_ID=your-project-id,FIRESTORE_DATABASE_ID=your-database-id
 ```
 
-Note: a Firebase *web* API key isn't a traditional secret — it ships to every browser in the frontend bundle regardless, and Firebase's own security model relies on Firestore rules / server-side auth, not on this value being hidden. Moving it server-side is about avoiding duplication and hardcoding, not closing an exposure — the real secrets in this app are `JWT_SECRET`, `CLOUDINARY_API_SECRET`, and `REDIS_PASSWORD`, which should always go through Secret Manager.
+Note: a Firebase *web* API key isn't a traditional secret — it ships to every browser in the frontend bundle regardless, and Firebase's own security model relies on Firestore rules / server-side auth, not on this value being hidden. Using Secret Manager for it here is about having one clean source of truth, not closing an exposure — the real secrets in this app are `JWT_SECRET`, `CLOUDINARY_API_SECRET`, and `REDIS_PASSWORD`, which should always go through Secret Manager.
 
 ---
 

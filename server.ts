@@ -32,60 +32,19 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Load static firebase-applet-config.json from multiple fallback paths
-const possibleConfigPaths = [
-  path.join(__dirname, 'firebase-applet-config.json'),
-  path.join(process.cwd(), 'firebase-applet-config.json'),
-  '/app/applet/firebase-applet-config.json'
-];
-
-// No real values hardcoded here — this is just a shape placeholder. Real config comes from
-// firebase-applet-config.json (checked in for the frontend build, which needs it regardless
-// — Firebase web config is meant to ship to the browser) and/or environment variables below,
-// which take priority and are the recommended source for the server process specifically
-// (see GCP_DEPLOYMENT.md — bind FIREBASE_API_KEY/FIREBASE_PROJECT_ID/FIRESTORE_DATABASE_ID
-// via Secret Manager or plain env vars so a project/key change is a config update, not a
-// code change, and isn't duplicated between server.ts and migrate-db.ts).
-let firebaseConfig: any = {
-  projectId: '',
-  firestoreDatabaseId: '(default)',
-  apiKey: ''
+// Single source of truth for Firebase config — env vars only (same names the frontend
+// build reads via vite.config.ts's `define` block, so there's one place to set these,
+// not a checked-in JSON file plus a separate copy for the client bundle).
+const firebaseConfig = {
+  projectId: process.env.FIREBASE_PROJECT_ID || '',
+  firestoreDatabaseId: process.env.FIRESTORE_DATABASE_ID || '(default)',
+  apiKey: process.env.FIREBASE_API_KEY || ''
 };
-
-let loadedConfig: any = null;
-for (const p of possibleConfigPaths) {
-  if (fs.existsSync(p)) {
-    try {
-      loadedConfig = JSON.parse(fs.readFileSync(p, 'utf8'));
-      console.log(`[NODE EXPRESS SERVER] Successfully loaded firebase config from: ${p}`);
-      break;
-    } catch (err) {
-      console.error(`Error reading firebase config from ${p}:`, err);
-    }
-  }
-}
-
-if (loadedConfig) {
-  firebaseConfig = { ...firebaseConfig, ...loadedConfig };
-}
-
-// Environment variables win over the checked-in file, so a deployment can point at a
-// different Firebase project/key without touching code. Allow environment variable
-// overrides ONLY if they are not the default sandbox placeholders.
-if (process.env.FIREBASE_PROJECT_ID && (!loadedConfig || (process.env.FIREBASE_PROJECT_ID !== 'gen-lang-client-0086284509' && !process.env.FIREBASE_PROJECT_ID.startsWith('gen-lang-client-')))) {
-  firebaseConfig.projectId = process.env.FIREBASE_PROJECT_ID;
-}
-if (process.env.FIRESTORE_DATABASE_ID && (!loadedConfig || !process.env.FIRESTORE_DATABASE_ID.startsWith('ai-studio-'))) {
-  firebaseConfig.firestoreDatabaseId = process.env.FIRESTORE_DATABASE_ID;
-}
-if (process.env.FIREBASE_API_KEY) {
-  firebaseConfig.apiKey = process.env.FIREBASE_API_KEY;
-}
 
 if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
   console.warn(
-    '[NODE EXPRESS SERVER] No Firebase projectId/apiKey resolved from firebase-applet-config.json ' +
-    'or FIREBASE_PROJECT_ID/FIREBASE_API_KEY env vars — Firestore REST calls will fail until one is set.'
+    '[NODE EXPRESS SERVER] FIREBASE_PROJECT_ID/FIREBASE_API_KEY are not set — ' +
+    'Firestore REST calls will fail until they are. See .env.example.'
   );
 }
 
