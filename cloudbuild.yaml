@@ -25,23 +25,25 @@ steps:
       - '--build-arg'
       - 'FIREBASE_MESSAGING_SENDER_ID=$_FIREBASE_MESSAGING_SENDER_ID'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/suven-examination:latest'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:latest'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/suven-examination:$COMMIT_SHA'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:$COMMIT_SHA'
       - '.'
 
-  # Step 2: Push the image to Google Container Registry (GCR)
+  # Step 2: Push the image to Artifact Registry (reusing the repo Cloud Run's own
+  # auto-deploy pipeline already created — avoids needing extra IAM permissions to
+  # create a new gcr.io registry from scratch)
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/suven-examination:$COMMIT_SHA']
+    args: ['push', 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:$COMMIT_SHA']
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/suven-examination:latest']
+    args: ['push', 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:latest']
 
   # Step 3: Deploy to Google Cloud Run with custom autoscaling rules for high-concurrency (10k users)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'gcloud'
     args: [
       'run', 'deploy', 'suven-examination',
-      '--image', 'gcr.io/$PROJECT_ID/suven-examination:$COMMIT_SHA',
+      '--image', 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:$COMMIT_SHA',
       '--region', 'asia-south1',
       '--platform', 'managed',
       '--allow-unauthenticated',
@@ -55,8 +57,8 @@ steps:
     ]
 
 images:
-  - 'gcr.io/$PROJECT_ID/suven-examination:latest'
-  - 'gcr.io/$PROJECT_ID/suven-examination:$COMMIT_SHA'
+  - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:latest'
+  - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:$COMMIT_SHA'
 
 # Non-secret Firebase web config (same values that ship in any Firebase web app's JS bundle
 # regardless — see GCP_DEPLOYMENT.md). Override at trigger time with
