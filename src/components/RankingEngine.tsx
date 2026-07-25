@@ -3,9 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { db, collection, query, where, onSnapshot, getDocs } from '../lib/firebase';
+import { db, collection, query, where, onSnapshot, getDocs, limit as fbLimit } from '../lib/firebase';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { authHeaders } from '../lib/sessionStore';
+import { toast } from 'sonner';
 import {
   Trophy,
   Search,
@@ -21,12 +23,15 @@ import {
   ArrowUpDown,
   ChevronRight,
   ChevronDown,
-  ChevronLeft
+  Loader2,
+  AlertTriangle,
+  Check
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export const RankingEngine: React.FC = () => {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [filter, setFilter] = useState('');
   const [students, setStudents] = useState<any[]>([]);
   const [attempts, setAttempts] = useState<any[]>([]);
@@ -35,24 +40,19 @@ export const RankingEngine: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [sortField, setSortField] = useState<'rank' | 'percentile'>('rank');
+  const [sortField, setSortField] = useState<'rank' | 'percentile' | 'rollNumber'>('rank');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [breakdownPage, setBreakdownPage] = useState<Record<string, number>>({});
-  const BREAKDOWN_PAGE_SIZE = 5;
-
-  const toggleExpanded = (id: string) => {
-    setExpandedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-        setBreakdownPage(bp => ({ ...bp, [id]: 1 }));
-      }
-      return next;
-    });
-  };
+  const [isExportingXlsx, setIsExportingXlsx] = useState(false);
+  // Safety ceiling for the on-screen live-listener fetch — the previous unbounded fetch
+  // (no limit at all on 'users'/'attempts') would try to hold every student and every
+  // completed attempt on the whole platform in this tab's memory, growing without bound.
+  // This caps that at a generous number for realistic near-term use while making truncation
+  // visible instead of silently degrading. The Export XLS button is NOT subject to this —
+  // it's computed fresh server-side directly from Firestore, independent of this cap.
+  const DISPLAY_FETCH_CAP = 5000;
+  const [isTruncated, setIsTruncated] = useState(false);
+  const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false);
+  const [schoolSearchText, setSchoolSearchText] = useState('');
 
   // Load schools to map branch names dynamically for everyone
   useEffect(() => {
@@ -66,6 +66,7 @@ export const RankingEngine: React.FC = () => {
     if (!profile) return;
 
     setLoading(true);
+    setIsTruncated(false);
 
     let studentsQuery;
     let attemptsQuery;
@@ -79,21 +80,25 @@ export const RankingEngine: React.FC = () => {
       studentsQuery = query(
         collection(db, 'users'),
         where('role', '==', 'student'),
-        where('schoolId', '==', activeSchoolId)
+        where('schoolId', '==', activeSchoolId),
+        fbLimit(DISPLAY_FETCH_CAP)
       );
       attemptsQuery = query(
         collection(db, 'attempts'),
         where('status', '==', 'completed'),
-        where('schoolId', '==', activeSchoolId)
+        where('schoolId', '==', activeSchoolId),
+        fbLimit(DISPLAY_FETCH_CAP)
       );
     } else {
       studentsQuery = query(
         collection(db, 'users'),
-        where('role', '==', 'student')
+        where('role', '==', 'student'),
+        fbLimit(DISPLAY_FETCH_CAP)
       );
       attemptsQuery = query(
         collection(db, 'attempts'),
-        where('status', '==', 'completed')
+        where('status', '==', 'completed'),
+        fbLimit(DISPLAY_FETCH_CAP)
       );
     }
 
@@ -103,6 +108,7 @@ export const RankingEngine: React.FC = () => {
         ...doc.data()
       }));
       setStudents(studs);
+      setIsTruncated(studs.length >= DISPLAY_FETCH_CAP);
     }, (err) => {
       console.error("Error subscribing to students: ", err);
     });
@@ -114,6 +120,7 @@ export const RankingEngine: React.FC = () => {
       }));
       setAttempts(atts);
       setLoading(false);
+      if (atts.length >= DISPLAY_FETCH_CAP) setIsTruncated(true);
     }, (err) => {
       console.error("Error subscribing to attempts: ", err);
       setLoading(false);
@@ -190,24 +197,14 @@ export const RankingEngine: React.FC = () => {
         improvement = '-';
       }
 
-      const examBreakdown = completedAttempts
-        .map(a => ({
-          examId: a.examId,
-          examTitle: a.examTitle || 'Untitled Exam',
-          score: Math.round(a.score || 0),
-          accuracy: Math.round(a.accuracy !== undefined ? a.accuracy : (a.score || 0)),
-          endTime: a.endTime || null
-        }))
-        .sort((a, b) => (b.endTime ? new Date(b.endTime).getTime() : 0) - (a.endTime ? new Date(a.endTime).getTime() : 0));
-
       list.push({
         id: sId,
         name: stud.name || 'Autonomous Candidate',
+        rollNumber: stud.rollNumber || '',
         score: averageScore,
         percentile: averagePercentage,
         examsAttended,
         improvement,
-        examBreakdown,
         branch: stud.schoolName || schoolNameMap[stud.schoolId] || 'Autonomous Hub',
         schoolId: stud.schoolId || '',
         status: (averagePercentage >= 90) ? 'Elite' : (averagePercentage >= 75) ? 'Advanced' : 'Rising'
@@ -255,24 +252,14 @@ export const RankingEngine: React.FC = () => {
           improvement = '-';
         }
 
-        const examBreakdown = completedAttempts
-          .map(a => ({
-            examId: a.examId,
-            examTitle: a.examTitle || 'Untitled Exam',
-            score: Math.round(a.score || 0),
-            accuracy: Math.round(a.accuracy !== undefined ? a.accuracy : (a.score || 0)),
-            endTime: a.endTime || null
-          }))
-          .sort((a, b) => (b.endTime ? new Date(b.endTime).getTime() : 0) - (a.endTime ? new Date(a.endTime).getTime() : 0));
-
         list.push({
           id: sId,
           name: att.studentName || 'Autonomous Candidate',
+          rollNumber: att.studentRollNumber || '',
           score: averageScore,
           percentile: averagePercentage,
           examsAttended,
           improvement,
-          examBreakdown,
           branch: att.schoolName || schoolNameMap[att.schoolId] || 'Autonomous Hub',
           schoolId: att.schoolId || '',
           status: (averagePercentage >= 90) ? 'Elite' : (averagePercentage >= 75) ? 'Advanced' : 'Rising'
@@ -298,8 +285,19 @@ export const RankingEngine: React.FC = () => {
       };
     });
 
-    // Sort according to grid selections
+    // Sort according to grid selections. rollNumber sorts by school (branch) first, then
+    // roll number within that school — matches how a school/admin actually wants to scan a
+    // roster (grouped by institution, ascending register order), unlike rank/percentile
+    // which are flat single-value comparisons.
     return assigned.sort((a, b) => {
+      if (sortField === 'rollNumber') {
+        const branchComp = a.branch.localeCompare(b.branch, undefined, { numeric: true, sensitivity: 'base' });
+        const comp = branchComp !== 0
+          ? branchComp
+          : (a.rollNumber || '').localeCompare(b.rollNumber || '', undefined, { numeric: true, sensitivity: 'base' });
+        return sortDirection === 'asc' ? comp : -comp;
+      }
+
       let valA = 0;
       let valB = 0;
       if (sortField === 'rank') {
@@ -314,6 +312,42 @@ export const RankingEngine: React.FC = () => {
       return sortDirection === 'asc' ? comp : -comp;
     });
   }, [students, attempts, filter, schools, sortField, sortDirection]);
+
+  // Consolidated Merit List export — computed entirely server-side, directly from
+  // Firestore (see server/routes/reports.ts), NOT from whatever's currently loaded in this
+  // tab. The on-screen table caps its own live listener for browser performance, but export
+  // needs to keep working correctly even as total student count grows well past that cap —
+  // so this just tells the server which school (or "all", admin only) to export, rather
+  // than sending it rows this page already has in memory.
+  const handleExportXlsx = async () => {
+    setIsExportingXlsx(true);
+    try {
+      const response = await fetch('/api/reports/merit-list-xlsx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ schoolId: profile?.role === 'admin' ? selectedSchoolId : undefined })
+      });
+
+      if (!response.ok) {
+        const errPayload = await response.json().catch(() => ({}));
+        throw new Error(errPayload.error || `Export failed (status ${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Consolidated_Merit_List_${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success("Merit list exported to Excel.");
+    } catch (err: any) {
+      console.error("Merit list export failed:", err);
+      toast.error(err.message || "Failed to export merit list.");
+    } finally {
+      setIsExportingXlsx(false);
+    }
+  };
 
   // Compute live calculated stats summary panel cards
   const statsSummary = useMemo(() => {
@@ -346,14 +380,30 @@ export const RankingEngine: React.FC = () => {
           <p className="text-slate-500 font-medium mt-1">Cross-institutional consolidated merit analysis & ranking heuristics.</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" className="border-slate-200 h-12 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 bg-white shadow-sm">
-             <Download size={14} /> Export XLS
+          <Button
+            variant="outline"
+            onClick={handleExportXlsx}
+            disabled={isExportingXlsx}
+            className="border-slate-200 h-12 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 bg-white shadow-sm cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {isExportingXlsx ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            {isExportingXlsx ? 'Exporting...' : 'Export XLS'}
           </Button>
           <Button className="bg-slate-900 text-white h-12 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-xl shadow-slate-200">
              <Medal size={14} /> Award Certificates
           </Button>
         </div>
       </header>
+
+      {isTruncated && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 text-amber-800">
+          <AlertTriangle size={18} className="shrink-0" />
+          <p className="text-xs font-semibold">
+            This view is showing the first {DISPLAY_FETCH_CAP.toLocaleString()} records and may not reflect every student — narrow by school above for a complete view.
+            The <span className="font-bold">Export XLS</span> button is unaffected and always exports the complete list.
+          </p>
+        </div>
+      )}
 
       {/* Stats Summary Panel */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -380,17 +430,107 @@ export const RankingEngine: React.FC = () => {
           </div>
           <div className="flex flex-wrap gap-4 items-center">
             {profile?.role === 'admin' && schools.length > 0 && (
-              <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId}>
-                <SelectTrigger className="w-56 h-12 bg-white border-2 border-slate-300 rounded-xl font-bold text-sm text-slate-900 px-4 justify-between shadow-sm hover:border-indigo-500 transition-all">
-                  <SelectValue placeholder="All Schools" />
-                </SelectTrigger>
-                <SelectContent className="bg-white rounded-xl border-2 border-slate-300 shadow-2xl p-1.5 z-50">
-                  <SelectItem value="all" className="font-bold text-xs cursor-pointer hover:bg-slate-50 text-slate-800 py-1.5 px-3 rounded-lg">All Schools</SelectItem>
-                  {schools.map(s => (
-                    <SelectItem key={s.id} value={s.id} className="font-bold text-xs cursor-pointer hover:bg-indigo-50 text-slate-800 py-1.5 px-3 rounded-lg">{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="relative w-56">
+                <button
+                  type="button"
+                  onClick={() => setSchoolDropdownOpen(!schoolDropdownOpen)}
+                  className="w-full h-12 bg-white border-2 border-slate-300 rounded-xl font-bold text-sm text-slate-900 px-4 flex items-center justify-between shadow-sm hover:border-indigo-500 transition-all cursor-pointer"
+                >
+                  <span className="truncate">
+                    {selectedSchoolId === 'all' ? 'All Schools' : (schools.find(s => s.id === selectedSchoolId)?.name || 'All Schools')}
+                  </span>
+                  <ChevronDown className="h-4 w-4 ml-2 text-slate-500 shrink-0" />
+                </button>
+
+                {schoolDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-[100]"
+                      onClick={() => {
+                        setSchoolDropdownOpen(false);
+                        setSchoolSearchText('');
+                      }}
+                    />
+                    <div className="absolute left-0 right-0 mt-1.5 bg-white border-2 border-slate-300 shadow-2xl rounded-2xl p-3 z-[110] flex flex-col gap-2 max-h-[320px] overflow-hidden">
+                      <div className="relative flex items-center shrink-0">
+                        <Search className="absolute left-3 h-3.5 w-3.5 text-slate-400" />
+                        <input
+                          type="text"
+                          value={schoolSearchText}
+                          onChange={(e) => setSchoolSearchText(e.target.value)}
+                          placeholder="Search schools..."
+                          className="w-full h-9 pl-9 pr-3 bg-slate-50 border-2 border-slate-100 focus:border-indigo-400 focus:bg-white text-xs font-bold text-slate-800 rounded-lg outline-none transition-all"
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                      <div className="flex-1 overflow-y-auto space-y-1 pr-1">
+                        {(() => {
+                          const queryFiltered = schools.filter(s =>
+                            (s.name || '').toLowerCase().includes(schoolSearchText.toLowerCase())
+                          );
+                          const sliced = queryFiltered.slice(0, 50);
+                          const allMatchesLabel = 'all schools'.includes(schoolSearchText.toLowerCase());
+
+                          if (sliced.length === 0 && !allMatchesLabel) {
+                            return (
+                              <div className="text-center py-6 text-xs text-slate-400 font-bold">
+                                No matching schools found
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <>
+                              {allMatchesLabel && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedSchoolId('all');
+                                    setSchoolDropdownOpen(false);
+                                    setSchoolSearchText('');
+                                  }}
+                                  className={`w-full text-left font-black text-xs cursor-pointer py-2 px-3 rounded-lg flex items-center justify-between transition-colors ${
+                                    selectedSchoolId === 'all' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'text-slate-900 hover:bg-indigo-50'
+                                  }`}
+                                >
+                                  All Schools
+                                  {selectedSchoolId === 'all' && <Check className="h-3.5 w-3.5 shrink-0 text-white" />}
+                                </button>
+                              )}
+                              {sliced.map(s => {
+                                const isSelected = s.id === selectedSchoolId;
+                                return (
+                                  <button
+                                    key={s.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedSchoolId(s.id);
+                                      setSchoolDropdownOpen(false);
+                                      setSchoolSearchText('');
+                                    }}
+                                    className={`w-full text-left font-black text-xs cursor-pointer py-2 px-3 rounded-lg flex items-center justify-between transition-colors ${
+                                      isSelected ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'text-slate-900 hover:bg-indigo-50'
+                                    }`}
+                                  >
+                                    <span className="truncate pr-2">{s.name}</span>
+                                    {isSelected && <Check className="h-3.5 w-3.5 shrink-0 text-white" />}
+                                  </button>
+                                );
+                              })}
+                              {queryFiltered.length > 50 && (
+                                <div className="text-center py-2 text-[10px] text-slate-400 font-bold">
+                                  {queryFiltered.length - 50} more — refine your search
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
             {profile?.role === 'school' && (
               <div className="bg-indigo-50 border border-indigo-100 px-4 py-2 rounded-xl flex flex-col justify-center text-left">
@@ -440,6 +580,26 @@ export const RankingEngine: React.FC = () => {
                         </div>
                       </th>
                       <th className="px-6 py-3.5 font-sans text-xs uppercase font-black tracking-wider text-slate-500">Candidate Profile</th>
+                      <th
+                        className="px-6 py-3.5 cursor-pointer hover:bg-slate-200/50 transition-colors select-none font-sans text-xs uppercase font-black tracking-wider text-slate-500 w-32"
+                        onClick={() => {
+                          if (sortField === 'rollNumber') {
+                            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setSortField('rollNumber');
+                            setSortDirection('asc');
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Roll No.
+                          {sortField === 'rollNumber' ? (
+                            sortDirection === 'asc' ? <ArrowUp size={13} className="text-indigo-650 font-bold" /> : <ArrowDown size={13} className="text-indigo-650 font-bold" />
+                          ) : (
+                            <ArrowUpDown size={13} className="text-slate-400" />
+                          )}
+                        </div>
+                      </th>
                       <th className="px-6 py-3.5 font-sans text-xs uppercase font-black tracking-wider text-slate-500 text-center w-28">Score</th>
                       <th 
                         className="px-6 py-3.5 cursor-pointer hover:bg-slate-200/50 transition-colors select-none font-sans text-xs uppercase font-black tracking-wider text-slate-500 text-center w-36"
@@ -467,8 +627,8 @@ export const RankingEngine: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-150">
                    {combinedRankings.slice((page - 1) * pageSize, page * pageSize).map((entry, i) => (
-                    <React.Fragment key={entry.id || i}>
                       <motion.tr
+                        key={entry.id || i}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: Math.min(i * 0.03, 0.3) }}
@@ -482,22 +642,22 @@ export const RankingEngine: React.FC = () => {
                          <td className="px-6 py-2.5 font-sans">
                             <button
                               type="button"
-                              onClick={() => entry.examsAttended > 0 && toggleExpanded(entry.id)}
+                              onClick={() => entry.examsAttended > 0 && navigate(`/admin/student/${entry.id}`)}
                               disabled={entry.examsAttended === 0}
-                              className={`flex items-center gap-2 text-left ${entry.examsAttended > 0 ? 'cursor-pointer' : 'cursor-default'}`}
+                              title={entry.examsAttended > 0 ? 'View full exam history' : undefined}
+                              className={`flex items-center gap-2 text-left ${entry.examsAttended > 0 ? 'cursor-pointer hover:underline' : 'cursor-default'}`}
                             >
-                               {entry.examsAttended > 0 ? (
-                                 expandedIds.has(entry.id)
-                                   ? <ChevronDown size={13} className="text-slate-400 shrink-0" />
-                                   : <ChevronRight size={13} className="text-slate-400 shrink-0" />
-                               ) : <span className="w-[13px] shrink-0" />}
                                <div className="flex items-center gap-3">
                                  <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{entry.name}</p>
                                  <Badge className={`${entry.status === 'Elite' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : entry.status === 'Advanced' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'} font-black text-[8px] uppercase px-1.5 py-0.5 rounded-md border`}>
                                     {entry.status}
                                  </Badge>
+                                 {entry.examsAttended > 0 && <ChevronRight size={12} className="text-slate-300 group-hover:text-indigo-500 transition-colors shrink-0" />}
                                </div>
                             </button>
+                         </td>
+                         <td className="px-6 py-2.5 font-sans font-semibold text-slate-700">
+                            {entry.rollNumber || '—'}
                          </td>
                          <td className="px-6 py-2.5 text-center font-bold text-slate-850">
                             {Math.round(entry.score)}
@@ -519,73 +679,6 @@ export const RankingEngine: React.FC = () => {
                             <span className="text-xs font-bold text-slate-400 bg-slate-100/100 border border-slate-200 shadow-xs px-2.5 py-0.5 rounded-md uppercase tracking-wider">{entry.branch} Branch</span>
                          </td>
                       </motion.tr>
-                      {expandedIds.has(entry.id) && entry.examBreakdown && entry.examBreakdown.length > 0 && (() => {
-                        const totalPages = Math.ceil(entry.examBreakdown.length / BREAKDOWN_PAGE_SIZE);
-                        const currentPage = Math.min(breakdownPage[entry.id] || 1, totalPages);
-                        const pageItems = entry.examBreakdown.slice(
-                          (currentPage - 1) * BREAKDOWN_PAGE_SIZE,
-                          currentPage * BREAKDOWN_PAGE_SIZE
-                        );
-                        const setPage = (p: number) => setBreakdownPage(bp => ({ ...bp, [entry.id]: p }));
-                        return (
-                        <tr className="bg-slate-50/70">
-                          <td colSpan={6} className="px-6 py-3">
-                            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                              <table className="w-full text-xs font-mono">
-                                <thead>
-                                  <tr className="bg-slate-100/70 text-left">
-                                    <th className="px-4 py-2 font-sans text-[10px] uppercase font-black tracking-wider text-slate-500">Exam</th>
-                                    <th className="px-4 py-2 font-sans text-[10px] uppercase font-black tracking-wider text-slate-500 text-center">Score</th>
-                                    <th className="px-4 py-2 font-sans text-[10px] uppercase font-black tracking-wider text-slate-500 text-center">Percentage</th>
-                                    <th className="px-4 py-2 font-sans text-[10px] uppercase font-black tracking-wider text-slate-500 text-right">Completed</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                  {pageItems.map((ex: any) => (
-                                    <tr key={ex.examId}>
-                                      <td className="px-4 py-2 font-sans font-semibold text-slate-700">{ex.examTitle}</td>
-                                      <td className="px-4 py-2 text-center font-bold text-slate-800">{ex.score}</td>
-                                      <td className="px-4 py-2 text-center">
-                                        <span className="text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full text-[11px]">{ex.accuracy}%</span>
-                                      </td>
-                                      <td className="px-4 py-2 text-right text-slate-400 font-sans text-[11px]">
-                                        {ex.endTime ? new Date(ex.endTime).toLocaleString() : '—'}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                              {totalPages > 1 && (
-                                <div className="flex items-center justify-between px-4 py-2 border-t border-slate-100 bg-slate-50/50">
-                                  <span className="text-[10px] font-sans font-semibold text-slate-400">
-                                    Page {currentPage} of {totalPages} ({entry.examBreakdown.length} exams)
-                                  </span>
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => setPage(Math.max(1, currentPage - 1))}
-                                      disabled={currentPage === 1}
-                                      className="p-1 rounded-md border border-slate-200 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100"
-                                    >
-                                      <ChevronLeft size={13} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-                                      disabled={currentPage === totalPages}
-                                      className="p-1 rounded-md border border-slate-200 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100"
-                                    >
-                                      <ChevronRight size={13} />
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                        );
-                      })()}
-                    </React.Fragment>
                    ))}
                 </tbody>
              </table>

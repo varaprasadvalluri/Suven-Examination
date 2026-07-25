@@ -19,6 +19,7 @@ import { SchoolDashboard } from './components/SchoolDashboard';
 import { LiveProctoringWall } from './components/LiveProctoringWall';
 import { SyllabusTracker } from './components/SyllabusTracker';
 import { RankingEngine } from './components/RankingEngine';
+import { StudentExamHistory } from './components/StudentExamHistory';
 import { AdminAnalytics } from './components/AdminAnalytics';
 import { StudentLinkEntry } from './components/StudentLinkEntry';
 import { ScalePerformanceHub } from './components/ScalePerformanceHub';
@@ -112,6 +113,11 @@ export default function App() {
           <Route path="/admin/merit" element={
             <ProtectedRoute roles={['admin', 'school']}>
               <Layout><RankingEngine /></Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/student/:studentId" element={
+            <ProtectedRoute roles={['admin', 'school']}>
+              <Layout><StudentExamHistory /></Layout>
             </ProtectedRoute>
           } />
           <Route path="/admin/exams" element={

@@ -119,30 +119,68 @@ export const SchoolStudentOnboarding: React.FC = () => {
       console.error("Failed to read school details: ", err);
     });
 
-    const examsQuery = query(
-      collection(db, 'exams'),
-      where('status', '==', 'published')
-    );
-    const unsubscribeExams = onSnapshot(examsQuery, (snapshot) => {
-      const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      const schoolId = profile?.schoolId;
-      const permittedExams = schoolId
-        ? fetched.filter((e: any) => !e.assignedSchoolIds || e.assignedSchoolIds.length === 0 || e.assignedSchoolIds.includes(schoolId))
-        : fetched;
+    // Two scoped queries instead of one unbounded platform-wide listener: (A) exams
+    // explicitly targeted at this school (array-contains, naturally small per school) and
+    // (B) recently-published exams generally, capped at 300 and ordered by newest first, to
+    // catch exams with no assignedSchoolIds (i.e. "everyone") without listening to every
+    // published exam on the platform forever as the total count grows. The same permission
+    // filter that used to run over the single unscoped fetch still runs here over the merged
+    // result, so which exams a school actually sees is unchanged.
+    const schoolId = profile.schoolId;
+    let targetedDocs: any[] = [];
+    let recentDocs: any[] = [];
+
+    const applyMergedExams = () => {
+      const merged = new Map<string, any>();
+      [...recentDocs, ...targetedDocs].forEach(e => merged.set(e.id, e));
+      const fetched = Array.from(merged.values());
+      const permittedExams = fetched.filter((e: any) =>
+        !e.assignedSchoolIds || e.assignedSchoolIds.length === 0 || e.assignedSchoolIds.includes(schoolId)
+      );
       setExams(permittedExams);
-      if (permittedExams.length > 0) {
-        if (!selectedExamId || !permittedExams.some((e: any) => e.id === selectedExamId)) {
-          setSelectedExamId(permittedExams[0].id);
+      // Functional update reads the CURRENT selection at the moment each snapshot lands,
+      // not whatever selectedExamId was when this effect first ran. This listener re-fires
+      // on every background poll tick (the onSnapshot simulation), so closing over the
+      // render-time selectedExamId value here would silently reset the school's actual
+      // selection back to the first exam on every poll — exactly what was happening before
+      // this fix.
+      setSelectedExamId(prev => {
+        if (permittedExams.length === 0) return '';
+        if (!prev || !permittedExams.some((e: any) => e.id === prev)) {
+          return permittedExams[0].id;
         }
-      } else {
-        setSelectedExamId('');
-      }
+        return prev;
+      });
+    };
+
+    const targetedQuery = query(
+      collection(db, 'exams'),
+      where('status', '==', 'published'),
+      where('assignedSchoolIds', 'array-contains', schoolId)
+    );
+    const unsubscribeTargeted = onSnapshot(targetedQuery, (snapshot) => {
+      targetedDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      applyMergedExams();
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'exams');
+    });
+
+    const recentQuery = query(
+      collection(db, 'exams'),
+      where('status', '==', 'published'),
+      orderBy('createdAt', 'desc'),
+      limit(300)
+    );
+    const unsubscribeRecent = onSnapshot(recentQuery, (snapshot) => {
+      recentDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      applyMergedExams();
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'exams');
     });
 
     return () => {
-      unsubscribeExams();
+      unsubscribeTargeted();
+      unsubscribeRecent();
     };
   }, [profile?.schoolId]);
 

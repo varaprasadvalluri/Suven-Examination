@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "db:migrate": "tsx --tsconfig tsconfig.server.json migrate-db.ts"
+    "db:migrate": "tsx --tsconfig tsconfig.server.json migrate-db.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -28,6 +29,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.6.0",
     "firebase": "^12.12.1",
     "firebase-admin": "^14.0.0",
     "ioredis": "^5.11.1",
@@ -58,6 +60,7 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "vitest": "^3.2.7"
   }
 }

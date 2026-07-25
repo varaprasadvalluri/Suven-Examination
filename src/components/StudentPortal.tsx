@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { db, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, doc, updateDoc } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, doc, updateDoc, limit, orderBy } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { Exam, Attempt } from '../types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
@@ -116,18 +116,46 @@ export const StudentPortal: React.FC = () => {
     
     setLoading(true);
     
-    // Subscribe to published exams
-    const examsQuery = query(collection(db, 'exams'), where('status', '==', 'published'));
-    const unsubscribeExams = onSnapshot(examsQuery, (snapshot) => {
-       const fetchedExams = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Exam));
-       const studentSchoolId = profile?.schoolId;
-       const permittedExams = studentSchoolId
-         ? fetchedExams.filter(e => !e.assignedSchoolIds || e.assignedSchoolIds.length === 0 || e.assignedSchoolIds.includes(studentSchoolId))
-         : fetchedExams;
-       setExams(permittedExams);
-    }, (error) => {
-       handleFirestoreError(error, OperationType.LIST, 'exams');
-    });
+    // Two scoped queries instead of one unbounded platform-wide listener — every logged-in
+    // student was otherwise holding a live listener on ALL published exams platform-wide,
+    // which multiplies badly at real student counts. (A) exams explicitly targeted at this
+    // student's school, and (B) recently-published exams generally capped at 300 and
+    // ordered newest-first, to catch exams with no assignedSchoolIds ("everyone") without
+    // an unbounded listener. Same permission filter as before still runs on the merged
+    // result, so which exams a student actually sees is unchanged.
+    const studentSchoolId = profile?.schoolId;
+    let targetedExamDocs: Exam[] = [];
+    let recentExamDocs: Exam[] = [];
+
+    const applyMergedExams = () => {
+      const merged = new Map<string, Exam>();
+      [...recentExamDocs, ...targetedExamDocs].forEach(e => merged.set(e.id, e));
+      const fetchedExams = Array.from(merged.values());
+      const permittedExams = studentSchoolId
+        ? fetchedExams.filter(e => !e.assignedSchoolIds || e.assignedSchoolIds.length === 0 || e.assignedSchoolIds.includes(studentSchoolId))
+        : fetchedExams;
+      setExams(permittedExams);
+    };
+
+    const unsubscribeExamsTargeted = studentSchoolId
+      ? onSnapshot(
+          query(collection(db, 'exams'), where('status', '==', 'published'), where('assignedSchoolIds', 'array-contains', studentSchoolId)),
+          (snapshot) => {
+            targetedExamDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Exam));
+            applyMergedExams();
+          },
+          (error) => handleFirestoreError(error, OperationType.LIST, 'exams')
+        )
+      : () => {};
+
+    const unsubscribeExamsRecent = onSnapshot(
+      query(collection(db, 'exams'), where('status', '==', 'published'), orderBy('createdAt', 'desc'), limit(300)),
+      (snapshot) => {
+        recentExamDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Exam));
+        applyMergedExams();
+      },
+      (error) => handleFirestoreError(error, OperationType.LIST, 'exams')
+    );
 
     // Subscribe to student attempts
     const attemptsQuery = query(collection(db, 'attempts'), where('studentId', '==', profile.uid));
@@ -141,7 +169,8 @@ export const StudentPortal: React.FC = () => {
     });
 
     return () => {
-      unsubscribeExams();
+      unsubscribeExamsTargeted();
+      unsubscribeExamsRecent();
       unsubscribeAttempts();
     };
   }, [profile, canTakeExams]);
