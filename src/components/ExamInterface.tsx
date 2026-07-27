@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType, collection, query, where, getDocs, doc, getDoc, updateDoc, writeBatch, setDoc, onSnapshot, addDoc } from '../lib/firebase';
 import { Exam, Question, Attempt } from '../types';
+import { orderQuestionsForAttempt } from '../lib/examQuestionOrder';
 import { MathInputToolbar } from './MathInputToolbar';
 import { Button } from './ui/button';
 import { Card, CardContent, CardFooter } from './ui/card';
@@ -150,21 +151,8 @@ const ExamInterfaceCore: React.FC = () => {
       }
       
       const qList = qsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
-      
-      const seed = attemptId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      const seededShuffle = (array: any[], seed: number) => {
-        const arr = [...array];
-        let currentSeed = seed;
-        for (let i = arr.length - 1; i > 0; i--) {
-          currentSeed = (currentSeed * 9301 + 49297) % 233280;
-          const rnd = currentSeed / 233280;
-          const j = Math.floor(rnd * (i + 1));
-          [arr[i], arr[j]] = [arr[j], arr[i]];
-        }
-        return arr;
-      };
-      
-      const shuffledQuestions = seededShuffle(qList, seed);
+
+      const shuffledQuestions = orderQuestionsForAttempt<Question>(qList, attemptId);
       setQuestions(shuffledQuestions);
 
       // Restore visited and review tags from localStorage if they exist

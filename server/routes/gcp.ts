@@ -1,6 +1,26 @@
 import express from 'express';
 import { requireSession, requireRole } from '../auth/middleware';
 import { auth, detectedContainerProjectId, clientDb, clientCollection, clientGetDocs } from '../firestoreClient';
+import { createBreaker } from '../lib/circuitBreaker';
+
+// Each GCP API called here is already individually try/caught with a graceful per-field
+// error message on failure — the breaker only adds fail-fast behavior once a given API is
+// known to be down, so a flood of admin dashboard loads doesn't keep re-hitting a dead endpoint.
+const fetchBillingInfo = createBreaker('gcp.billingInfo', (targetProjectId: string, token: string) =>
+  fetch(`https://cloudbilling.googleapis.com/v1/projects/${targetProjectId}/billingInfo`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+);
+const fetchProjectInfo = createBreaker('gcp.projectInfo', (targetProjectId: string, token: string) =>
+  fetch(`https://cloudresourcemanager.googleapis.com/v1/projects/${targetProjectId}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+);
+const fetchEnabledServices = createBreaker('gcp.enabledServices', (targetProjectId: string, token: string) =>
+  fetch(`https://serviceusage.googleapis.com/v1/projects/${targetProjectId}/services?filter=state:ENABLED&pageSize=50`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+);
 
 const router = express.Router();
 
@@ -167,9 +187,7 @@ router.post('/api/gcp/live-billing', requireSession, requireRole('admin'), async
   if (token) {
     // 1. Try Billing Info
     try {
-      const bRes = await fetch(`https://cloudbilling.googleapis.com/v1/projects/${targetProjectId}/billingInfo`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const bRes = await fetchBillingInfo(targetProjectId, token);
       const bData = await bRes.json();
       if (bRes.ok) {
         result.apiStatus.billingApiEnabled = true;
@@ -188,9 +206,7 @@ router.post('/api/gcp/live-billing', requireSession, requireRole('admin'), async
 
     // 2. Try Project Info from Resource Manager
     try {
-      const pRes = await fetch(`https://cloudresourcemanager.googleapis.com/v1/projects/${targetProjectId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const pRes = await fetchProjectInfo(targetProjectId, token);
       const pData = await pRes.json();
       if (pRes.ok) {
         result.apiStatus.resourceManagerEnabled = true;
@@ -208,9 +224,7 @@ router.post('/api/gcp/live-billing', requireSession, requireRole('admin'), async
 
     // 3. Try Enabled Services
     try {
-      const sRes = await fetch(`https://serviceusage.googleapis.com/v1/projects/${targetProjectId}/services?filter=state:ENABLED&pageSize=50`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const sRes = await fetchEnabledServices(targetProjectId, token);
       const sData = await sRes.json();
       if (sRes.ok && sData.services) {
         result.apiStatus.serviceUsageEnabled = true;

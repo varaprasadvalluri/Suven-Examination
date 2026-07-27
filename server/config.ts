@@ -7,7 +7,8 @@ import crypto from 'crypto';
 export const firebaseConfig = {
   projectId: process.env.FIREBASE_PROJECT_ID || '',
   firestoreDatabaseId: process.env.FIRESTORE_DATABASE_ID || '(default)',
-  apiKey: process.env.FIREBASE_API_KEY || ''
+  apiKey: process.env.FIREBASE_API_KEY || '',
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || ''
 };
 
 if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {

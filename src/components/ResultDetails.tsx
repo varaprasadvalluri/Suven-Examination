@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { db, doc, getDoc, collection, query, where, getDocs } from '../lib/firebase';
 import { Attempt, Exam, Question } from '../types';
+import { orderQuestionsForAttempt } from '../lib/examQuestionOrder';
 import { MathRenderer } from './MathRenderer';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
@@ -77,7 +78,11 @@ export const ResultDetails: React.FC = () => {
         
         const qQuery = query(collection(db, 'questions'), where('examId', '==', aData.examId));
         const qSnap = await getDocs(qQuery);
-        setQuestions(qSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question)));
+        const qList = qSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
+        // Must match the exact per-attempt order ExamInterface.tsx showed this student —
+        // attempt.answers[idx]/timePerQuestion[idx] are indexed by that shuffled position,
+        // not by question id, so an unshuffled fetch here would pair answers with the wrong question.
+        setQuestions(orderQuestionsForAttempt<Question>(qList, aData.id));
       } catch (error) {
         console.error(error);
       } finally {

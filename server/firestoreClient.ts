@@ -1,5 +1,6 @@
 import { GoogleAuth } from 'google-auth-library';
 import { firebaseConfig } from './config';
+import { createBreaker } from './lib/circuitBreaker';
 
 // REST Client configuration
 export const getBaseUrl = () => `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${firebaseConfig.firestoreDatabaseId}/documents`;
@@ -209,7 +210,7 @@ export function clientDoc(...args: any[]) {
   throw new Error('[Client Wrapper doc] Unsupported argument combination.');
 }
 
-export async function clientGetDoc(docRef: any) {
+async function clientGetDocImpl(docRef: any) {
   const url = `${getBaseUrl()}/${docRef.collectionName}/${docRef.id}?key=${firebaseConfig.apiKey}`;
   try {
     const headers: Record<string, string> = {};
@@ -241,7 +242,7 @@ export async function clientGetDoc(docRef: any) {
   }
 }
 
-export async function clientGetDocs(queryRef: any) {
+async function clientGetDocsImpl(queryRef: any) {
   const collectionName = queryRef.collectionName;
   const constraints = queryRef.constraints || [];
 
@@ -340,6 +341,7 @@ export async function clientGetDocs(queryRef: any) {
     return {
       docs: rawDocs,
       empty: rawDocs.length === 0,
+      size: rawDocs.length,
       forEach: (cb: (doc: any) => void) => rawDocs.forEach(cb)
     };
   } catch (err: any) {
@@ -348,7 +350,7 @@ export async function clientGetDocs(queryRef: any) {
   }
 }
 
-export async function clientSetDoc(docRef: any, data: any, options?: any) {
+async function clientSetDocImpl(docRef: any, data: any, options?: any) {
   let url = `${getBaseUrl()}/${docRef.collectionName}/${docRef.id}?key=${firebaseConfig.apiKey}`;
   if (options && options.merge) {
     const params = buildUpdateMaskParams(data);
@@ -377,7 +379,7 @@ export async function clientSetDoc(docRef: any, data: any, options?: any) {
   return { success: true };
 }
 
-export async function clientUpdateDoc(docRef: any, data: any) {
+async function clientUpdateDocImpl(docRef: any, data: any) {
   let url = `${getBaseUrl()}/${docRef.collectionName}/${docRef.id}?key=${firebaseConfig.apiKey}`;
   const params = buildUpdateMaskParams(data);
   if (params) {
@@ -404,7 +406,7 @@ export async function clientUpdateDoc(docRef: any, data: any) {
   return { success: true };
 }
 
-export async function clientDeleteDoc(docRef: any) {
+async function clientDeleteDocImpl(docRef: any) {
   const url = `${getBaseUrl()}/${docRef.collectionName}/${docRef.id}?key=${firebaseConfig.apiKey}`;
 
   const headers: Record<string, string> = {};
@@ -424,7 +426,7 @@ export async function clientDeleteDoc(docRef: any) {
   return { success: true };
 }
 
-export async function clientAddDoc(collectionRef: any, data: any) {
+async function clientAddDocImpl(collectionRef: any, data: any) {
   const url = `${getBaseUrl()}/${collectionRef.collectionName}?key=${firebaseConfig.apiKey}`;
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -448,6 +450,16 @@ export async function clientAddDoc(collectionRef: any, data: any) {
   const id = payload.name.split('/').pop();
   return { id };
 }
+
+// Circuit-breaker-wrapped entry points — every caller across the server (gatekeeper,
+// exams, db, reports, adminDb routes) imports these same names, so wrapping here protects
+// all Firestore REST access in one place without touching call sites.
+export const clientGetDoc = createBreaker('firestore.getDoc', clientGetDocImpl);
+export const clientGetDocs = createBreaker('firestore.getDocs', clientGetDocsImpl);
+export const clientSetDoc = createBreaker('firestore.setDoc', clientSetDocImpl);
+export const clientUpdateDoc = createBreaker('firestore.updateDoc', clientUpdateDocImpl);
+export const clientDeleteDoc = createBreaker('firestore.deleteDoc', clientDeleteDocImpl);
+export const clientAddDoc = createBreaker('firestore.addDoc', clientAddDocImpl);
 
 export interface QueryConstraint {
   type: string;

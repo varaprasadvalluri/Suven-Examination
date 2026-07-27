@@ -14,7 +14,7 @@ import {
   Building2, Users, ClipboardList, BookOpen, GraduationCap, 
   TrendingUp, Award, ShieldCheck, Zap, BrainCircuit, Activity, 
   Filter, CheckCircle2, ChevronRight, RefreshCw, BarChart4, ArrowUpRight, Sparkles, Inbox, UserCheck2,
-Loader2 } from 'lucide-react';
+Loader2, Crown, Medal } from 'lucide-react';
 import { 
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, 
   CartesianGrid, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, Cell
@@ -291,7 +291,21 @@ export const SchoolDashboard: React.FC = () => {
     };
   }, [students, attempts, invitations, exams]);
 
-  
+  // Real top-5 merit ranking for this school only, ranked by accuracy (computed once at
+  // submission time in ExamInterface.tsx). Mirrors the admin-side Merit Matrix but scoped
+  // to this school's own students so a school admin can spot their top performers directly.
+  const topPerformers = useMemo(() => {
+    return attempts
+      .filter(a => a.status === 'completed')
+      .sort((a, b) => (b.accuracy ?? 0) - (a.accuracy ?? 0))
+      .slice(0, 5)
+      .map(a => {
+        const student = students.find(s => s.uid === a.studentId || s.id === a.studentId);
+        return { ...a, className: student?.class || 'Unassigned', rollNumber: student?.rollNumber || '' };
+      });
+  }, [attempts, students]);
+
+
   if (loading) return (
      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
        <Loader2 className="h-10 w-10 text-indigo-600 animate-spin" />
@@ -511,6 +525,55 @@ export const SchoolDashboard: React.FC = () => {
               </CardContent>
             </Card>
 
+          </div>
+
+          {/* Merit Board: top 5 performers within this school only */}
+          <div className="grid grid-cols-1 gap-8">
+            <Card className="border-slate-200 shadow-xl shadow-slate-100/30 rounded-[35px] overflow-hidden bg-gradient-to-br from-slate-900 to-indigo-950 text-white">
+              <CardHeader className="p-8 border-b border-white/5">
+                <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-300">Merit Board · Top 5</CardTitle>
+                <CardDescription className="text-xs font-semibold text-indigo-200 mt-1">This school's highest-accuracy candidates across all completed assessments.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+                  {topPerformers.map((perf, i) => {
+                    const rankIcon = i === 0
+                      ? <Crown size={16} className="text-amber-400" />
+                      : i === 1
+                        ? <Medal size={16} className="text-slate-300" />
+                        : i === 2
+                          ? <Award size={16} className="text-orange-400" />
+                          : null;
+                    const accuracy = perf.accuracy ?? 0;
+                    return (
+                      <div key={perf.id} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-center text-center gap-2">
+                        <div className="flex items-center gap-1.5">
+                          {rankIcon || <span className="text-xs font-black text-indigo-300">0{i + 1}</span>}
+                        </div>
+                        {/* Spike bar: height scales with accuracy, quick visual gap between top 3 */}
+                        {i < 3 && (
+                          <div className="h-6 w-1.5 rounded-full bg-white/10 overflow-hidden flex items-end">
+                            <div
+                              className={`w-full rounded-full ${i === 0 ? 'bg-amber-400' : i === 1 ? 'bg-slate-300' : 'bg-orange-400'}`}
+                              style={{ height: `${Math.max(10, Math.min(100, accuracy))}%` }}
+                            />
+                          </div>
+                        )}
+                        <div className="h-10 w-10 rounded-full bg-white/10 overflow-hidden border border-white/20">
+                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${perf.id}`} alt="rank" />
+                        </div>
+                        <p className="text-xs font-black uppercase tracking-tight truncate max-w-full">{perf.studentName || 'Unknown Student'}</p>
+                        <p className="text-[9px] font-bold text-slate-400 truncate max-w-full">{perf.className}{perf.rollNumber ? ` · ${perf.rollNumber}` : ''}</p>
+                        <span className="text-xs font-black text-emerald-400">{accuracy.toFixed(1)}%</span>
+                      </div>
+                    );
+                  })}
+                  {topPerformers.length === 0 && (
+                    <p className="col-span-full text-xs font-bold text-slate-400 text-center py-6">No completed exams yet</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Actionable Human Intelligence Base Feed Column */}

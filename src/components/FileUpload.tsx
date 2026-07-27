@@ -85,22 +85,25 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     setLocalPreviewUrl(localUrl);
 
     // Trigger upload
-    uploadFileToCloudinary(file);
+    uploadFileToFirebaseStorage(file);
   };
 
-  const uploadFileToCloudinary = async (file: File) => {
+  const uploadFileToFirebaseStorage = async (file: File) => {
     setUploadProgress(0);
     try {
-      // 1. Get secure signed params from node.js backend helper
-      const response = await fetch('/api/cloudinary/sign', {
+      // 1. Ask the backend to mint a short-lived signed PUT URL for this exact content type.
+      // No image bytes touch our server or Firestore — same "server signs, client uploads
+      // straight to the provider" shape the previous Cloudinary flow used.
+      const response = await fetch('/api/storage/sign-upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({ contentType: file.type })
       });
 
       if (!response.ok) {
-        let errMsg = 'Failed to generate secure upload signature';
+        let errMsg = 'Failed to generate secure upload URL';
         try {
           const errData = await response.json();
           if (errData && errData.error) {
@@ -117,22 +120,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
       const signData = await response.json();
       if (!signData.success) {
-        throw new Error('Failed to retrieve signing credentials');
+        throw new Error('Failed to retrieve signed upload URL');
       }
 
-      // 2. Perform direct upload to Cloudinary using XMLHttpRequest for progress tracking
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('api_key', signData.api_key);
-      formData.append('timestamp', String(signData.timestamp));
-      formData.append('signature', signData.signature);
-      formData.append('folder', signData.folder);
-
-      const uploadUrl = `https://api.cloudinary.com/v1_1/${signData.cloud_name}/image/upload`;
-      
+      // 2. Perform direct PUT upload to Firebase Storage using XMLHttpRequest for progress tracking
       const xhr = new XMLHttpRequest();
-      
-      xhr.open('POST', uploadUrl, true);
+
+      xhr.open('PUT', signData.uploadUrl, true);
+      xhr.setRequestHeader('Content-Type', signData.contentType);
 
       // Track progress
       xhr.upload.onprogress = (e) => {
@@ -144,31 +139,13 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
       xhr.onload = () => {
         if (xhr.status === 200) {
-          try {
-            const uploadData = JSON.parse(xhr.responseText);
-            onUploadSuccess(uploadData.secure_url, uploadData.public_id);
-            toast.success("Image uploaded securely to Cloudinary!");
-          } catch (e) {
-            toast.error("Upload succeeded, but could not parse server response.");
-          } finally {
-            setUploadProgress(null);
-          }
+          onUploadSuccess(signData.downloadUrl, signData.publicId);
+          toast.success("Image uploaded securely to Firebase Storage!");
         } else {
-          let errorText = 'Upload to Cloudinary CDN failed';
-          try {
-            const errRes = JSON.parse(xhr.responseText);
-            if (errRes.error && errRes.error.message) {
-              errorText = errRes.error.message;
-            }
-          } catch {
-            if (xhr.responseText) {
-              errorText = xhr.responseText;
-            }
-          }
-          toast.error("Failed to upload: " + errorText);
-          setUploadProgress(null);
+          toast.error("Failed to upload: Firebase Storage rejected the upload (status " + xhr.status + ")");
           setLocalPreviewUrl(null); // Clear preview on upload failure
         }
+        setUploadProgress(null);
       };
 
       xhr.onerror = () => {
@@ -177,7 +154,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         setLocalPreviewUrl(null);
       };
 
-      xhr.send(formData);
+      xhr.send(file);
 
     } catch (err: any) {
       toast.error("Upload error: " + err.message);
@@ -191,7 +168,11 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     if (!imagePublicId) return;
     setDeleting(true);
     try {
-      const response = await fetch('/api/cloudinary/delete', {
+      // Only route to the new endpoint for assets actually uploaded through it; everything
+      // else (legacy Cloudinary public_ids, the 'external-url' sentinel) keeps hitting the
+      // original endpoint, preserving its existing behavior for those cases unchanged.
+      const isFirebaseStorageAsset = imagePublicId.startsWith('firebase:');
+      const response = await fetch(isFirebaseStorageAsset ? '/api/storage/delete' : '/api/cloudinary/delete', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -299,7 +280,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             ) : (
               imagePublicId && (
                 <p className="text-[10px] text-slate-500 font-mono">
-                  Stored securely on Cloudinary Cloud (ID: <code className="bg-slate-100 px-1 py-0.5 rounded font-bold text-indigo-600">{imagePublicId}</code>)
+                  {imagePublicId.startsWith('firebase:') ? 'Stored securely in Firebase Storage' : 'Stored securely on Cloudinary Cloud'} (ID: <code className="bg-slate-100 px-1 py-0.5 rounded font-bold text-indigo-600">{imagePublicId}</code>)
                 </p>
               )
             )}
@@ -377,7 +358,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           </div>
           
           <p className="text-[10px] text-slate-400 mt-3 text-center font-medium">
-            Supports PNG, JPG, JPEG, GIF. Paste direct image link if Cloudinary credentials are not set up.
+            Supports PNG, JPG, JPEG, GIF. Paste direct image link if storage upload is not available.
           </p>
         </div>
       )}

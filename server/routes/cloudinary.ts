@@ -1,8 +1,18 @@
 import express from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { cloudinaryUploadLimiter } from '../middleware/rateLimit';
+import { createBreaker } from '../lib/circuitBreaker';
 
 const router = express.Router();
+
+const uploadToCloudinary = createBreaker(
+  'cloudinary.upload',
+  (cld: typeof cloudinary, image: string) => cld.uploader.upload(image, { folder: 'suven_exams', resource_type: 'auto' })
+);
+const destroyCloudinaryAsset = createBreaker(
+  'cloudinary.destroy',
+  (cld: typeof cloudinary, publicId: string) => cld.uploader.destroy(publicId)
+);
 
 // CLOUDINARY CONFIGURATION & UTILS
 function cleanEnvValue(val: string | undefined): string {
@@ -52,10 +62,7 @@ router.post('/api/cloudinary/upload', cloudinaryUploadLimiter, async (req, res) 
 
   try {
     const cld = getCloudinary();
-    const result = await cld.uploader.upload(image, {
-      folder: 'suven_exams',
-      resource_type: 'auto'
-    });
+    const result = await uploadToCloudinary(cld, image);
     return res.status(200).json({
       success: true,
       secure_url: result.secure_url,
@@ -124,7 +131,7 @@ export async function cleanupCloudinaryAsset(publicId: string | undefined | null
   }
   try {
     const cld = getCloudinary();
-    const result = await cld.uploader.destroy(publicId);
+    const result = await destroyCloudinaryAsset(cld, publicId);
     console.log(`[Cloudinary Cleanup] Deleted asset "${publicId}". Status:`, result);
     return { success: true, result: result.result };
   } catch (err: any) {

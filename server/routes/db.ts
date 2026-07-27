@@ -28,11 +28,24 @@ import {
   clientGetCountFromServer
 } from '../firestoreClient';
 import { cleanupCloudinaryAsset } from './cloudinary';
+import { cleanupFirebaseStorageAsset, FIREBASE_STORAGE_ID_PREFIX } from './firebaseStorage';
 import { mockLoadTestStore } from './gatekeeper';
 
 const router = express.Router();
 
-// 3. Question deletion with automatic Cloudinary image cleanup
+// Question images can now come from either provider depending on when they were uploaded
+// (legacy Cloudinary public_id vs. new Firebase Storage object path prefixed with
+// FIREBASE_STORAGE_ID_PREFIX) — route cleanup to whichever one actually stored the asset.
+async function cleanupQuestionImage(imagePublicId: string | undefined | null) {
+  if (!imagePublicId) return;
+  if (imagePublicId.startsWith(FIREBASE_STORAGE_ID_PREFIX)) {
+    await cleanupFirebaseStorageAsset(imagePublicId);
+  } else {
+    await cleanupCloudinaryAsset(imagePublicId);
+  }
+}
+
+// 3. Question deletion with automatic image cleanup (Cloudinary or Firebase Storage)
 router.delete('/api/questions/:questionId', requireSession, requireRole('admin'), async (req, res) => {
   const { questionId } = req.params;
   try {
@@ -44,14 +57,12 @@ router.delete('/api/questions/:questionId', requireSession, requireRole('admin')
     }
 
     const questionData = qSnap.data() as any;
-    if (questionData.imagePublicId) {
-      await cleanupCloudinaryAsset(questionData.imagePublicId);
-    }
+    await cleanupQuestionImage(questionData.imagePublicId);
 
     await clientDeleteDoc(qRef);
     return res.status(200).json({
       success: true,
-      message: 'Question and associated Cloudinary image deleted successfully.'
+      message: 'Question and associated image deleted successfully.'
     });
   } catch (err: any) {
     console.error("Failed to delete question:", err);
@@ -59,7 +70,7 @@ router.delete('/api/questions/:questionId', requireSession, requireRole('admin')
   }
 });
 
-// 4. Exam deletion with automatic Cloudinary image cleanup for all its questions
+// 4. Exam deletion with automatic image cleanup for all its questions
 router.delete('/api/exams/:examId', requireSession, requireRole('admin'), async (req, res) => {
   const { examId } = req.params;
   try {
@@ -75,12 +86,10 @@ router.delete('/api/exams/:examId', requireSession, requireRole('admin'), async 
     const qQuery = clientQuery(qColRef, clientWhere('examId', '==', examId));
     const qSnap = await clientGetDocs(qQuery);
 
-    // C. Delete related question images from Cloudinary and documents from Firestore
+    // C. Delete related question images and documents from Firestore
     for (const qDoc of qSnap.docs) {
       const qData = qDoc.data() as any;
-      if (qData.imagePublicId) {
-        await cleanupCloudinaryAsset(qData.imagePublicId);
-      }
+      await cleanupQuestionImage(qData.imagePublicId);
       await clientDeleteDoc(clientDoc(clientDb, 'questions', qDoc.id));
     }
 
@@ -89,7 +98,7 @@ router.delete('/api/exams/:examId', requireSession, requireRole('admin'), async 
 
     return res.status(200).json({
       success: true,
-      message: 'Exam paper, associated questions, and related Cloudinary assets deleted successfully.'
+      message: 'Exam paper, associated questions, and related image assets deleted successfully.'
     });
   } catch (err: any) {
     console.error("Failed to delete exam:", err);
@@ -102,6 +111,24 @@ router.post('/api/db/query', async (req, res) => {
   const { collectionName, constraints = [], docId, countOnly } = req.body;
   if (!collectionName) {
     return res.status(400).json({ error: 'Missing collectionName specification.' });
+  }
+
+  // Mirrors /api/db/write's isLoadTestWrite branch: single-doc reads for synthetic
+  // load-test identities resolve from mockLoadTestStore instead of hitting Firestore,
+  // so a load test never burns real read quota for docs it wrote itself.
+  const isLoadTestRead =
+    !!docId &&
+    (req.headers['x-load-test'] === 'true' ||
+      docId.includes('test-roll-') ||
+      docId.includes('StressTester'));
+
+  if (isLoadTestRead) {
+    const key = `${collectionName}_${docId}`;
+    const stored = mockLoadTestStore.get(key);
+    if (stored) {
+      return res.status(200).json({ success: true, data: { id: docId, exists: true, data: stored } });
+    }
+    return res.status(200).json({ success: true, data: { id: docId, exists: false } });
   }
 
   const isPublic = PUBLIC_READ_COLLECTIONS.has(collectionName);

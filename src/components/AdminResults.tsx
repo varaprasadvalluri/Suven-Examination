@@ -10,6 +10,7 @@ import { ArrowLeft, Download, Users, TrendingUp, Award, PlayCircle, Loader2, Fil
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { ConfirmationDialog } from './ConfirmationDialog';
+import { orderQuestionsForAttempt } from '../lib/examQuestionOrder';
 
 export const AdminResults: React.FC = () => {
   const { examId } = useParams<{ examId: string }>();
@@ -197,17 +198,35 @@ export const AdminResults: React.FC = () => {
     }
   };
 
+  // Each attempt's answers/timePerQuestion are indexed by that STUDENT's own shuffled
+  // question order (seeded per attempt id), not by a shared position — two students can
+  // have "index 3" mean two different questions. Build a per-attempt questionId->index
+  // map once so the analytics below compare each attempt's answer to the right question.
+  const attemptQuestionIndexMaps = React.useMemo(() => {
+    const maps = new Map<string, Map<string, number>>();
+    if (questions.length === 0) return maps;
+    analyticsAttempts.forEach(att => {
+      const ordered = orderQuestionsForAttempt(questions, att.id);
+      const idxMap = new Map<string, number>();
+      ordered.forEach((q, idx) => idxMap.set(q.id, idx));
+      maps.set(att.id, idxMap);
+    });
+    return maps;
+  }, [questions, analyticsAttempts]);
+
   // MODULE 5: Question-Level Analytics Aggregator
   const questionAnalytics = React.useMemo(() => {
     if (questions.length === 0 || analyticsAttempts.length === 0) return [];
 
-    return questions.map((q, idx) => {
+    return questions.map((q) => {
       let attemptsCount = 0;
       let passes = 0;
       let fails = 0;
       let totalTime = 0;
 
       analyticsAttempts.forEach(att => {
+        const idx = attemptQuestionIndexMaps.get(att.id)?.get(q.id);
+        if (idx === undefined) return;
         const studentAns = att.answers?.[idx];
         if (studentAns === undefined || studentAns === null) return;
 

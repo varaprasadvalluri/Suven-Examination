@@ -36,3 +36,12 @@ export const cloudinaryUploadLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many upload requests. Please wait a few minutes and try again.' }
 });
+
+// Firebase Storage signed-URL issuance — same reasoning as the Cloudinary limiter above.
+export const storageUploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many upload requests. Please wait a few minutes and try again.' }
+});

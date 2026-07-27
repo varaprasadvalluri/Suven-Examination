@@ -113,6 +113,7 @@ export const SyllabusTracker: React.FC = () => {
   // Check if user is authorized to manage syllabus
   const canManage = profile?.role === 'admin' || profile?.role === 'school';
   const userSchoolId = profile?.schoolId || 'global';
+  const [subjectAssessmentCounts, setSubjectAssessmentCounts] = useState<Record<string, number>>({});
 
   // Load and subscribe to syllabus data
   useEffect(() => {
@@ -166,6 +167,39 @@ export const SyllabusTracker: React.FC = () => {
     });
 
     return () => unsubscribe();
+  }, [userSchoolId, retryTrigger]);
+
+  // Real "assessments conducted" per subject, derived from actual completed exam attempts —
+  // separate from the manual per-topic testsConducted field above, since exams only tag a
+  // broad subject (not the specific syllabus topic), so this can only be aggregated at the
+  // subject level, not reliably split per topic.
+  useEffect(() => {
+    const fetchRealAssessmentCounts = async () => {
+      try {
+        const examsSnap = await getDocs(collection(db, 'exams'));
+        const subjectByExamId: Record<string, string> = {};
+        examsSnap.docs.forEach(d => {
+          subjectByExamId[d.id] = (d.data() as any).subject || 'General';
+        });
+
+        const attemptsSnap = await getDocs(collection(db, 'attempts'));
+        const counts: Record<string, number> = {};
+        attemptsSnap.docs.forEach(d => {
+          const att = d.data() as any;
+          if (att.status !== 'completed') return;
+          if (userSchoolId !== 'global' && att.schoolId !== userSchoolId) return;
+          const subject = subjectByExamId[att.examId];
+          if (!subject) return;
+          counts[subject] = (counts[subject] || 0) + 1;
+        });
+
+        setSubjectAssessmentCounts(counts);
+      } catch (err) {
+        console.error("Failed to compute real assessment counts:", err);
+      }
+    };
+
+    fetchRealAssessmentCounts();
   }, [userSchoolId, retryTrigger]);
 
   // Handle adding a new subject document
@@ -686,6 +720,9 @@ export const SyllabusTracker: React.FC = () => {
                           <Badge className={`${badgeColor} border font-black text-[10px] uppercase`}>
                             {subj.status}
                           </Badge>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2">
+                            {subjectAssessmentCounts[subj.subject] || 0} Real Assessments Conducted
+                          </p>
                        </div>
                     </div>
                   </CardHeader>

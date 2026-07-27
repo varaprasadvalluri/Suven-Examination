@@ -51,7 +51,7 @@ steps:
       '--allow-unauthenticated',
       '--port', '3000',
       '--min-instances', '1',          # Scale to zero-ish idle cost; auto-scales up under real load
-      '--max-instances', '5',          # Raise before an exam window with many concurrent students
+      '--max-instances', '50',          # Raise before an exam window with many concurrent students
       '--cpu', '2',                    # Dedicate 2 vCPUs per container instance
       '--memory', '2Gi',               # Dedicate 2GB memory per container instance
       '--concurrency', '100',          # Allow up to 100 parallel connections per container instance

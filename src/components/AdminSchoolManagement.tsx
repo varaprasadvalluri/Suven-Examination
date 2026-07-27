@@ -89,6 +89,7 @@ const getTeachersCount = (totalStudents: number) => {
 export const AdminSchoolManagement: React.FC = () => {
   const navigate = useNavigate();
   const [schools, setSchools] = useState<School[]>([]);
+  const [schoolRealAvgScores, setSchoolRealAvgScores] = useState<Record<string, number | null>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryTrigger, setRetryTrigger] = useState<number>(0);
@@ -271,6 +272,44 @@ export const AdminSchoolManagement: React.FC = () => {
   useDbObserver(['schools'], () => {
     handleRetry();
   });
+
+  // Real per-school average score, derived from actual completed exam attempts — the
+  // `avgScore` field stored on the school doc itself is a manual/default value set at
+  // onboarding time (see AdminSchoolOnboarding.tsx), not computed from real performance,
+  // so it doesn't belong on a "merit" indicator. Scoped to the schools on the current page
+  // only (via Firestore 'in', capped at 30 ids) to keep this cheap regardless of total school count.
+  useEffect(() => {
+    const schoolIds = schools.map(s => s.id).filter(Boolean).slice(0, 30);
+    if (schoolIds.length === 0) return;
+
+    const fetchRealScores = async () => {
+      try {
+        const attQ = query(
+          collection(db, 'attempts'),
+          where('schoolId', 'in', schoolIds),
+          where('status', '==', 'completed')
+        );
+        const attSnap = await getDocs(attQ);
+        const totals: Record<string, { sum: number; count: number }> = {};
+        attSnap.docs.forEach(d => {
+          const att = d.data() as any;
+          const sId = att.schoolId;
+          if (!totals[sId]) totals[sId] = { sum: 0, count: 0 };
+          totals[sId].sum += att.accuracy ?? 0;
+          totals[sId].count += 1;
+        });
+        const result: Record<string, number | null> = {};
+        schoolIds.forEach(sId => {
+          result[sId] = totals[sId] ? Math.round(totals[sId].sum / totals[sId].count) : null;
+        });
+        setSchoolRealAvgScores(prev => ({ ...prev, ...result }));
+      } catch (err) {
+        console.error("Failed to compute real per-school average scores:", err);
+      }
+    };
+
+    fetchRealScores();
+  }, [schools]);
 
   // CRUD Operation: CREATE (Onboard School)
   const handleCreateSchool = async () => {
@@ -672,7 +711,7 @@ export const AdminSchoolManagement: React.FC = () => {
                        </div>
                        
                        <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                         <div className="text-xs font-bold text-slate-400">Mean Score: <span className="text-indigo-600 font-extrabold">{school.avgScore || 75.8}/100</span></div>
+                         <div className="text-xs font-bold text-slate-400">Mean Score: <span className="text-indigo-600 font-extrabold">{schoolRealAvgScores[school.id] != null ? `${schoolRealAvgScores[school.id]}%` : 'No data yet'}</span></div>
                          <div className="flex gap-1.5">
                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" onClick={() => startEdit(school)}>
                              <Edit size={14} />
@@ -743,6 +782,7 @@ export const AdminSchoolManagement: React.FC = () => {
               exit={{ opacity: 0, scale: 0.98 }}
               className="bg-white border border-slate-200 rounded-[32px] overflow-hidden shadow-sm"
             >
+              <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100">
@@ -763,7 +803,8 @@ export const AdminSchoolManagement: React.FC = () => {
                     const city = school.region ? school.region.split(',')[0].trim() : 'Central';
                     const studentsCount = (school.totalStudents || 120).toLocaleString('en-US');
                     const teachersCount = getTeachersCount(school.totalStudents || 120);
-                    const scoreVal = school.avgScore || 75;
+                    const realScore = schoolRealAvgScores[school.id];
+                    const scoreVal = realScore ?? 0;
                     const barColor = scoreVal >= 80 ? 'bg-emerald-500' : 'bg-amber-500';
                     const isStatusActive = school.status === 'active';
 
@@ -800,7 +841,7 @@ export const AdminSchoolManagement: React.FC = () => {
                             <div className="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden inline-block">
                               <div className={`h-full ${barColor}`} style={{ width: `${scoreVal}%` }} />
                             </div>
-                            <span className="text-xs font-bold text-slate-950">{scoreVal}%</span>
+                            <span className="text-xs font-bold text-slate-950">{realScore != null ? `${realScore}%` : 'No data'}</span>
                           </div>
                         </td>
                         
@@ -858,6 +899,7 @@ export const AdminSchoolManagement: React.FC = () => {
                   })}
                 </tbody>
               </table>
+              </div>
             </motion.div>
 
             {/* Pagination Controls below List Data Monitor */}

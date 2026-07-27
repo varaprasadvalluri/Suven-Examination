@@ -22,7 +22,10 @@ import {
   Activity,
   LayoutGrid,
   BarChart3,
-  Search
+  Search,
+  Crown,
+  Medal,
+  Award
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
@@ -63,6 +66,8 @@ export const AdminOverview: React.FC = () => {
     activeExams: 0
   });
   const [recentExams, setRecentExams] = useState<Exam[]>([]);
+  const [topStudents, setTopStudents] = useState<Attempt[]>([]);
+  const [schoolNameById, setSchoolNameById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -148,7 +153,20 @@ export const AdminOverview: React.FC = () => {
         const schoolsQuerySnap = await getDocs(collection(db, 'schools'));
         const attemptsQuerySnap = await getDocs(collection(db, 'attempts'));
         const schoolsList = schoolsQuerySnap.docs.map(dDoc => ({ id: dDoc.id, ...dDoc.data() } as any));
-        const attemptsList = attemptsQuerySnap.docs.map(aDoc => aDoc.data() as any);
+        const attemptsList = attemptsQuerySnap.docs.map(aDoc => ({ id: aDoc.id, ...aDoc.data() } as any));
+
+        // Real top-5 merit ranking (was hardcoded placeholder data before) — ranked by
+        // accuracy, which is computed once at submission time in ExamInterface.tsx and
+        // doesn't need an exam totalMarks join to turn into a percentage.
+        // Master Admin (no schoolId) sees the global top 5 across every school; a
+        // school-scoped admin account (profile.schoolId set, labeled "School Admin" above)
+        // sees only their own school's top 5 — same widget, scoped by whoever's viewing it.
+        const topByAccuracy = attemptsList
+          .filter(a => a.status === 'completed' && (!profile?.schoolId || a.schoolId === profile.schoolId))
+          .sort((a, b) => (b.accuracy ?? 0) - (a.accuracy ?? 0))
+          .slice(0, 5) as Attempt[];
+        setTopStudents(topByAccuracy);
+        setSchoolNameById(Object.fromEntries(schoolsList.map(s => [s.id, s.name || 'Unknown School'])));
         
         const calculatedSchoolStats = schoolsList.map(school => {
           const schoolAttempts = attemptsList.filter(att => att.schoolId === school.id);
@@ -213,7 +231,7 @@ export const AdminOverview: React.FC = () => {
     };
 
     fetchData();
-  }, []);
+  }, [profile?.schoolId]);
 
 
     if (loading) return (
@@ -550,23 +568,49 @@ export const AdminOverview: React.FC = () => {
         {/* Global Rankings Preview */}
         <Card className="md:col-span-2 lg:col-span-2 bg-slate-900 rounded-[40px] p-10 text-white relative overflow-hidden group">
            <div className="relative z-10">
-              <h3 className="text-xl font-black uppercase tracking-tighter mb-6">Merit Matrix</h3>
-              <div className="space-y-6">
-                 {[1,2,3].map(i => (
-                    <div key={i} className="flex items-center justify-between group/row cursor-pointer">
-                       <div className="flex items-center gap-4">
-                          <span className="text-xs font-black text-indigo-400">0{i}</span>
-                          <div className="h-8 w-8 rounded-full bg-white/10 overflow-hidden border border-white/20">
-                             <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=rank-${i}`} alt="rank" />
+              <h3 className="text-xl font-black uppercase tracking-tighter mb-6">
+                Merit Matrix {profile?.schoolId ? '' : '· All Schools'}
+              </h3>
+              <div className="space-y-5">
+                 {topStudents.map((student, i) => {
+                    const rankIcon = i === 0
+                      ? <Crown size={16} className="text-amber-400" />
+                      : i === 1
+                        ? <Medal size={16} className="text-slate-300" />
+                        : i === 2
+                          ? <Award size={16} className="text-orange-400" />
+                          : null;
+                    const accuracy = student.accuracy ?? 0;
+                    return (
+                    <div key={student.id} className="flex items-center justify-between group/row cursor-pointer">
+                       <div className="flex items-center gap-3">
+                          <div className="flex flex-col items-center w-5">
+                             {rankIcon || <span className="text-xs font-black text-indigo-400">0{i + 1}</span>}
                           </div>
-                          <div>
-                             <p className="text-xs font-black uppercase tracking-tight">Student Name</p>
-                             <p className="text-[9px] font-bold text-slate-500">School ID #420</p>
+                          {/* Spike bar: height scales with accuracy, gives an at-a-glance rank gap visual for the top 3 */}
+                          {i < 3 && (
+                             <div className="h-8 w-1.5 rounded-full bg-white/10 overflow-hidden flex items-end shrink-0">
+                                <div
+                                  className={`w-full rounded-full ${i === 0 ? 'bg-amber-400' : i === 1 ? 'bg-slate-300' : 'bg-orange-400'}`}
+                                  style={{ height: `${Math.max(10, Math.min(100, accuracy))}%` }}
+                                />
+                             </div>
+                          )}
+                          <div className="h-8 w-8 rounded-full bg-white/10 overflow-hidden border border-white/20 shrink-0">
+                             <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${student.id}`} alt="rank" />
+                          </div>
+                          <div className="min-w-0">
+                             <p className="text-xs font-black uppercase tracking-tight truncate">{student.studentName || 'Unknown Student'}</p>
+                             <p className="text-[9px] font-bold text-slate-500 truncate">{schoolNameById[student.schoolId || ''] || 'Unknown School'}</p>
                           </div>
                        </div>
-                       <span className="text-xs font-black text-emerald-400">98.2%</span>
+                       <span className="text-xs font-black text-emerald-400 shrink-0 pl-2">{accuracy.toFixed(1)}%</span>
                     </div>
-                 ))}
+                    );
+                 })}
+                 {topStudents.length === 0 && (
+                    <p className="text-xs font-bold text-slate-500 text-center py-4">No completed exams yet</p>
+                 )}
               </div>
               <Button variant="ghost" className="w-full mt-10 border border-white/10 hover:bg-white/5 rounded-2xl h-12 text-[10px] font-black uppercase tracking-widest text-white">Full Consolidated List</Button>
            </div>

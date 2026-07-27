@@ -17,6 +17,8 @@ import {
   Users,
   Target,
   Medal,
+  Crown,
+  Award,
   ChevronsUp,
   ArrowUp,
   ArrowDown,
@@ -207,6 +209,7 @@ export const RankingEngine: React.FC = () => {
         improvement,
         branch: stud.schoolName || schoolNameMap[stud.schoolId] || 'Autonomous Hub',
         schoolId: stud.schoolId || '',
+        class: stud.class || 'Unassigned',
         status: (averagePercentage >= 90) ? 'Elite' : (averagePercentage >= 75) ? 'Advanced' : 'Rising'
       });
     });
@@ -262,6 +265,7 @@ export const RankingEngine: React.FC = () => {
           improvement,
           branch: att.schoolName || schoolNameMap[att.schoolId] || 'Autonomous Hub',
           schoolId: att.schoolId || '',
+          class: 'Unassigned',
           status: (averagePercentage >= 90) ? 'Elite' : (averagePercentage >= 75) ? 'Advanced' : 'Rising'
         });
       }
@@ -312,6 +316,35 @@ export const RankingEngine: React.FC = () => {
       return sortDirection === 'asc' ? comp : -comp;
     });
   }, [students, attempts, filter, schools, sortField, sortDirection]);
+
+  // Top 5 overall, independent of whatever sort the table below is currently displaying —
+  // `rank` was assigned from the percentile-desc order before the user's sort was applied,
+  // so re-sorting by it here always gives the true top 5 regardless of table state.
+  const topFive = useMemo(() => {
+    return combinedRankings
+      .filter(c => c.examsAttended > 0)
+      .sort((a, b) => a.rank - b.rank)
+      .slice(0, 5);
+  }, [combinedRankings]);
+
+  // Top 5 per class — school role only ("for admin its fine no other change needed").
+  // Groups by the student profile's `class` field, which isn't otherwise surfaced on this
+  // page, so a school can see who leads each of their classes without cross-checking rosters.
+  const topFiveByClass = useMemo(() => {
+    if (profile?.role !== 'school') return [];
+    const groups: Record<string, typeof combinedRankings> = {};
+    combinedRankings.filter(c => c.examsAttended > 0).forEach(c => {
+      const cls = c.class || 'Unassigned';
+      if (!groups[cls]) groups[cls] = [];
+      groups[cls].push(c);
+    });
+    return Object.entries(groups)
+      .map(([className, list]) => ({
+        className,
+        topFive: [...list].sort((a, b) => a.rank - b.rank).slice(0, 5)
+      }))
+      .sort((a, b) => a.className.localeCompare(b.className, undefined, { numeric: true }));
+  }, [combinedRankings, profile?.role]);
 
   // Consolidated Merit List export — computed entirely server-side, directly from
   // Firestore (see server/routes/reports.ts), NOT from whatever's currently loaded in this
@@ -421,6 +454,83 @@ export const RankingEngine: React.FC = () => {
             </Card>
          ))}
       </div>
+
+      {/* Top 5 overall highlight strip */}
+      <Card className="shadow-2xl shadow-slate-200/50 border-0 rounded-[40px] overflow-hidden bg-gradient-to-br from-slate-900 to-indigo-950 text-white">
+        <CardHeader className="p-8 border-b border-white/5">
+          <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-300">Top 5 Overall</CardTitle>
+          <CardDescription className="text-xs font-semibold text-indigo-200 mt-1">
+            {profile?.role === 'admin' ? 'Highest-accuracy candidates across every school.' : 'This school\'s highest-accuracy candidates.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+            {topFive.map((cand, i) => {
+              const rankIcon = i === 0
+                ? <Crown size={16} className="text-amber-400" />
+                : i === 1
+                  ? <Medal size={16} className="text-slate-300" />
+                  : i === 2
+                    ? <Award size={16} className="text-orange-400" />
+                    : null;
+              return (
+                <div key={cand.id} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-center text-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    {rankIcon || <span className="text-xs font-black text-indigo-300">0{i + 1}</span>}
+                  </div>
+                  {i < 3 && (
+                    <div className="h-6 w-1.5 rounded-full bg-white/10 overflow-hidden flex items-end">
+                      <div
+                        className={`w-full rounded-full ${i === 0 ? 'bg-amber-400' : i === 1 ? 'bg-slate-300' : 'bg-orange-400'}`}
+                        style={{ height: `${Math.max(10, Math.min(100, cand.percentile))}%` }}
+                      />
+                    </div>
+                  )}
+                  <p className="text-xs font-black uppercase tracking-tight truncate max-w-full">{cand.name}</p>
+                  <p className="text-[9px] font-bold text-slate-400 truncate max-w-full">{cand.branch}</p>
+                  <span className="text-xs font-black text-emerald-400">{cand.percentile}%</span>
+                </div>
+              );
+            })}
+            {topFive.length === 0 && (
+              <p className="col-span-full text-xs font-bold text-slate-400 text-center py-6">No completed exams yet</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Top 5 per class — school role only */}
+      {profile?.role === 'school' && topFiveByClass.length > 0 && (
+        <Card className="shadow-2xl shadow-slate-200/50 border-0 rounded-[40px] overflow-hidden bg-white">
+          <CardHeader className="p-8 border-b border-slate-50">
+            <CardTitle className="text-xl font-black text-slate-900 tracking-tighter uppercase">Top 5 Per Class</CardTitle>
+            <CardDescription className="font-bold text-slate-400">Leaderboard broken out by class, so each grade's top performers are easy to spot.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {topFiveByClass.map(group => (
+                <div key={group.className} className="border border-slate-100 rounded-3xl p-5 bg-slate-50/60">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">{group.className}</p>
+                  <div className="space-y-3">
+                    {group.topFive.map((cand, i) => (
+                      <div key={cand.id} className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {i === 0 ? <Crown size={14} className="text-amber-500 shrink-0" />
+                            : i === 1 ? <Medal size={14} className="text-slate-400 shrink-0" />
+                            : i === 2 ? <Award size={14} className="text-orange-500 shrink-0" />
+                            : <span className="text-[10px] font-black text-indigo-400 w-3.5 shrink-0">{i + 1}</span>}
+                          <span className="text-xs font-bold text-slate-800 truncate">{cand.name}</span>
+                        </div>
+                        <span className="text-xs font-black text-indigo-600 shrink-0">{cand.percentile}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="shadow-2xl shadow-slate-200/50 border-0 rounded-[40px] overflow-hidden bg-white">
         <CardHeader className="p-10 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-6">
