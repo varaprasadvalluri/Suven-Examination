@@ -20,6 +20,15 @@ if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
 
 export const PORT = 3000;
 
+// Gates the load-test bypass in /api/gatekeeper/enroll (see load-test.cjs). Previously that
+// bypass triggered on the client-supplied `x-load-test: true` header OR substrings like
+// "test-roll-"/"StressTester" in request body fields — all fully attacker-controlled, with
+// no secret required, letting anyone mint a real, verifiable student session token for free
+// with zero enrollment. Requiring this env-configured secret (never client-suppliable) fixes
+// that; leaving it unset disables the bypass entirely (fail-closed) rather than falling back
+// to an insecure default.
+export const LOAD_TEST_SECRET: string | null = process.env.LOAD_TEST_SECRET || null;
+
 // App-level sessions (as opposed to the Firebase ID token used only once, to call
 // /api/auth/validate) are signed JWTs, not opaque tokens looked up in Firestore. This
 // means requireSession/resolveAuth — which runs on every /api/db/query and /api/db/write

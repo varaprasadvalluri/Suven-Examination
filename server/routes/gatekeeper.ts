@@ -2,6 +2,7 @@ import express from 'express';
 import { EduKeyFactory } from '../../src/lib/idGenerator';
 import { signSessionToken } from '../auth/tokens';
 import { gatekeeperLookupLimiter, gatekeeperEnrollLimiter } from '../middleware/rateLimit';
+import { LOAD_TEST_SECRET } from '../config';
 import {
   clientDb,
   clientCollection,
@@ -263,12 +264,17 @@ router.post('/api/gatekeeper/enroll', gatekeeperEnrollLimiter, async (req, res) 
   const studentDocRef = clientDoc(clientDb, 'users', resolvedStudentId);
   const attemptIdRaw = `att_${finalExamId}_${resolvedStudentId}`;
   const attemptDocRef = clientDoc(clientDb, 'attempts', attemptIdRaw);
+  const examDocRef = clientDoc(clientDb, 'exams', finalExamId);
 
+  // Gated on a server-side secret (never client-suppliable) rather than the header alone —
+  // this branch mints a real, verifiable session token, so trusting a bare client-sent
+  // header (or worse, guessable substrings in attacker-controlled body fields) let anyone
+  // forge a valid student session for free with zero enrollment. If LOAD_TEST_SECRET isn't
+  // configured, this bypass is fully disabled (fail-closed), not merely unauthenticated.
   const isLoadTestRequest =
-    req.headers['x-load-test'] === 'true' ||
-    rollNumber.includes('test-roll-') ||
-    clientFootprint?.includes('StressTester') ||
-    matchedStudentId?.includes('test-roll-');
+    !!LOAD_TEST_SECRET &&
+    req.headers['x-load-test'] === 'true' &&
+    req.headers['x-load-test-secret'] === LOAD_TEST_SECRET;
 
   if (isLoadTestRequest) {
     const mockProfile = {
@@ -321,12 +327,15 @@ router.post('/api/gatekeeper/enroll', gatekeeperEnrollLimiter, async (req, res) 
   let finalStudentProfile: any = null;
   let isNewAttempt = false;
   let attemptAction: 'created' | 'resumed' | 'reattempted' = 'resumed';
+  let examWindowExpired = false;
 
   try {
     // Atomic Database Transaction running on Node.js Server using Client SDK
     await clientRunTransaction(clientDb, async (transaction) => {
       const studentSnap = await transaction.get(studentDocRef);
       const attemptSnap = await transaction.get(attemptDocRef);
+      const examSnap = await transaction.get(examDocRef);
+      const examDurationMs = examSnap.exists() ? (examSnap.data() as any).duration * 60 * 1000 : null;
 
       // A. Onboard or fetch Student Profile atomically
       if (studentSnap.exists()) {
@@ -352,7 +361,13 @@ router.post('/api/gatekeeper/enroll', gatekeeperEnrollLimiter, async (req, res) 
       if (attemptSnap.exists()) {
         const attemptData = attemptSnap.data() as any;
 
-        if (attemptData.status === 'completed') {
+        // 'expired' needs the exact same canReattempt gate as 'completed' — a school
+        // re-triggering an expired attempt (SchoolStudentOnboarding's handleReTriggerInvite)
+        // sets canReattempt:true expecting the student to get back in, same as it does for
+        // a completed one. Without 'expired' here, a re-triggered student would hit the
+        // resume branch below, immediately re-expire again, and canReattempt would never
+        // even be consulted.
+        if (attemptData.status === 'completed' || attemptData.status === 'expired') {
           if (attemptData.canReattempt) {
             attemptAction = 'reattempted';
             transaction.update(attemptDocRef, {
@@ -362,6 +377,8 @@ router.post('/api/gatekeeper/enroll', gatekeeperEnrollLimiter, async (req, res) 
               startTime: now.toISOString(),
               canReattempt: false
             });
+          } else if (attemptData.status === 'expired') {
+            examWindowExpired = true;
           } else {
             throw new Error("EXAM_ALREADY_COMPLETED");
           }
@@ -370,11 +387,28 @@ router.post('/api/gatekeeper/enroll', gatekeeperEnrollLimiter, async (req, res) 
             throw new Error("SESSION_HIJACK_BLOCKED: Mismatched browser/device footprint registered for this unique link. Please complete on your primary device or request a clean reset from terminal administrators.");
           }
 
-          // Active session resume
-          transaction.update(attemptDocRef, {
-            lastResumedAt: now.toISOString(),
-            status: 'started'
-          });
+          // Lazy expiry: nothing proactively flips an abandoned attempt once its exam
+          // window passes, so check it here on the one path a student would come back
+          // through — resuming a stale link days later shouldn't silently re-open the exam.
+          // Includes any school-granted extraTime (ExamInterface.tsx honors this live during
+          // the exam via onSnapshot), or a student who legitimately got extra minutes could
+          // be wrongly expired if their session drops and they resume within their real,
+          // extended window but past the exam's base duration.
+          // Note: this write must land via a normal (non-throwing) transaction return —
+          // clientRunTransaction only applies queued transaction.update/set/delete calls
+          // AFTER the callback resolves, so throwing here would discard this update too.
+          const effectiveDurationMs = examDurationMs !== null ? examDurationMs + (attemptData.extraTime || 0) * 60 * 1000 : null;
+          const elapsedMs = now.getTime() - new Date(attemptData.startTime).getTime();
+          if (effectiveDurationMs && elapsedMs > effectiveDurationMs) {
+            examWindowExpired = true;
+            transaction.update(attemptDocRef, { status: 'expired' });
+          } else {
+            // Active session resume
+            transaction.update(attemptDocRef, {
+              lastResumedAt: now.toISOString(),
+              status: 'started'
+            });
+          }
         }
       } else {
         // Initial clean session booking
@@ -398,6 +432,14 @@ router.post('/api/gatekeeper/enroll', gatekeeperEnrollLimiter, async (req, res) 
         transaction.set(attemptDocRef, newAttemptData);
       }
     });
+
+    if (examWindowExpired) {
+      return res.status(410).json({
+        code: "EXAM_WINDOW_EXPIRED",
+        error: "This exam's time window has passed. Ask your school to re-trigger a fresh attempt.",
+        attemptIdRaw
+      });
+    }
 
     // Invite-link students never go through Firebase Auth, so this is the only place that
     // can mint their session — without it, every subsequent /api/db/write during the exam

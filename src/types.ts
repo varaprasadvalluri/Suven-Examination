@@ -81,7 +81,7 @@ export interface Attempt {
   score: number;
   startTime: any;
   endTime?: any;
-  status: 'started' | 'in-progress' | 'completed';
+  status: 'started' | 'in-progress' | 'completed' | 'expired';
   canReattempt?: boolean;
 }
 

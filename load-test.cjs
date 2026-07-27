@@ -78,6 +78,10 @@ function makeRequest(method, endpoint, payload = null, sessionToken = null) {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'x-load-test': 'true',
+        // Server now requires this secret (LOAD_TEST_SECRET env var) to actually enable the
+        // load-test bypass — set it in the environment running this script, matching the
+        // target server's configuration, or the bypass is disabled and requests will 401/403.
+        ...(process.env.LOAD_TEST_SECRET ? { 'x-load-test-secret': process.env.LOAD_TEST_SECRET } : {}),
         ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {})
       }
     };

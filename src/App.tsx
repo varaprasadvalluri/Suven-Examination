@@ -1,32 +1,45 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { Toaster } from './components/ui/sonner';
 import { Layout } from './components/Layout';
 import { RoleSelection } from './components/RoleSelection';
-import { AdminExams } from './components/AdminExams';
-import { AdminCreateExam } from './components/AdminCreateExam';
-import { AdminOverview } from './components/AdminOverview';
-import { ExamQuestions } from './components/ExamQuestions';
 import { ExamInterface } from './components/ExamInterface';
 import { ResultDetails } from './components/ResultDetails';
-import { AdminResults } from './components/AdminResults';
 import { LoginPage } from './components/LoginPage';
-import { AdminSchoolManagement } from './components/AdminSchoolManagement';
-import { AdminSchoolOnboarding } from './components/AdminSchoolOnboarding';
-import { SchoolCandidateOnboarding } from './components/SchoolCandidateOnboarding';
 import { SchoolDashboard } from './components/SchoolDashboard';
-import { LiveProctoringWall } from './components/LiveProctoringWall';
-import { SyllabusTracker } from './components/SyllabusTracker';
-import { RankingEngine } from './components/RankingEngine';
-import { StudentExamHistory } from './components/StudentExamHistory';
-import { AdminAnalytics } from './components/AdminAnalytics';
 import { StudentLinkEntry } from './components/StudentLinkEntry';
-import { ScalePerformanceHub } from './components/ScalePerformanceHub';
-import { ApiDocs } from './components/ApiDocs';
-import { AdminCloudBilling } from './components/AdminCloudBilling';
 import { GraduationCap } from 'lucide-react';
 import { Button } from './components/ui/button';
+
+// Admin/school-only screens are lazy-loaded — most traffic is students taking exams, who
+// never touch any of these, so keeping them out of the main bundle means the student-facing
+// path (login, link entry, exam interface, result) loads faster on exam day.
+const AdminExams = lazy(() => import('./components/AdminExams').then(m => ({ default: m.AdminExams })));
+const AdminCreateExam = lazy(() => import('./components/AdminCreateExam').then(m => ({ default: m.AdminCreateExam })));
+const AdminOverview = lazy(() => import('./components/AdminOverview').then(m => ({ default: m.AdminOverview })));
+const ExamQuestions = lazy(() => import('./components/ExamQuestions').then(m => ({ default: m.ExamQuestions })));
+const AdminResults = lazy(() => import('./components/AdminResults').then(m => ({ default: m.AdminResults })));
+const AdminSchoolManagement = lazy(() => import('./components/AdminSchoolManagement').then(m => ({ default: m.AdminSchoolManagement })));
+const AdminSchoolOnboarding = lazy(() => import('./components/AdminSchoolOnboarding').then(m => ({ default: m.AdminSchoolOnboarding })));
+const SchoolCandidateOnboarding = lazy(() => import('./components/SchoolCandidateOnboarding').then(m => ({ default: m.SchoolCandidateOnboarding })));
+const LiveProctoringWall = lazy(() => import('./components/LiveProctoringWall').then(m => ({ default: m.LiveProctoringWall })));
+const SyllabusTracker = lazy(() => import('./components/SyllabusTracker').then(m => ({ default: m.SyllabusTracker })));
+const RankingEngine = lazy(() => import('./components/RankingEngine').then(m => ({ default: m.RankingEngine })));
+const StudentExamHistory = lazy(() => import('./components/StudentExamHistory').then(m => ({ default: m.StudentExamHistory })));
+const AdminAnalytics = lazy(() => import('./components/AdminAnalytics').then(m => ({ default: m.AdminAnalytics })));
+const ScalePerformanceHub = lazy(() => import('./components/ScalePerformanceHub').then(m => ({ default: m.ScalePerformanceHub })));
+const ApiDocs = lazy(() => import('./components/ApiDocs').then(m => ({ default: m.ApiDocs })));
+const AdminCloudBilling = lazy(() => import('./components/AdminCloudBilling').then(m => ({ default: m.AdminCloudBilling })));
+
+const RouteLoadingFallback: React.FC = () => (
+  <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4">
+    <div className="relative">
+      <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+    </div>
+    <p className="text-slate-400 font-mono text-[10px] tracking-widest uppercase animate-pulse">Loading module...</p>
+  </div>
+);
 
 const Home: React.FC = () => {
   const { user, profile, signOut } = useAuth();
@@ -88,6 +101,7 @@ export default function App() {
   return (
     <Router>
       <AuthProvider>
+        <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={
@@ -188,6 +202,7 @@ export default function App() {
             </ProtectedRoute>
           } />
         </Routes>
+        </Suspense>
         <Toaster position="top-right" />
       </AuthProvider>
     </Router>

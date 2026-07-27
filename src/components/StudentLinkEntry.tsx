@@ -372,15 +372,19 @@ export const StudentLinkEntry: React.FC = () => {
           if (errorPayload.code === 'SESSION_HIJACK_BLOCKED') {
             throw new Error(errorPayload.error);
           }
+          if (errorPayload.code === 'EXAM_WINDOW_EXPIRED') {
+            throw new Error("EXAM_WINDOW_EXPIRED");
+          }
           console.warn(`Server responded with failure: ${response.status}. Reverting to client-side Firebase fallback.`);
         }
       } catch (backendError: any) {
-        if (backendError.message === 'EXAM_ALREADY_COMPLETED' || backendError.message.includes("SESSION_HIJACK_BLOCKED")) {
+        if (backendError.message === 'EXAM_ALREADY_COMPLETED' || backendError.message === 'EXAM_WINDOW_EXPIRED' || backendError.message.includes("SESSION_HIJACK_BLOCKED")) {
           throw backendError;
         }
         console.warn("Express backend API unreachable/unstable. Invoking client-side Firebase Fallback Rule:", backendError);
       }
 
+      let fallbackExamWindowExpired = false;
       if (!backendSuccess) {
         await runTransaction(db, async (transaction) => {
           const studentSnap = await transaction.get(studentDocRef);
@@ -396,7 +400,10 @@ export const StudentLinkEntry: React.FC = () => {
           if (attemptSnap.exists()) {
             const attemptData = attemptSnap.data() as any;
 
-            if (attemptData.status === 'completed') {
+            // 'expired' gets the same canReattempt gate as 'completed' — otherwise a school
+            // re-triggering an expired attempt would never actually unlock it (the resume
+            // branch below would just re-expire it again without ever consulting canReattempt).
+            if (attemptData.status === 'completed' || attemptData.status === 'expired') {
               if (attemptData.canReattempt) {
                 transaction.update(attemptDocRef, {
                   status: 'started',
@@ -405,6 +412,8 @@ export const StudentLinkEntry: React.FC = () => {
                   startTime: now.toISOString(),
                   canReattempt: false
                 });
+              } else if (attemptData.status === 'expired') {
+                fallbackExamWindowExpired = true;
               } else {
                 throw new Error("EXAM_ALREADY_COMPLETED");
               }
@@ -413,10 +422,24 @@ export const StudentLinkEntry: React.FC = () => {
                 throw new Error("SESSION_HIJACK_BLOCKED: Mismatched browser/device footprint registered for this unique link. Please complete on your primary device or request a clean reset from terminal administrators.");
               }
 
-              transaction.update(attemptDocRef, {
-                lastResumedAt: now.toISOString(),
-                status: 'started'
-              });
+              // Lazy expiry, mirroring the server-side gatekeeper check — must set a flag
+              // and let the transaction commit normally rather than throw, since throwing
+              // inside a Firestore transaction discards every queued write in it, including
+              // the "mark expired" update itself. Includes any school-granted extraTime,
+              // same reasoning as the server-side check (ExamInterface.tsx honors extraTime
+              // live during the exam, so the expiry check must too or a legitimately
+              // time-extended student gets wrongly expired).
+              const durationMs = exam?.duration ? (exam.duration + (attemptData.extraTime || 0)) * 60 * 1000 : null;
+              const elapsedMs = now.getTime() - new Date(attemptData.startTime).getTime();
+              if (durationMs && elapsedMs > durationMs) {
+                fallbackExamWindowExpired = true;
+                transaction.update(attemptDocRef, { status: 'expired' });
+              } else {
+                transaction.update(attemptDocRef, {
+                  lastResumedAt: now.toISOString(),
+                  status: 'started'
+                });
+              }
             }
           } else {
             const newAttemptData = {
@@ -437,6 +460,10 @@ export const StudentLinkEntry: React.FC = () => {
             transaction.set(attemptDocRef, newAttemptData);
           }
         });
+
+        if (fallbackExamWindowExpired) {
+          throw new Error("EXAM_WINDOW_EXPIRED");
+        }
       }
 
       localStorage.setItem('invite_student_profile', JSON.stringify(finalStudentProfile || matchedStudentProfile));
@@ -451,6 +478,8 @@ export const StudentLinkEntry: React.FC = () => {
       if (err.message === "EXAM_ALREADY_COMPLETED") {
         toast.error("Access Forbidden: Your assessment attempt has already been submitted and finalized.", { id: toastId });
         navigate(`/result/${attemptIdRaw}`);
+      } else if (err.message === "EXAM_WINDOW_EXPIRED") {
+        toast.error("This exam's time window has passed. Ask your school to re-trigger a fresh attempt.", { id: toastId, duration: 8000 });
       } else if (err.message && err.message.includes("SESSION_HIJACK_BLOCKED")) {
         toast.error(err.message, { id: toastId, duration: 8000 });
       } else {

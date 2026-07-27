@@ -11,7 +11,7 @@ vi.mock('./firestoreClient', () => ({
 }));
 
 import { clientGetDoc } from './firestoreClient';
-import { injectReadScope, authorizeWrite } from './authorization';
+import { injectReadScope, authorizeWrite, sanitizeForPublicRead } from './authorization';
 
 const mockGetDoc = clientGetDoc as unknown as ReturnType<typeof vi.fn>;
 
@@ -170,5 +170,40 @@ describe('authorizeWrite: generic tenant-scoped collections (attempts) — owner
     const decision = await authorizeWrite(studentA, 'set', 'attempts', undefined, { examId: 'exam-1' });
     expect(decision.ok).toBe(true);
     if (decision.ok) expect(decision.data.studentId).toBe('student-a');
+  });
+});
+
+describe('sanitizeForPublicRead', () => {
+  // `questions` is publicly readable pre-login (StudentLinkEntry.tsx's invite preview needs
+  // subject/marks breakdown before the student has a session) — but the answer key must
+  // never go out with it. This is the fix for that leak.
+  it('strips the answer key and explanation from a public questions read', () => {
+    const raw = {
+      text: 'What is 2+2?',
+      options: ['3', '4', '5', '6'],
+      correctAnswerIndex: 1,
+      numericalAnswer: '4',
+      explanation: 'Basic arithmetic.',
+      marks: 4,
+      subject: 'Math'
+    };
+    const sanitized = sanitizeForPublicRead('questions', raw);
+    expect(sanitized).not.toHaveProperty('correctAnswerIndex');
+    expect(sanitized).not.toHaveProperty('numericalAnswer');
+    expect(sanitized).not.toHaveProperty('explanation');
+    // Fields the pre-login preview screen actually needs must survive.
+    expect(sanitized.marks).toBe(4);
+    expect(sanitized.subject).toBe('Math');
+    expect(sanitized.text).toBe('What is 2+2?');
+  });
+
+  it('leaves other collections untouched', () => {
+    const raw = { name: 'Some School', region: 'North' };
+    expect(sanitizeForPublicRead('schools', raw)).toEqual(raw);
+  });
+
+  it('is a no-op on null/undefined data', () => {
+    expect(sanitizeForPublicRead('questions', null)).toBeNull();
+    expect(sanitizeForPublicRead('questions', undefined)).toBeUndefined();
   });
 });

@@ -14,6 +14,24 @@ export type ProxyRole = 'admin' | 'school' | 'student';
 
 export const PUBLIC_READ_COLLECTIONS = new Set(['login_options', 'exams', 'schools', 'questions', 'syllabus']);
 
+// `questions` docs carry the answer key (correctAnswerIndex, numericalAnswer) alongside the
+// explanation shown post-submission — none of that may reach a caller who hasn't
+// authenticated. The pre-login invite-link preview screen (StudentLinkEntry.tsx) only ever
+// needs subject/marks to render its section breakdown, so stripping these fields for
+// unauthenticated reads costs that screen nothing while closing an answer-key leak that
+// would otherwise let anyone hit /api/db/query directly, no login required, and read every
+// question's correct answer before (or during) the exam.
+const ANSWER_REVEALING_FIELDS = ['correctAnswerIndex', 'numericalAnswer', 'explanation'];
+
+export function sanitizeForPublicRead(collectionName: string, data: any): any {
+  if (collectionName !== 'questions' || !data) return data;
+  const sanitized = { ...data };
+  for (const field of ANSWER_REVEALING_FIELDS) {
+    delete sanitized[field];
+  }
+  return sanitized;
+}
+
 // secure_exam_links holds exam-entry tokens — not publicly listable, but a pre-session
 // visitor following an invite link must be able to look up the one doc matching their
 // token to see the "join this exam" preview screen.

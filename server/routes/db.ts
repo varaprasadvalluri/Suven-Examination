@@ -11,7 +11,8 @@ import {
   scopeFieldFor,
   scopeValueFor,
   injectReadScope,
-  authorizeWrite
+  authorizeWrite,
+  sanitizeForPublicRead
 } from '../authorization';
 import {
   clientDb,
@@ -134,6 +135,49 @@ router.post('/api/db/query', async (req, res) => {
   const isPublic = PUBLIC_READ_COLLECTIONS.has(collectionName);
   let auth: RequestAuth | null = null;
 
+  // Best-effort session check on the public `questions` path (skipped for every other public
+  // collection — exams/schools/syllabus/login_options never need it, so there's no reason to
+  // pay for JWT verification on those hot, high-volume reads). Kept entirely separate from
+  // `auth` (which must stay null for public reads so the existing scoping/access logic below
+  // is unaffected) — used only to decide questions sanitization, per-role, below.
+  const publicQuestionsAuth: RequestAuth | null =
+    isPublic && collectionName === 'questions' ? await resolveAuth(req) : null;
+
+  // A bare valid session isn't enough to unlock the answer key for an arbitrary exam — a
+  // session is proof of *some* identity, not proof of enrollment in *this* exam. Admin/school
+  // stay unrestricted (existing trust boundary for staff/content-owner roles). A student must
+  // have their own attempts/att_{examId}_{uid} doc for the exact examId being queried, or the
+  // read is sanitized just like a fully anonymous one — otherwise any validly-signed student
+  // token (including one obtained via legitimate enrollment in an unrelated exam) could read
+  // every other exam's correctAnswerIndex ahead of time by simply changing the examId filter.
+  async function shouldSanitizeQuestionsForExam(examId: string | undefined): Promise<boolean> {
+    if (collectionName !== 'questions') return false;
+    const caller = publicQuestionsAuth;
+    if (!caller) return true;
+    if (caller.role !== 'student') return false;
+    if (!examId) return true;
+    const attemptSnap = await clientGetDoc(clientDoc(clientDb, 'attempts', `att_${examId}_${caller.uid}`));
+    return !attemptSnap.exists();
+  }
+
+  // Applied only to the outgoing response, never to what gets stored in queryCache — the
+  // 15s cache for `questions` is keyed without regard to caller identity, so sanitizing
+  // before caching would risk serving answer-stripped data to a later caller (of any role)
+  // who IS authorized for this exam but happens to land within that cache window, or vice
+  // versa leaking full data to one who isn't.
+  async function sanitizeQuestionsPayload(rawData: any, examId: string | undefined): Promise<any> {
+    if (collectionName !== 'questions') return rawData;
+    const shouldSanitize = await shouldSanitizeQuestionsForExam(examId);
+    if (!shouldSanitize) return rawData;
+    if (Array.isArray(rawData)) {
+      return rawData.map((item: any) => ({ ...item, data: sanitizeForPublicRead('questions', item.data) }));
+    }
+    if (rawData && typeof rawData === 'object' && 'data' in rawData) {
+      return { ...rawData, data: sanitizeForPublicRead('questions', rawData.data) };
+    }
+    return rawData;
+  }
+
   if (!isPublic) {
     auth = await resolveAuth(req);
     if (!auth) {
@@ -181,7 +225,7 @@ router.post('/api/db/query', async (req, res) => {
             queryCache.set(cacheKey, { timestamp: Date.now(), data: result });
           }
         }
-        return res.status(200).json({ success: true, data: result });
+        return res.status(200).json({ success: true, data: await sanitizeQuestionsPayload(result, (docData as any)?.examId) });
       } else {
         const result = { id: docId, exists: false };
         return res.status(200).json({ success: true, data: result });
@@ -198,12 +242,18 @@ router.post('/api/db/query', async (req, res) => {
       effectiveConstraints = injected;
     }
 
+    // Only meaningful for `questions` (see shouldSanitizeQuestionsForExam) — the exact examId
+    // being filtered on, if any, so a student's enrollment can be checked against it.
+    const queriedExamId = effectiveConstraints.find(
+      (c: any) => c.type === 'where' && c.field === 'examId' && c.op === '=='
+    )?.value;
+
     const cacheKey = JSON.stringify({ collectionName, constraints: effectiveConstraints, docId, countOnly });
     const cached = queryCache.get(cacheKey);
     const ttl = CACHE_TTLS[collectionName] || 0;
 
     if (ttl > 0 && cached && (Date.now() - cached.timestamp < ttl)) {
-      return res.status(200).json({ success: true, data: cached.data, fromCache: true });
+      return res.status(200).json({ success: true, data: await sanitizeQuestionsPayload(cached.data, queriedExamId), fromCache: true });
     }
 
     const colRef = clientCollection(clientDb, collectionName);
@@ -247,7 +297,7 @@ router.post('/api/db/query', async (req, res) => {
       queryCache.set(cacheKey, { timestamp: Date.now(), data: docList });
     }
 
-    return res.status(200).json({ success: true, data: docList });
+    return res.status(200).json({ success: true, data: await sanitizeQuestionsPayload(docList, queriedExamId) });
   } catch (err: any) {
     console.error(`[DB Proxy Read Error] Failed on collection "${collectionName}":`, err);
     return res.status(500).json({ error: err.message || String(err) });

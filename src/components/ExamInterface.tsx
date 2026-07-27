@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType, collection, query, where, getDocs, doc, getDoc, updateDoc, writeBatch, setDoc, onSnapshot, addDoc } from '../lib/firebase';
 import { Exam, Question, Attempt } from '../types';
 import { orderQuestionsForAttempt } from '../lib/examQuestionOrder';
+import { scoreExam } from '../lib/examScoring';
 import { MathInputToolbar } from './MathInputToolbar';
 import { Button } from './ui/button';
 import { Card, CardContent, CardFooter } from './ui/card';
@@ -354,53 +355,11 @@ const ExamInterfaceCore: React.FC = () => {
         console.warn("Answer queue flush warning:", flushErr);
       }
       
-      let score = 0;
-      let correctCount = 0;
-      const errorBookEntries: any[] = [];
-
-      questions.forEach((q, idx) => {
-        const studentAns = answers[idx];
-        const qType = q.type || 'single';
-        let isCorrect = false;
-
-        if (qType === 'numerical') {
-          isCorrect = studentAns !== null && studentAns !== undefined && 
-                      String(studentAns).trim() === String(q.numericalAnswer || '').trim();
-        } else if (qType === 'multiple') {
-          if (Array.isArray(studentAns)) {
-            isCorrect = studentAns.includes(q.correctAnswerIndex);
-          } else {
-            isCorrect = studentAns === q.correctAnswerIndex;
-          }
-        } else {
-          isCorrect = studentAns === q.correctAnswerIndex;
-        }
-
-        if (isCorrect) {
-          score += q.marks;
-          correctCount++;
-        } else if (studentAns !== null && studentAns !== undefined) {
-          // Negative marking deduction (-1) for incorrect single or multiple choice MCQs
-          if (qType !== 'numerical') {
-            score = Math.max(0, score - 1);
-          }
-          
-          errorBookEntries.push({
-            studentId: attempt.studentId,
-            examId: exam.id,
-            questionId: q.id || idx.toString(),
-            questionText: q.text,
-            selectedAnswer: qType === 'numerical' ? String(studentAns) : (Array.isArray(studentAns) ? studentAns.join(', ') : studentAns),
-            correctAnswer: qType === 'numerical' ? String(q.numericalAnswer) : q.correctAnswerIndex,
-            subject: q.subject || exam.subject || 'General',
-            explanation: q.explanation || "Review the step-by-step formula and solution logic.",
-            imageUrl: q.imageUrl || "",
-            createdAt: new Date().toISOString()
-          });
-        }
+      const { score, correctCount, accuracy, errorBookEntries } = scoreExam(questions, answers, {
+        studentId: attempt.studentId,
+        examId: exam.id,
+        examSubject: exam.subject
       });
-
-      const accuracy = (correctCount / questions.length) * 100;
       const totalTimeSpent = Object.values(timePerQuestion).reduce((a, b) => a + b, 0);
       const avgTimePerCorrect = correctCount > 0 ? totalTimeSpent / correctCount : 0;
 

@@ -197,8 +197,10 @@ export const StudentPortal: React.FC = () => {
 
     const existingAttempt = attempts.find(a => a.examId === exam.id);
     
-    // Check if already completed
-    if (existingAttempt?.status === 'completed') {
+    // Check if already completed or expired — both need the same canReattempt gate, or a
+    // school re-triggering an expired attempt (canReattempt:true) would never actually
+    // unlock it here.
+    if (existingAttempt?.status === 'completed' || existingAttempt?.status === 'expired') {
       if (existingAttempt.canReattempt) {
         try {
           const attemptRef = doc(db, 'attempts', existingAttempt.id);
@@ -216,7 +218,11 @@ export const StudentPortal: React.FC = () => {
           return;
         }
       }
-      toast.error("You have already completed this exam");
+      toast.error(
+        existingAttempt.status === 'expired'
+          ? "This exam's time window has passed. Ask your school to re-trigger a fresh attempt."
+          : "You have already completed this exam"
+      );
       return;
     }
 
