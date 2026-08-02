@@ -42,6 +42,7 @@ app.use(examsRouter);
 app.use(gcpRouter);
 app.use(adminDbRouter);
 app.use(reportsRouter);
+app.set('trust proxy', 1);
 
 async function startServer() {
   // Vite server middleware for local reactive dev mode
