@@ -4,6 +4,7 @@ import { authorizeWrite, scopeFieldFor, scopeValueFor, ProxyRole } from '../auth
 import { checkDuplicateSubmission } from '../middleware/duplicateSubmission';
 import { enqueueWrite } from '../db/writeQueue';
 import { clientDb, clientDoc, clientGetDoc } from '../firestoreClient';
+import { recomputeAttemptScore } from '../lib/scoreVerification';
 
 const router = express.Router();
 
@@ -50,6 +51,12 @@ router.post('/api/attempts/:attemptId/submit', requireSession, (req: any, _res, 
 }, checkDuplicateSubmission, async (req: any, res) => {
   const { docId, data } = req.body;
   try {
+    // Never trust a client-submitted score/accuracy — recompute from the real answer key
+    // before this write is authorized or queued. See server/lib/scoreVerification.ts.
+    const verified = await recomputeAttemptScore(docId, data.answers || []);
+    data.score = verified.score;
+    data.accuracy = verified.accuracy;
+
     const decision = await authorizeWrite(req.auth, 'update', 'attempts', docId, data);
     if (decision.ok === false) {
       return res.status(decision.status).json({ error: decision.error });
