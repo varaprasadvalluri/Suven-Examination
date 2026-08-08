@@ -13,6 +13,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { StudentAdvancedAnalytics } from './StudentAdvancedAnalytics';
 import { MicroscheduleDashboard } from './MicroscheduleDashboard';
 import { ErrorBook } from './ErrorBook';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
 
 // Cute hand-drawn aesthetic responsive icons for children
 const MathIcon: React.FC = () => (
@@ -102,6 +110,9 @@ export const StudentPortal: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
+  const [pendingExam, setPendingExam] = useState<Exam | null>(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [isLaunchingExam, setIsLaunchingExam] = useState(false);
   const navigate = useNavigate();
 
   // URL search params to drive main tabs (Portal, Ranker Diagnostics, Learning Roadmap, Error Book)
@@ -232,10 +243,20 @@ export const StudentPortal: React.FC = () => {
       return;
     }
 
+    // Fresh attempt — require the same rules/proctoring acknowledgment the secure-link entry
+    // flow (StudentLinkEntry.tsx) already requires, before actually creating it.
+    setAgreedToTerms(false);
+    setPendingExam(exam);
+  };
+
+  const confirmStartExam = async () => {
+    if (!profile || !pendingExam || !agreedToTerms) return;
+
+    setIsLaunchingExam(true);
     try {
       const attemptData = {
-        examId: exam.id,
-        examTitle: exam.title,
+        examId: pendingExam.id,
+        examTitle: pendingExam.title,
         studentId: profile.uid,
         studentName: profile.name,
         schoolId: profile.schoolId || null,
@@ -244,11 +265,14 @@ export const StudentPortal: React.FC = () => {
         startTime: new Date().toISOString(),
         status: 'started'
       };
-      
+
       const docRef = await addDoc(collection(db, 'attempts'), attemptData);
+      setPendingExam(null);
       navigate(`/exam/${docRef.id}`);
     } catch (error) {
       toast.error("Failed to start exam");
+    } finally {
+      setIsLaunchingExam(false);
     }
   };
 
@@ -642,6 +666,48 @@ export const StudentPortal: React.FC = () => {
            <ErrorBook />
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!pendingExam} onOpenChange={(open) => { if (!open) setPendingExam(null); }}>
+        <DialogContent className="sm:max-w-lg rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>Exam Rules & Proctoring Acknowledgment</DialogTitle>
+            <DialogDescription>
+              Please confirm before starting "{pendingExam?.title}".
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-start gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+            <input
+              type="checkbox"
+              id="portal-agree-checkbox"
+              checked={agreedToTerms}
+              onChange={e => setAgreedToTerms(e.target.checked)}
+              className="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer mt-0.5"
+            />
+            <label htmlFor="portal-agree-checkbox" className="text-xs text-slate-700 select-none cursor-pointer leading-relaxed font-medium">
+              I have read and understood all instructions. I agree to abide by the rules and regulations of the examination, and I acknowledge that any form of malpractice, window switching, or proctoring violation will be recorded and could lead to disqualification.
+            </label>
+          </div>
+
+          <DialogFooter className="gap-3">
+            <Button
+              variant="outline"
+              className="rounded-xl font-bold"
+              onClick={() => setPendingExam(null)}
+              disabled={isLaunchingExam}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700"
+              onClick={confirmStartExam}
+              disabled={!agreedToTerms || isLaunchingExam}
+            >
+              {isLaunchingExam ? "Starting..." : "I Agree and Start Exam"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
