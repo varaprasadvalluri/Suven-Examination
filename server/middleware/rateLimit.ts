@@ -66,16 +66,22 @@ const commonConfig = {
   keyGenerator: (req: any) => ipKeyGenerator(req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || 'anonymous')
 };
 
+// Raised from 20/30 to 500 ahead of a real exam window (5,000+ students, 11am-2pm, single
+// 3-hour start window) — everyone behind one school's network shares one public IP, so any
+// school with more than ~20 students starting close together would otherwise get most of its
+// students blocked with 429s before they could even begin. 500/15min per IP still bounds a
+// real abuse script while comfortably covering a large school's simultaneous start. Revisit
+// once real per-school traffic patterns from an actual exam day are known.
 export const gatekeeperLookupLimiter = rateLimit({
   ...commonConfig,
-  limit: 30,
+  limit: 500,
   skip: skipLoadTest,
   message: { error: 'Too many requests. Please wait a few minutes and try again.' }
 });
 
 export const gatekeeperEnrollLimiter = rateLimit({
   ...commonConfig,
-  limit: 20,
+  limit: 500,
   skip: skipLoadTest,
   message: { error: 'Too many requests. Please wait a few minutes and try again.' }
 });
