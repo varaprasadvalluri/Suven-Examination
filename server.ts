@@ -23,6 +23,12 @@ import studentsRouter from './server/routes/students';
 import examQuestionsRouter from './server/routes/examQuestions';
 import attemptsRouter from './server/routes/attempts';
 import adminStaffRouter from './server/routes/adminStaff';
+import schoolControllerV1 from './server/routes/v1/SchoolController';
+import loginOptionsControllerV1 from './server/routes/v1/LoginOptionsController';
+import studentControllerV1 from './server/routes/v1/StudentController';
+import examQuestionControllerV1 from './server/routes/v1/ExamQuestionController';
+import attemptControllerV1 from './server/routes/v1/AttemptController';
+import adminStaffControllerV1 from './server/routes/v1/AdminStaffController';
 
 
 let __dirname, __filename;
@@ -60,6 +66,15 @@ app.use(studentsRouter);
 app.use(examQuestionsRouter);
 app.use(attemptsRouter);
 app.use(adminStaffRouter);
+// v1 controllers backed by the DAO layer (server/dao/*) — same resources as the unversioned
+// named routes above, same auth/authorization logic, just calling a Dao interface instead of
+// firestoreClient directly. Additive only, not wired into the frontend yet.
+app.use(schoolControllerV1);
+app.use(loginOptionsControllerV1);
+app.use(studentControllerV1);
+app.use(examQuestionControllerV1);
+app.use(attemptControllerV1);
+app.use(adminStaffControllerV1);
 app.set('trust proxy', 1);
 
 async function startServer() {
