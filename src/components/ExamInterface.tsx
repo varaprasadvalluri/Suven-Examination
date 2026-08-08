@@ -1675,6 +1675,20 @@ const ExamInterfaceCore: React.FC = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Full-screen submission overlay — `loading` is only true here during the initial
+          fetch (guarded above by `!attempt`) or while handleSubmit is in flight, so this
+          only ever shows for the latter. Previously the only feedback during submission was
+          the confirm dialog's button text changing to "Transmitting...", easy to miss. */}
+      {loading && attempt && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-5">
+          <div className="h-14 w-14 border-4 border-slate-700 border-t-indigo-500 rounded-full animate-spin" />
+          <div className="text-center">
+            <p className="text-white font-black text-sm uppercase tracking-wider">Submitting Your Exam...</p>
+            <p className="text-slate-400 text-xs mt-1.5">Please don't close this tab or go back.</p>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
