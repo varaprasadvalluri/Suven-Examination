@@ -39,12 +39,18 @@ steps:
     args: ['push', 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:latest']
 
   # Step 3: Deploy to Google Cloud Run.
-  # max-instances * concurrency must cover peak simultaneous students: 600 * 100 = 60,000
-  # capacity against a documented 50,000-student exam window (~20% headroom). min-instances
-  # is still cost-minimized for normal days — before the actual exam window, bump
-  # --min-instances to a few dozen (e.g. 20-30) so enough containers are already warm at the
-  # 9am spike instead of cold-starting under load, then scale back down afterward. See
-  # GCP_DEPLOYMENT.md.
+  # asia-south1's default Cloud Run CPU quota caps total requested CPU at 100 instances * 2
+  # vCPU each — gcloud rejects any higher --max-instances at cpu=2 with "Max instances must
+  # be set to 100 or fewer" (confirmed against the real quota during deploy). Raising
+  # max-instances further needs a quota increase request
+  # (https://cloud.google.com/run/quotas), which isn't instant, so capacity instead comes
+  # from concurrency: max-instances * concurrency must cover peak simultaneous students;
+  # 100 * 500 = 50,000 capacity against the documented 50,000-student exam window (zero
+  # headroom at exactly 100 instances — request the quota increase for next time so
+  # max-instances can go back up and restore headroom). min-instances is still
+  # cost-minimized for normal days — before the actual exam window, bump --min-instances to
+  # a few dozen (e.g. 20-30) so enough containers are already warm at the 9am spike instead
+  # of cold-starting under load, then scale back down afterward. See GCP_DEPLOYMENT.md.
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'gcloud'
     args: [
@@ -55,10 +61,12 @@ steps:
       '--allow-unauthenticated',
       '--port', '3000',
       '--min-instances', '1',          # Scale to zero-ish idle cost; BUMP before exam window (see above)
-      '--max-instances', '600',        # 600 * 100 concurrency = 60,000 capacity for 50,000 students
+      '--max-instances', '100',        # Region CPU quota ceiling at cpu=2 (see comment above)
       '--cpu', '2',                    # Dedicate 2 vCPUs per container instance
-      '--memory', '2Gi',               # Dedicate 2GB memory per container instance
-      '--concurrency', '100',          # Allow up to 100 parallel connections per container instance
+      '--memory', '4Gi',               # Raised from 2Gi: 500 concurrent in-flight requests per
+                                        # instance (vs the original 100) needs more headroom to
+                                        # avoid OOM under real load
+      '--concurrency', '500',          # 100 * 500 = 50,000 capacity, makes up for the max-instances ceiling
       '--timeout', '60s'
     ]
 
