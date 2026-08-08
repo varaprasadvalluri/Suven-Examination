@@ -111,6 +111,7 @@ export const StudentPortal: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
   const [pendingExam, setPendingExam] = useState<Exam | null>(null);
+  const [pendingReattemptId, setPendingReattemptId] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isLaunchingExam, setIsLaunchingExam] = useState(false);
   const navigate = useNavigate();
@@ -213,21 +214,12 @@ export const StudentPortal: React.FC = () => {
     // unlock it here.
     if (existingAttempt?.status === 'completed' || existingAttempt?.status === 'expired') {
       if (existingAttempt.canReattempt) {
-        try {
-          const attemptRef = doc(db, 'attempts', existingAttempt.id);
-          await updateDoc(attemptRef, {
-            status: 'started',
-            score: 0,
-            answers: [],
-            startTime: new Date().toISOString(),
-            canReattempt: false
-          });
-          navigate(`/exam/${existingAttempt.id}`);
-          return;
-        } catch (error) {
-          toast.error("Failed to re-initialize exam attempt");
-          return;
-        }
+        // Reattempt resets score/answers to zero and restarts the clock — same as a brand
+        // new attempt in every way that matters, so it needs the same acknowledgment gate.
+        setAgreedToTerms(false);
+        setPendingReattemptId(existingAttempt.id);
+        setPendingExam(exam);
+        return;
       }
       toast.error(
         existingAttempt.status === 'expired'
@@ -237,7 +229,7 @@ export const StudentPortal: React.FC = () => {
       return;
     }
 
-    // Direct to existing if started
+    // Direct to existing if started — already agreed when they first started it.
     if (existingAttempt?.status === 'started' || existingAttempt?.status === 'in-progress') {
       navigate(`/exam/${existingAttempt.id}`);
       return;
@@ -246,6 +238,7 @@ export const StudentPortal: React.FC = () => {
     // Fresh attempt — require the same rules/proctoring acknowledgment the secure-link entry
     // flow (StudentLinkEntry.tsx) already requires, before actually creating it.
     setAgreedToTerms(false);
+    setPendingReattemptId(null);
     setPendingExam(exam);
   };
 
@@ -254,23 +247,37 @@ export const StudentPortal: React.FC = () => {
 
     setIsLaunchingExam(true);
     try {
-      const attemptData = {
-        examId: pendingExam.id,
-        examTitle: pendingExam.title,
-        studentId: profile.uid,
-        studentName: profile.name,
-        schoolId: profile.schoolId || null,
-        answers: [],
-        score: 0,
-        startTime: new Date().toISOString(),
-        status: 'started'
-      };
-
-      const docRef = await addDoc(collection(db, 'attempts'), attemptData);
+      let attemptId: string;
+      if (pendingReattemptId) {
+        const attemptRef = doc(db, 'attempts', pendingReattemptId);
+        await updateDoc(attemptRef, {
+          status: 'started',
+          score: 0,
+          answers: [],
+          startTime: new Date().toISOString(),
+          canReattempt: false
+        });
+        attemptId = pendingReattemptId;
+      } else {
+        const attemptData = {
+          examId: pendingExam.id,
+          examTitle: pendingExam.title,
+          studentId: profile.uid,
+          studentName: profile.name,
+          schoolId: profile.schoolId || null,
+          answers: [],
+          score: 0,
+          startTime: new Date().toISOString(),
+          status: 'started'
+        };
+        const docRef = await addDoc(collection(db, 'attempts'), attemptData);
+        attemptId = docRef.id;
+      }
       setPendingExam(null);
-      navigate(`/exam/${docRef.id}`);
+      setPendingReattemptId(null);
+      navigate(`/exam/${attemptId}`);
     } catch (error) {
-      toast.error("Failed to start exam");
+      toast.error(pendingReattemptId ? "Failed to re-initialize exam attempt" : "Failed to start exam");
     } finally {
       setIsLaunchingExam(false);
     }
@@ -667,7 +674,7 @@ export const StudentPortal: React.FC = () => {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={!!pendingExam} onOpenChange={(open) => { if (!open) setPendingExam(null); }}>
+      <Dialog open={!!pendingExam} onOpenChange={(open) => { if (!open) { setPendingExam(null); setPendingReattemptId(null); } }}>
         <DialogContent className="sm:max-w-lg rounded-3xl">
           <DialogHeader>
             <DialogTitle>Exam Rules & Proctoring Acknowledgment</DialogTitle>
@@ -693,7 +700,7 @@ export const StudentPortal: React.FC = () => {
             <Button
               variant="outline"
               className="rounded-xl font-bold"
-              onClick={() => setPendingExam(null)}
+              onClick={() => { setPendingExam(null); setPendingReattemptId(null); }}
               disabled={isLaunchingExam}
             >
               Cancel
