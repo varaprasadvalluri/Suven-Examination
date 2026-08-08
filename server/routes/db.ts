@@ -1,6 +1,7 @@
 import express from 'express';
 import { requireSession, requireRole, resolveAuth, RequestAuth } from '../auth/middleware';
 import { checkDuplicateSubmission } from '../middleware/duplicateSubmission';
+import { recomputeAttemptScore } from '../lib/scoreVerification';
 import { queryCache, CACHE_TTLS } from '../db/cache';
 import { enqueueWrite } from '../db/writeQueue';
 import {
@@ -333,6 +334,22 @@ router.post('/api/db/write', requireSession, checkDuplicateSubmission, async (re
     const existing = mockLoadTestStore.get(key) || {};
     mockLoadTestStore.set(key, { ...existing, ...data, updatedAt: new Date().toISOString() });
     return res.status(200).json({ success: true, id: docId || 'mock_task_id', isSimulatedLoadTest: true });
+  }
+
+  // Same rule as the named /api/attempts/:id/submit route: a final exam submission's score/
+  // accuracy is never trusted from the client, even coming through this generic proxy — closes
+  // what would otherwise be a second, unguarded path to a fabricated grade.
+  const isSubmission = collectionName === 'attempts' && (type === 'update' || type === 'set') &&
+    data && data.status === 'completed';
+  if (isSubmission && docId) {
+    try {
+      const verified = await recomputeAttemptScore(docId, data.answers || []);
+      data.score = verified.score;
+      data.accuracy = verified.accuracy;
+    } catch (err: any) {
+      console.error('[DB Proxy] Score verification failed:', err);
+      return res.status(500).json({ error: 'Failed to verify score: ' + (err.message || String(err)) });
+    }
   }
 
   let authorizedData = data;

@@ -1,6 +1,6 @@
-# 🚀 Scaling to 10,000 Concurrent Students: Google Cloud Platform (GCP) Deployment Guide
+# 🚀 Scaling to 50,000 Concurrent Students: Google Cloud Platform (GCP) Deployment Guide
 
-This guide details the complete deployment architecture and instructions for deploying the **SuvenEdu Tech** full-stack React and Node.js application on **Google Cloud Platform (GCP)**. It is designed to handle **10,000 concurrent students** taking an exam at the exact same time with zero lag.
+This guide details the complete deployment architecture and instructions for deploying the **SuvenEdu Tech** full-stack React and Node.js application on **Google Cloud Platform (GCP)**. It is designed to handle **50,000 concurrent students** taking an exam at the exact same time with zero lag.
 
 ---
 
@@ -9,7 +9,7 @@ This guide details the complete deployment architecture and instructions for dep
 For high-concurrency student examinations, we leverage a native **Serverless Container + CDN Edge** architecture:
 
 ```
-                          [ 10,000 Students ]
+                          [ 50,000 Students ]
                                    │
                                    ▼
                          [ Google Cloud CDN ]   ───(Caches and serves all static React assets instantly)
@@ -34,7 +34,7 @@ For high-concurrency student examinations, we leverage a native **Serverless Con
 
 ---
 
-## ⚡ Why GCP Is Ideal for 10,000 Concurrent Students
+## ⚡ Why GCP Is Ideal for 50,000 Concurrent Students
 
 1. **Ultra-Low DB Latency**: Your Node.js backend is running on Cloud Run in the same region as your **Firestore** database. Database requests communicate over Google’s private high-speed fiber backplane, reducing latency to single-digit milliseconds.
 2. **Instant Horizontal Scaling**: Unlike traditional servers that take minutes to spin up, **Google Cloud Run** scales container instances horizontally in seconds.
@@ -76,7 +76,7 @@ This single command:
 1. Compresses your codebase and securely uploads it to Cloud Build.
 2. Builds the multi-stage, production-ready **Docker** container.
 3. Pushes the optimized runner image to **Google Container Registry**.
-4. Deploys the service to **Google Cloud Run** with custom limits optimized for 10,000 concurrent connections.
+4. Deploys the service to **Google Cloud Run** with custom limits optimized for 50,000 concurrent connections.
 
 ---
 
@@ -84,8 +84,8 @@ This single command:
 
 To ensure maximum performance during the exam launch peak (e.g., exactly at 9:00 AM), we configure Cloud Run with the following settings (included in `cloudbuild.yaml`):
 
-* **`--min-instances 5`**: Keeps 5 instances fully pre-warmed and running continuously. This eliminates container cold starts when 10,000 students try to log in simultaneously.
-* **`--max-instances 100`**: Allows Cloud Run to automatically scale up to 100 active container pods if needed.
+* **`--min-instances 5`**: Keeps 5 instances fully pre-warmed and running continuously. This eliminates container cold starts when 50,000 students try to log in simultaneously.
+* **`--max-instances 600`**: Allows Cloud Run to automatically scale up to 600 active container pods if needed (600 * 100 concurrency = 60,000 capacity).
 * **`--concurrency 100`**: Allows each container instance to handle up to 100 parallel requests simultaneously using Node.js's asynchronous event loop.
 * **`--cpu 2 --memory 2Gi`**: Allocates 2 vCPUs and 2GB of RAM to each container instance to comfortably handle routing, parsing, and cryptographic proctor validation.
 
@@ -93,7 +93,7 @@ To ensure maximum performance during the exam launch peak (e.g., exactly at 9:00
 
 ## 🔑 Required: Session Signing Secret (`JWT_SECRET`)
 
-Because multiple Cloud Run instances run simultaneously (`--min-instances 5`, up to `--max-instances 100`), every instance **must share the same `JWT_SECRET`** — it's what signs/verifies student and staff session tokens. If it isn't set, each instance generates its own random secret at boot, and users will get random 401 errors as their requests land on different instances. This must be set **once** before (or right after) the first deploy — `gcloud run deploy` preserves existing environment variables/secrets across future deploys, so `cloudbuild.yaml` doesn't need to reference it.
+Because multiple Cloud Run instances run simultaneously (`--min-instances 5`, up to `--max-instances 600`), every instance **must share the same `JWT_SECRET`** — it's what signs/verifies student and staff session tokens. If it isn't set, each instance generates its own random secret at boot, and users will get random 401 errors as their requests land on different instances. This must be set **once** before (or right after) the first deploy — `gcloud run deploy` preserves existing environment variables/secrets across future deploys, so `cloudbuild.yaml` doesn't need to reference it.
 
 **Recommended (Secret Manager):**
 ```bash

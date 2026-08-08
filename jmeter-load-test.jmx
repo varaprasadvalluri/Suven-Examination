@@ -44,6 +44,14 @@
             <stringProp name="Header.name">Content-Type</stringProp>
             <stringProp name="Header.value">application/json</stringProp>
           </elementProp>
+          <elementProp name="" elementType="Header">
+            <stringProp name="Header.name">x-load-test</stringProp>
+            <stringProp name="Header.value">true</stringProp>
+          </elementProp>
+          <elementProp name="" elementType="Header">
+            <stringProp name="Header.name">x-load-test-secret</stringProp>
+            <stringProp name="Header.value">${__P(LOAD_TEST_SECRET,)}</stringProp>
+          </elementProp>
         </collectionProp>
       </HeaderManager>
       <hashTree/>

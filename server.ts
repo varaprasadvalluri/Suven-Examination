@@ -17,6 +17,18 @@ import examsRouter from './server/routes/exams';
 import gcpRouter from './server/routes/gcp';
 import adminDbRouter from './server/routes/adminDb';
 import reportsRouter from './server/routes/reports';
+import schoolsRouter from './server/routes/schools';
+import loginOptionsRouter from './server/routes/loginOptions';
+import studentsRouter from './server/routes/students';
+import examQuestionsRouter from './server/routes/examQuestions';
+import attemptsRouter from './server/routes/attempts';
+import adminStaffRouter from './server/routes/adminStaff';
+import schoolControllerV1 from './server/routes/v1/SchoolController';
+import loginOptionsControllerV1 from './server/routes/v1/LoginOptionsController';
+import studentControllerV1 from './server/routes/v1/StudentController';
+import examQuestionControllerV1 from './server/routes/v1/ExamQuestionController';
+import attemptControllerV1 from './server/routes/v1/AttemptController';
+import adminStaffControllerV1 from './server/routes/v1/AdminStaffController';
 
 
 let __dirname, __filename;
@@ -44,6 +56,25 @@ app.use(examsRouter);
 app.use(gcpRouter);
 app.use(adminDbRouter);
 app.use(reportsRouter);
+// Named, resource-specific routes — additive layer alongside the generic /api/db/query and
+// /api/db/write proxy above. Not wired into the frontend yet; the generic proxy remains the
+// live path for every existing screen. Same auth/authorization/sanitization logic reused from
+// server/authorization.ts and server/routes/db.ts, not reimplemented.
+app.use(schoolsRouter);
+app.use(loginOptionsRouter);
+app.use(studentsRouter);
+app.use(examQuestionsRouter);
+app.use(attemptsRouter);
+app.use(adminStaffRouter);
+// v1 controllers backed by the DAO layer (server/dao/*) — same resources as the unversioned
+// named routes above, same auth/authorization logic, just calling a Dao interface instead of
+// firestoreClient directly. Additive only, not wired into the frontend yet.
+app.use(schoolControllerV1);
+app.use(loginOptionsControllerV1);
+app.use(studentControllerV1);
+app.use(examQuestionControllerV1);
+app.use(attemptControllerV1);
+app.use(adminStaffControllerV1);
 app.set('trust proxy', 1);
 
 async function startServer() {
