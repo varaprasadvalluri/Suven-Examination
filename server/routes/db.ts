@@ -158,7 +158,15 @@ router.post('/api/db/query', async (req, res) => {
     if (caller.role !== 'student') return false;
     if (!examId) return true;
     const attemptSnap = await clientGetDoc(clientDoc(clientDb, 'attempts', `att_${examId}_${caller.uid}`));
-    return !attemptSnap.exists();
+    if (!attemptSnap.exists()) return true;
+    // Checking existence alone was wrong: the attempt doc is created the moment enrollment
+    // happens, before the student answers a single question, so this returned "don't sanitize"
+    // (i.e. include correctAnswerIndex/numericalAnswer/explanation) from the very first
+    // questions fetch of a live, in-progress exam — verified live, a fresh 'started' attempt's
+    // own session could read every correct answer over the API the instant the exam opened.
+    // Only a genuinely finished attempt should see answers, for the post-submission review.
+    const status = (attemptSnap.data() as any)?.status;
+    return status !== 'completed';
   }
 
   // Applied only to the outgoing response, never to what gets stored in queryCache — the
