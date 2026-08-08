@@ -22,7 +22,7 @@ export const ExamSyncProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      toast.success("Connection re-established. Syncing active response drafts with cloud database...", {
+      toast.success("Back online. Syncing your answers...", {
         icon: <Wifi className="h-4 w-4 text-emerald-500 animate-bounce" />
       });
     };
@@ -105,7 +105,9 @@ export const ExamSyncProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       setPendingDraft(null);
       setIsSynced(true);
-      toast.success("Relational cache consolidated successfully with national database.");
+      // No toast here on purpose — this fires on every answer sync, and a popup per answer
+      // is noisy. The header's quiet "Saving.../Auto-save" indicator (driven by isSynced)
+      // already communicates save state without interrupting the student.
     } catch (e) {
       console.error("Background replication mismatch:", e);
     }
