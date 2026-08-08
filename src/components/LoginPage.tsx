@@ -330,8 +330,13 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  // If already authenticated, redirect to home
-  if (user && profile && !loading) {
+  // If already authenticated, redirect to home — unless a fresh invite link is being opened.
+  // Without the inviteToken check, any student who still had an active session (finished an
+  // earlier exam, or is being re-triggered for a new one) would get bounced straight to "/"
+  // before this component ever processed the new invite, skipping identity verification and
+  // the rules/proctoring agreement entirely. StudentLinkEntry.tsx (the roll-number/token entry
+  // route) has no equivalent guard at all, which is why that flow never had this problem.
+  if (user && profile && !loading && !inviteToken) {
     return <Navigate to="/" replace />;
   }
 
