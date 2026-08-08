@@ -17,6 +17,12 @@ import examsRouter from './server/routes/exams';
 import gcpRouter from './server/routes/gcp';
 import adminDbRouter from './server/routes/adminDb';
 import reportsRouter from './server/routes/reports';
+import schoolsRouter from './server/routes/schools';
+import loginOptionsRouter from './server/routes/loginOptions';
+import studentsRouter from './server/routes/students';
+import examQuestionsRouter from './server/routes/examQuestions';
+import attemptsRouter from './server/routes/attempts';
+import adminStaffRouter from './server/routes/adminStaff';
 
 
 let __dirname, __filename;
@@ -44,6 +50,16 @@ app.use(examsRouter);
 app.use(gcpRouter);
 app.use(adminDbRouter);
 app.use(reportsRouter);
+// Named, resource-specific routes — additive layer alongside the generic /api/db/query and
+// /api/db/write proxy above. Not wired into the frontend yet; the generic proxy remains the
+// live path for every existing screen. Same auth/authorization/sanitization logic reused from
+// server/authorization.ts and server/routes/db.ts, not reimplemented.
+app.use(schoolsRouter);
+app.use(loginOptionsRouter);
+app.use(studentsRouter);
+app.use(examQuestionsRouter);
+app.use(attemptsRouter);
+app.use(adminStaffRouter);
 app.set('trust proxy', 1);
 
 async function startServer() {
