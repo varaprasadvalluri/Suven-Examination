@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 // Load-test requests (x-load-test header, already trusted elsewhere in the app — see
 // gatekeeper.ts/db.ts isLoadTestRequest checks) are exempt so intentional stress testing
@@ -52,7 +52,10 @@ const commonConfig = {
   standardHeaders: true,
   legacyHeaders: false,
   validate: { trustProxy: false }, // Disables the validation check crash
-  keyGenerator: (req: any) => req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || 'anonymous'
+  // ipKeyGenerator collapses an IPv6 address to its /56 subnet before using it as the rate
+  // limit key — without it, a client can bypass the cap by rotating the low bits of their
+  // own IPv6 address, since each variant would otherwise count as a distinct "IP".
+  keyGenerator: (req: any) => ipKeyGenerator(req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || 'anonymous')
 };
 
 export const gatekeeperLookupLimiter = rateLimit({
