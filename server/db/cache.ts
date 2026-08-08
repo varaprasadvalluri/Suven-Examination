@@ -1,4 +1,5 @@
-// Query cache with TTLs to drastically minimize reads (staying under the 50k free limit)
+// Query cache with TTLs to cut Firestore read costs and smooth burst QPS on hot collections
+// (Blaze plan is pay-per-read, not free-tier-capped — this is about cost/latency, not a quota wall)
 export const queryCache = new Map<string, { timestamp: number; data: any }>();
 export const CACHE_TTLS: Record<string, number> = {
   'schools': 12000,       // 12s cache
