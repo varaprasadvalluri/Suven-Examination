@@ -151,6 +151,14 @@ export const ResultDetails: React.FC = () => {
             <Button variant="default" className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold uppercase text-xs tracking-wider" onClick={() => window.location.href = '/'}>
               Return to Safe Hub
             </Button>
+            {profile?.role === 'student' && (
+              <button
+                onClick={handleLogout}
+                className="flex items-center justify-center w-full text-xs font-bold uppercase tracking-widest text-rose-500 hover:text-rose-600 transition-colors bg-transparent border-none cursor-pointer p-0"
+              >
+                <LogOut className="h-4 w-4 mr-2" /> Logout & Try Again
+              </button>
+            )}
           </div>
         </Card>
       </div>
