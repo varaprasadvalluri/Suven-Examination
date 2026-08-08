@@ -177,42 +177,15 @@ export function writeBatch(dbInstance: any) {
   };
 }
 
-// Core standard GET/READ single document
-export async function getDoc(docRef: any) {
-  const payload = await safeFetchJson('/api/db/query', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      collectionName: docRef.collectionName,
-      docId: docRef.id
-    })
-  });
-
-  const docData = payload.data;
-
+function wrapDocResult(id: string, docData: any) {
   return {
-    id: docRef.id,
+    id,
     exists: () => !!docData?.exists,
     data: () => docData?.data || null
   };
 }
 
-// Core standard GET/READ query set
-export async function getDocs(queryRef: any) {
-  const collectionName = queryRef.collectionName;
-  const constraints = queryRef.constraints || [];
-
-  const payload = await safeFetchJson('/api/db/query', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      collectionName,
-      constraints
-    })
-  });
-
-  const rawDocs = payload.data || [];
-
+function wrapDocsResult(rawDocs: any[]) {
   const docs = rawDocs.map((docItem: any) => ({
     id: docItem.id,
     data: () => docItem.data,
@@ -224,6 +197,89 @@ export async function getDocs(queryRef: any) {
     empty: docs.length === 0,
     forEach: (cb: (doc: any) => void) => docs.forEach(cb)
   };
+}
+
+// Named-route fast paths: same request/response contract as the generic /api/db/query proxy
+// below, just routed to a resource-shaped endpoint instead (server/routes/schools.ts,
+// loginOptions.ts, students.ts, examQuestions.ts). Deliberately narrow — only intercepts the
+// EXACT constraint shapes those routes actually implement; anything else (extra where/orderBy/
+// limit, a different collection) falls through to the generic proxy unchanged below, since a
+// near-match routed to the wrong endpoint would silently change query results.
+async function tryNamedGetDoc(docRef: any): Promise<ReturnType<typeof wrapDocResult> | null> {
+  if (docRef.collectionName === 'schools' && docRef.id) {
+    const payload = await safeFetchJson(`/api/schools/${encodeURIComponent(docRef.id)}`);
+    return wrapDocResult(docRef.id, payload.data);
+  }
+  if (docRef.collectionName === 'attempts' && docRef.id) {
+    const payload = await safeFetchJson(`/api/attempts/${encodeURIComponent(docRef.id)}`);
+    return wrapDocResult(docRef.id, payload.data);
+  }
+  return null;
+}
+
+function isExactWhere(c: any, field: string, op: string, value?: any) {
+  return c && c.type === 'where' && c.field === field && c.op === op && (value === undefined || c.value === value);
+}
+
+async function tryNamedGetDocs(collectionName: string, constraints: any[]): Promise<any | null> {
+  if (collectionName === 'schools' && constraints.length === 0) {
+    const payload = await safeFetchJson('/api/schools');
+    return wrapDocsResult(payload.data || []);
+  }
+  if (collectionName === 'login_options' && constraints.length === 0) {
+    const payload = await safeFetchJson('/api/login-options');
+    return wrapDocsResult(payload.data || []);
+  }
+  if (collectionName === 'questions' && constraints.length === 1 && isExactWhere(constraints[0], 'examId', '==')) {
+    const payload = await safeFetchJson(`/api/exams/${encodeURIComponent(constraints[0].value)}/questions`);
+    return wrapDocsResult(payload.data || []);
+  }
+  if (collectionName === 'users' && constraints.length === 2) {
+    const schoolIdC = constraints.find((c: any) => isExactWhere(c, 'schoolId', '=='));
+    const roleC = constraints.find((c: any) => isExactWhere(c, 'role', '==', 'student'));
+    if (schoolIdC && roleC) {
+      const payload = await safeFetchJson(`/api/schools/${encodeURIComponent(schoolIdC.value)}/students`);
+      return wrapDocsResult(payload.data || []);
+    }
+  }
+  return null;
+}
+
+// Core standard GET/READ single document
+export async function getDoc(docRef: any) {
+  const named = await tryNamedGetDoc(docRef);
+  if (named) return named;
+
+  const payload = await safeFetchJson('/api/db/query', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      collectionName: docRef.collectionName,
+      docId: docRef.id
+    })
+  });
+
+  return wrapDocResult(docRef.id, payload.data);
+}
+
+// Core standard GET/READ query set
+export async function getDocs(queryRef: any) {
+  const collectionName = queryRef.collectionName;
+  const constraints = queryRef.constraints || [];
+
+  const named = await tryNamedGetDocs(collectionName, constraints);
+  if (named) return named;
+
+  const payload = await safeFetchJson('/api/db/query', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      collectionName,
+      constraints
+    })
+  });
+
+  return wrapDocsResult(payload.data || []);
 }
 
 // Core standard ADD document write
@@ -262,6 +318,21 @@ export async function setDoc(docRef: any, data: any, options?: any) {
 
 // Core standard UPDATE document write
 export async function updateDoc(docRef: any, data: any) {
+  // Named-route fast path: the final exam-submission write only (attempts + status:'completed').
+  // Every other attempts write (autosave, timePerQuestion ticks, status:'in-progress',
+  // proctoring/violation updates) stays on the generic proxy below, unchanged — those aren't
+  // what server/routes/attempts.ts's submit endpoint implements, and force-fitting them would
+  // risk the dup-submission lock / ownership check firing on writes it was never meant to gate.
+  if (docRef.collectionName === 'attempts' && data && data.status === 'completed') {
+    await safeFetchJson(`/api/attempts/${encodeURIComponent(docRef.id)}/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    dispatchDbWrite(docRef.collectionName, 'update', docRef.id);
+    return { success: true };
+  }
+
   await safeFetchJson('/api/db/write', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
