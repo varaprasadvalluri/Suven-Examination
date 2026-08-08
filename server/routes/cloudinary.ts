@@ -2,6 +2,7 @@ import express from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { cloudinaryUploadLimiter } from '../middleware/rateLimit';
 import { createBreaker } from '../lib/circuitBreaker';
+import { requireSession } from '../auth/middleware';
 
 const router = express.Router();
 
@@ -54,7 +55,7 @@ function getCloudinary() {
 }
 
 // 1. Image upload to Cloudinary (returns secure_url and public_id)
-router.post('/api/cloudinary/upload', cloudinaryUploadLimiter, async (req, res) => {
+router.post('/api/cloudinary/upload', requireSession, cloudinaryUploadLimiter, async (req, res) => {
   const { image } = req.body;
   if (!image) {
     return res.status(400).json({ error: 'Missing image data' });
@@ -75,7 +76,7 @@ router.post('/api/cloudinary/upload', cloudinaryUploadLimiter, async (req, res) 
 });
 
 // 1.5. Generate signed upload signature and parameters for direct client upload (highly secure & credit-friendly)
-router.post('/api/cloudinary/sign', cloudinaryUploadLimiter, async (req, res) => {
+router.post('/api/cloudinary/sign', requireSession, cloudinaryUploadLimiter, async (req, res) => {
   try {
     const cld = getCloudinary();
     const timestamp = Math.round(new Date().getTime() / 1000);
@@ -141,7 +142,7 @@ export async function cleanupCloudinaryAsset(publicId: string | undefined | null
 }
 
 // 2. Direct deletion of a Cloudinary asset
-router.post('/api/cloudinary/delete', async (req, res) => {
+router.post('/api/cloudinary/delete', requireSession, async (req, res) => {
   const { publicId } = req.body;
   if (!publicId) {
     return res.status(400).json({ error: 'Missing publicId' });

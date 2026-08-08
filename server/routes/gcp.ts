@@ -81,10 +81,8 @@ router.post('/api/gcp/sync-iam', requireSession, requireRole('admin'), async (re
     if (staffMembers.length === 0) {
       addLog(`⚠️ No active staff accounts found in the database. Auto-populating with default organization emails for safety.`);
       const defaultStaff = [
-        { email: "suveen2619@gmail.com", role: "super_admin", name: "Suveen (Primary Admin)" },
-        { email: "amruthav1301@gmail.com", role: "super_admin", name: "Amrutha V (Owner)" },
-        { email: "admin@suvenedu.com", role: "system_admin", name: "Suven Edu Admin" },
-        { email: "operations@suvenedu.com", role: "coordinator", name: "Operations Lead" }
+        { email: process.env.PRIMARY_ADMIN_EMAIL || "admin@suvenedu.demo", role: "super_admin", name: "Primary Admin" },
+        { email: process.env.OPERATIONS_ADMIN_EMAIL || "operations@suvenedu.demo", role: "coordinator", name: "Operations Lead" }
       ];
       staffMembers.push(...defaultStaff);
       stats.usersScanned = staffMembers.length;
@@ -150,7 +148,7 @@ router.post('/api/gcp/live-billing', requireSession, requireRole('admin'), async
   const { userAccessToken, projectIdOverride, userEmail } = req.body || {};
   const targetProjectId = projectIdOverride || detectedContainerProjectId || "project-02bb6275-51ac-45e7-940";
   const projectNumber = "489976275182";
-  const userAccount = userEmail || "suveen2619@gmail.com";
+  const userAccount = userEmail || process.env.PRIMARY_ADMIN_EMAIL || "admin@suvenedu.demo";
   const gcpConsoleUrl = `https://console.cloud.google.com/welcome/new?authuser=1&project=${targetProjectId}`;
 
   let token = userAccessToken;

@@ -12,7 +12,7 @@
  *   npm run db:migrate
  */
 
-import 'dotenv/config';
+import './server/loadEnv';
 import { initializeApp, getApps } from 'firebase/app';
 import {
   getFirestore,

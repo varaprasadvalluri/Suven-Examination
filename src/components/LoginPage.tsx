@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { db, doc, getDoc, collection, query, where, getDocs, onSnapshot } from '../lib/firebase';
 import { handleErrorAndLog } from '../lib/customErrors';
 import { setSessionToken } from '../lib/sessionStore';
+import { ExamInstructionsScreen } from './ExamInstructionsScreen';
 
 export const LoginPage: React.FC = () => {
   const { user, profile, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithDemo, signOut, sendPasswordResetEmail } = useAuth();
@@ -28,6 +29,14 @@ export const LoginPage: React.FC = () => {
   const [enteredName, setEnteredName] = useState('');
   const [enteredRoll, setEnteredRoll] = useState('');
   const [isVerifyingDetails, setIsVerifyingDetails] = useState(false);
+  // credentials -> agree: name/roll verify happens first; the actual attempt (create/resume/
+  // reattempt) only happens after this explicit acknowledgment, same gate StudentLinkEntry.tsx
+  // already has for its own separate entry route.
+  const [inviteStep, setInviteStep] = useState<'credentials' | 'agree'>('credentials');
+  const [agreedToInviteTerms, setAgreedToInviteTerms] = useState(false);
+  const [inviteVerifiedPayload, setInviteVerifiedPayload] = useState<any | null>(null);
+  const [inviteExam, setInviteExam] = useState<any | null>(null);
+  const [inviteQuestions, setInviteQuestions] = useState<any[]>([]);
 
   // Login inputs & touch states
   const [email, setEmail] = useState('');
@@ -232,15 +241,60 @@ export const LoginPage: React.FC = () => {
         return;
       }
 
-      const {
-        matchedStudentId,
-        matchedStudentData,
-        finalSchoolId,
-        finalExamId,
-        examTitle: targetExamTitle,
-        isFallback
-      } = verifyPayload;
+      // Identity confirmed — require the same rules/proctoring acknowledgment (and the same
+      // exam-structure "Before You Begin" screen) the roll-number/link entry flow
+      // (StudentLinkEntry.tsx) already requires, before actually creating/resuming/
+      // reattempting the attempt.
+      setInviteVerifiedPayload(verifyPayload);
+      setAgreedToInviteTerms(false);
 
+      try {
+        const examSnap = await getDoc(doc(db, 'exams', verifyPayload.finalExamId));
+        if (examSnap.exists()) {
+          setInviteExam({ id: examSnap.id, ...examSnap.data() });
+          const qsSnap = await getDocs(query(collection(db, 'questions'), where('examId', '==', verifyPayload.finalExamId)));
+          setInviteQuestions(qsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } else {
+          setInviteExam({ title: verifyPayload.examTitle });
+          setInviteQuestions([]);
+        }
+      } catch (examErr) {
+        console.warn("Failed to load exam structure for instructions screen:", examErr);
+        setInviteExam({ title: verifyPayload.examTitle });
+        setInviteQuestions([]);
+      }
+
+      setInviteStep('agree');
+      toast.success("Identity verified! Please read and agree to the instructions to proceed.", { id: toastId });
+      setIsVerifyingDetails(false);
+    } catch (err) {
+      toast.dismiss(toastId);
+      const mapped = handleErrorAndLog(err, "Student Academic Pass Verification");
+      setErrorMessage(mapped.friendlyMessage);
+      setIsVerifyingDetails(false);
+    }
+  };
+
+  const handleConfirmInviteExam = async () => {
+    if (!inviteVerifiedPayload) return;
+    if (!agreedToInviteTerms) {
+      toast.error("Please read and agree to the instructions by selecting the checkbox.");
+      return;
+    }
+
+    const {
+      matchedStudentId,
+      matchedStudentData,
+      finalSchoolId,
+      finalExamId,
+      examTitle: targetExamTitle,
+      isFallback
+    } = inviteVerifiedPayload;
+
+    setIsVerifyingDetails(true);
+    const toastId = toast.loading("Initializing secure attempt session...");
+
+    try {
       const clientFootprint = btoa([navigator.userAgent, screen.width, screen.height, navigator.language].join('|')).substring(0, 32);
 
       // Attempt creation/resume/reattempt — reuses the same transaction-backed logic as
@@ -301,8 +355,13 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  // If already authenticated, redirect to home
-  if (user && profile && !loading) {
+  // If already authenticated, redirect to home — unless a fresh invite link is being opened.
+  // Without the inviteToken check, any student who still had an active session (finished an
+  // earlier exam, or is being re-triggered for a new one) would get bounced straight to "/"
+  // before this component ever processed the new invite, skipping identity verification and
+  // the rules/proctoring agreement entirely. StudentLinkEntry.tsx (the roll-number/token entry
+  // route) has no equivalent guard at all, which is why that flow never had this problem.
+  if (user && profile && !loading && !inviteToken) {
     return <Navigate to="/" replace />;
   }
 
@@ -314,6 +373,24 @@ export const LoginPage: React.FC = () => {
         </div>
         <p className="text-slate-400 font-sans font-black text-xs uppercase tracking-widest animate-pulse">Decrypting Security Token Hash...</p>
       </div>
+    );
+  }
+
+  // Same full-page "Before You Begin" screen every other entry flow uses (StudentLinkEntry.tsx,
+  // StudentPortal.tsx) — a full takeover, not nested in the login card layout below.
+  if (inviteToken && inviteStep === 'agree') {
+    return (
+      <ExamInstructionsScreen
+        exam={inviteExam || { title: inviteData?.examTitle }}
+        questions={inviteQuestions}
+        studentName={inviteVerifiedPayload?.matchedStudentData?.name}
+        rollNumber={inviteVerifiedPayload?.matchedStudentData?.rollNumber}
+        agreedToTerms={agreedToInviteTerms}
+        onAgreedChange={setAgreedToInviteTerms}
+        onConfirm={handleConfirmInviteExam}
+        onBack={() => setInviteStep('credentials')}
+        isLaunching={isVerifyingDetails}
+      />
     );
   }
 

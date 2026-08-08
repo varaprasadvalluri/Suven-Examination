@@ -51,8 +51,14 @@ export class CryptographicEduStrategy implements IdGenerationStrategy {
       }
     }
     
+    // Random component leads (right after the fixed collection prefix), timestamp trails —
+    // Firestore range-shards writes by the lexicographic doc ID, so a burst of near-simultaneous
+    // writes (e.g. thousands of students triggering a proctoring event in the same second)
+    // sharing an identical "edu-{prefix}-{timestamp}-" lead would concentrate on one shard.
+    // Leading with 12 random hex chars first spreads that same burst across the keyspace;
+    // the timestamp trails for human-readable chronological debugging only, not sharding.
     const timestamp = Date.now().toString(36);
-    return `edu-${prefix}-${timestamp}-${randomHex.substring(0, 12)}`;
+    return `edu-${prefix}-${randomHex.substring(0, 12)}-${timestamp}`;
   }
 }
 

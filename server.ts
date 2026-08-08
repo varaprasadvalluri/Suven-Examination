@@ -1,7 +1,9 @@
 import express from 'express';
 import path from 'path';
+import cluster from 'cluster';
+import os from 'os';
 import { createServer as createViteServer } from 'vite';
-import 'dotenv/config';
+import './server/loadEnv';
 
 import { fileURLToPath } from 'url';
 import { PORT } from './server/config';
@@ -63,9 +65,44 @@ async function startServer() {
     console.log("Production static file directory assets distribution ready.");
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  // Explicit backlog — the OS default (~511 on Linux/macOS) is what a burst of thousands of
+  // near-simultaneous new connections (e.g. an exam start) would queue against before this
+  // process's accept() loop can drain it; connections beyond that get refused/reset instead
+  // of queued. Cloud Run's own front-end load balancer buffers ahead of this in production,
+  // but raising it is a cheap local backstop either way.
+  app.listen(PORT, '0.0.0.0', 2048, () => {
     console.log(`[NODE EXPRESS SERVER] Server actively listening at http://localhost:${PORT}`);
   });
 }
 
-startServer();
+// Node.js is single-threaded — without this, only 1 of the 2 vCPUs Cloud Run allocates
+// per instance (cloudbuild.yaml --cpu 2) ever actually gets used, even though Cloud Run
+// bills/schedules for both. Forking one worker per vCPU lets a single instance use its
+// full allocated compute under CPU-bound bursts (e.g. many students' JWTs being signed
+// in the same second at exam start) instead of queuing behind one thread.
+//
+// Correctness requirements once this is enabled in production:
+//  - REDIS_URL/REDIS_HOST must be set. server/middleware/duplicateSubmission.ts falls back
+//    to an in-process Map when Redis isn't configured, which would only catch a duplicate
+//    submission if it lands on the same worker twice — not a shared lock across workers.
+//  - server/middleware/rateLimit.ts uses express-rate-limit's default in-memory store, which
+//    is also per-process. With N workers, the effective per-IP cap is multiplied by roughly
+//    N (each worker tracks its own count independently) rather than a stricter cluster
+//    limit. Not a correctness break, just a wider effective ceiling — move to a shared store
+//    (e.g. a Redis-backed limiter) if that matters for your abuse-prevention margins.
+//
+// Skipped entirely in dev: Vite's middlewareMode + HMR websocket don't play well with
+// multiple worker processes, and local dev has no concurrency to speak of anyway.
+if (process.env.NODE_ENV === 'production' && cluster.isPrimary) {
+  const numWorkers = os.cpus().length;
+  console.log(`[Cluster] Primary ${process.pid} forking ${numWorkers} worker(s) (one per vCPU)...`);
+  for (let i = 0; i < numWorkers; i++) {
+    cluster.fork();
+  }
+  cluster.on('exit', (worker, code, signal) => {
+    console.error(`[Cluster] Worker ${worker.process.pid} exited (${signal || code}). Forking a replacement.`);
+    cluster.fork();
+  });
+} else {
+  startServer();
+}

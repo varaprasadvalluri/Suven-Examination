@@ -101,9 +101,14 @@ router.post('/api/auth/validate', async (req, res) => {
       isAdminInFirestore = superAdminByUid.exists() || adminByUid.exists();
 
       if (!isAdminInFirestore && emailLower) {
+        // Sanitizing email into a doc ID is lossy (e.g. "a.b@x.com" and "a_b@x.com" both
+        // become "a_b_x_com") — confirm the fetched doc's own email field actually matches
+        // before trusting it, so a crafted colliding email can't borrow another admin's doc.
         const superAdminByEmail = await clientGetDoc(clientDoc(clientDb, 'super_admins', safeEmailId));
         const adminByEmail = await clientGetDoc(clientDoc(clientDb, 'admins', safeEmailId));
-        isAdminInFirestore = superAdminByEmail.exists() || adminByEmail.exists();
+        const superAdminEmailMatches = superAdminByEmail.exists() && (superAdminByEmail.data() as any)?.email?.toLowerCase() === emailLower;
+        const adminEmailMatches = adminByEmail.exists() && (adminByEmail.data() as any)?.email?.toLowerCase() === emailLower;
+        isAdminInFirestore = superAdminEmailMatches || adminEmailMatches;
       }
 
       if (!isAdminInFirestore && emailLower) {
@@ -283,9 +288,6 @@ router.post('/api/auth/create-profile', async (req, res) => {
           if (found) {
             isAuthorized = true;
             validSchoolId = found.id;
-          } else {
-            isAuthorized = true;
-            validSchoolId = 'school-' + emailLower.replace(/[^a-zA-Z0-9]/g, '-');
           }
         }
       }
