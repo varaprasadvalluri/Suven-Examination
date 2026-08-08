@@ -28,6 +28,12 @@ export const LoginPage: React.FC = () => {
   const [enteredName, setEnteredName] = useState('');
   const [enteredRoll, setEnteredRoll] = useState('');
   const [isVerifyingDetails, setIsVerifyingDetails] = useState(false);
+  // credentials -> agree: name/roll verify happens first; the actual attempt (create/resume/
+  // reattempt) only happens after this explicit acknowledgment, same gate StudentLinkEntry.tsx
+  // already has for its own separate entry route.
+  const [inviteStep, setInviteStep] = useState<'credentials' | 'agree'>('credentials');
+  const [agreedToInviteTerms, setAgreedToInviteTerms] = useState(false);
+  const [inviteVerifiedPayload, setInviteVerifiedPayload] = useState<any | null>(null);
 
   // Login inputs & touch states
   const [email, setEmail] = useState('');
@@ -232,15 +238,38 @@ export const LoginPage: React.FC = () => {
         return;
       }
 
-      const {
-        matchedStudentId,
-        matchedStudentData,
-        finalSchoolId,
-        finalExamId,
-        examTitle: targetExamTitle,
-        isFallback
-      } = verifyPayload;
+      // Identity confirmed — require the same rules/proctoring acknowledgment the
+      // roll-number/link entry flow (StudentLinkEntry.tsx) already requires, before actually
+      // creating/resuming/reattempting the attempt.
+      setInviteVerifiedPayload(verifyPayload);
+      setAgreedToInviteTerms(false);
+      setInviteStep('agree');
+      toast.success("Identity verified! Please read and agree to the instructions to proceed.", { id: toastId });
+      setIsVerifyingDetails(false);
+    } catch (err) {
+      toast.dismiss(toastId);
+      const mapped = handleErrorAndLog(err, "Student Academic Pass Verification");
+      setErrorMessage(mapped.friendlyMessage);
+      setIsVerifyingDetails(false);
+    }
+  };
 
+  const handleConfirmInviteExam = async () => {
+    if (!agreedToInviteTerms || !inviteVerifiedPayload) return;
+
+    const {
+      matchedStudentId,
+      matchedStudentData,
+      finalSchoolId,
+      finalExamId,
+      examTitle: targetExamTitle,
+      isFallback
+    } = inviteVerifiedPayload;
+
+    setIsVerifyingDetails(true);
+    const toastId = toast.loading("Initializing secure attempt session...");
+
+    try {
       const clientFootprint = btoa([navigator.userAgent, screen.width, screen.height, navigator.language].join('|')).substring(0, 32);
 
       // Attempt creation/resume/reattempt — reuses the same transaction-backed logic as
@@ -686,7 +715,48 @@ export const LoginPage: React.FC = () => {
           </AnimatePresence>
 
           {/* Conditional Rendering: Invite Verification VS Classic Login/Signup */}
-          {inviteToken ? (
+          {inviteToken && inviteStep === 'agree' ? (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <input
+                  type="checkbox"
+                  id="invite-agree-checkbox"
+                  checked={agreedToInviteTerms}
+                  onChange={e => setAgreedToInviteTerms(e.target.checked)}
+                  className="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer mt-0.5"
+                />
+                <label htmlFor="invite-agree-checkbox" className="text-xs text-slate-700 select-none cursor-pointer leading-relaxed font-medium">
+                  I have read and understood all instructions. I agree to abide by the rules and regulations of the examination, and I acknowledge that any form of malpractice, window switching, or proctoring violation will be recorded and could lead to disqualification.
+                </label>
+              </div>
+
+              <div className="pt-3 space-y-2.5">
+                <button
+                  type="button"
+                  onClick={handleConfirmInviteExam}
+                  className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-600/10 border-none hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  disabled={isVerifyingDetails || !agreedToInviteTerms}
+                >
+                  {isVerifyingDetails ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  ) : (
+                    <>
+                      <Lock className="h-3.5 w-3.5 text-indigo-200" /> I Agree and Start Exam
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setInviteStep('credentials')}
+                  disabled={isVerifyingDetails}
+                  className="w-full h-12 rounded-xl bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 text-[10px] font-extrabold uppercase tracking-widest cursor-pointer transition-colors"
+                >
+                  Back to Details
+                </button>
+              </div>
+            </div>
+          ) : inviteToken ? (
             <form onSubmit={handleVerifySubmit} className="space-y-4">
               
               {/* Field 1: Enter Name */}
