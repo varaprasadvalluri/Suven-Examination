@@ -1,9 +1,17 @@
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import { LOAD_TEST_SECRET } from '../config';
 
 // Load-test requests (x-load-test header, already trusted elsewhere in the app — see
 // gatekeeper.ts/db.ts isLoadTestRequest checks) are exempt so intentional stress testing
-// isn't throttled by the same limits meant to stop abuse.
-const skipLoadTest = (req: any) => req.headers['x-load-test'] === 'true';
+// isn't throttled by the same limits meant to stop abuse. Must also match LOAD_TEST_SECRET
+// — checking the header alone let anyone (not just someone who knows the secret) bypass the
+// enroll/lookup rate limits in production just by sending `x-load-test: true`, with no
+// server-side secret required. Same trusted-secret pattern already used in gatekeeper.ts/
+// db.ts's isLoadTestRequest checks.
+const skipLoadTest = (req: any) =>
+  !!LOAD_TEST_SECRET &&
+  req.headers['x-load-test'] === 'true' &&
+  req.headers['x-load-test-secret'] === LOAD_TEST_SECRET;
 
 // Public, unauthenticated identity/invite lookup routes (verify-identity, invite-metadata,
 // verify-invite) — legitimate students may retry a few times on typos, but no reason for
