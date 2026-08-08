@@ -38,9 +38,13 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:latest']
 
-  # Step 3: Deploy to Google Cloud Run. Cost-minimized default (min 1 / max 5) for normal
-  # day-to-day traffic — bump min/max up (e.g. min 5 / max 50) before any real exam window
-  # with many concurrent students, then scale back down afterward. See GCP_DEPLOYMENT.md.
+  # Step 3: Deploy to Google Cloud Run.
+  # max-instances * concurrency must cover peak simultaneous students: 600 * 100 = 60,000
+  # capacity against a documented 50,000-student exam window (~20% headroom). min-instances
+  # is still cost-minimized for normal days — before the actual exam window, bump
+  # --min-instances to a few dozen (e.g. 20-30) so enough containers are already warm at the
+  # 9am spike instead of cold-starting under load, then scale back down afterward. See
+  # GCP_DEPLOYMENT.md.
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'gcloud'
     args: [
@@ -50,8 +54,8 @@ steps:
       '--platform', 'managed',
       '--allow-unauthenticated',
       '--port', '3000',
-      '--min-instances', '1',          # Scale to zero-ish idle cost; auto-scales up under real load
-      '--max-instances', '100',         # Raise before an exam window with many concurrent students
+      '--min-instances', '1',          # Scale to zero-ish idle cost; BUMP before exam window (see above)
+      '--max-instances', '600',        # 600 * 100 concurrency = 60,000 capacity for 50,000 students
       '--cpu', '2',                    # Dedicate 2 vCPUs per container instance
       '--memory', '2Gi',               # Dedicate 2GB memory per container instance
       '--concurrency', '100',          # Allow up to 100 parallel connections per container instance
