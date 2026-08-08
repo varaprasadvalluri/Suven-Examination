@@ -31,6 +31,7 @@ import {
 import { cleanupCloudinaryAsset } from './cloudinary';
 import { cleanupFirebaseStorageAsset, FIREBASE_STORAGE_ID_PREFIX } from './firebaseStorage';
 import { mockLoadTestStore } from './gatekeeper';
+import { LOAD_TEST_SECRET } from '../config';
 
 const router = express.Router();
 
@@ -311,12 +312,13 @@ router.post('/api/db/write', requireSession, checkDuplicateSubmission, async (re
     return res.status(400).json({ error: 'Missing type or collectionName parameters.' });
   }
 
+  // Same trusted-secret gate as gatekeeper.ts's isLoadTestRequest — the old check matched
+  // attacker-controlled docId/data substrings ("test-roll-", "StressTester"), letting anyone
+  // silently mock a real write (data never persisted) by naming their own doc/fields that way.
   const isLoadTestWrite =
-    req.headers['x-load-test'] === 'true' ||
-    docId?.includes('test-roll-') ||
-    docId?.includes('StressTester') ||
-    data?.clientFootprint?.includes('StressTester') ||
-    (collectionName === 'attempts' && docId?.startsWith('att_') && docId?.includes('test-roll-'));
+    !!LOAD_TEST_SECRET &&
+    req.headers['x-load-test'] === 'true' &&
+    req.headers['x-load-test-secret'] === LOAD_TEST_SECRET;
 
   if (isLoadTestWrite) {
     const key = `${collectionName}_${docId || 'autogen'}`;
