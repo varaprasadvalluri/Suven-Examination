@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { db, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, doc, updateDoc, limit, orderBy } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, doc, updateDoc, limit, orderBy, getDocs } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { Exam, Attempt } from '../types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
@@ -13,14 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { StudentAdvancedAnalytics } from './StudentAdvancedAnalytics';
 import { MicroscheduleDashboard } from './MicroscheduleDashboard';
 import { ErrorBook } from './ErrorBook';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from './ui/dialog';
+import { ExamInstructionsScreen } from './ExamInstructionsScreen';
 
 // Cute hand-drawn aesthetic responsive icons for children
 const MathIcon: React.FC = () => (
@@ -112,6 +105,7 @@ export const StudentPortal: React.FC = () => {
   const [activeTab, setActiveTab] = useState('All');
   const [pendingExam, setPendingExam] = useState<Exam | null>(null);
   const [pendingReattemptId, setPendingReattemptId] = useState<string | null>(null);
+  const [pendingQuestions, setPendingQuestions] = useState<any[]>([]);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isLaunchingExam, setIsLaunchingExam] = useState(false);
   const navigate = useNavigate();
@@ -187,9 +181,24 @@ export const StudentPortal: React.FC = () => {
     };
   }, [profile, canTakeExams]);
 
+  // Fetches the exam's questions for the "Before You Begin" screen's exam-structure/marking
+  // breakdown — same data StudentLinkEntry.tsx and LoginPage.tsx's invite flow already load.
+  const openInstructions = async (exam: Exam, reattemptId: string | null) => {
+    setAgreedToTerms(false);
+    setPendingReattemptId(reattemptId);
+    setPendingExam(exam);
+    setPendingQuestions([]);
+    try {
+      const qsSnap = await getDocs(query(collection(db, 'questions'), where('examId', '==', exam.id)));
+      setPendingQuestions(qsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.warn('Failed to load exam structure for instructions screen:', err);
+    }
+  };
+
   const startExam = async (exam: Exam) => {
     if (!profile) return;
-    
+
     // Check time window
     const now = new Date();
     if (exam.startTime) {
@@ -216,9 +225,7 @@ export const StudentPortal: React.FC = () => {
       if (existingAttempt.canReattempt) {
         // Reattempt resets score/answers to zero and restarts the clock — same as a brand
         // new attempt in every way that matters, so it needs the same acknowledgment gate.
-        setAgreedToTerms(false);
-        setPendingReattemptId(existingAttempt.id);
-        setPendingExam(exam);
+        openInstructions(exam, existingAttempt.id);
         return;
       }
       toast.error(
@@ -237,13 +244,15 @@ export const StudentPortal: React.FC = () => {
 
     // Fresh attempt — require the same rules/proctoring acknowledgment the secure-link entry
     // flow (StudentLinkEntry.tsx) already requires, before actually creating it.
-    setAgreedToTerms(false);
-    setPendingReattemptId(null);
-    setPendingExam(exam);
+    openInstructions(exam, null);
   };
 
   const confirmStartExam = async () => {
-    if (!profile || !pendingExam || !agreedToTerms) return;
+    if (!profile || !pendingExam) return;
+    if (!agreedToTerms) {
+      toast.error("Please read and agree to the instructions by selecting the checkbox.");
+      return;
+    }
 
     setIsLaunchingExam(true);
     try {
@@ -310,9 +319,29 @@ export const StudentPortal: React.FC = () => {
     return matchesSearch && matchesTab;
   });
 
+  // Same full-page "Before You Begin" screen every entry flow uses (StudentLinkEntry.tsx,
+  // LoginPage.tsx's invite flow) — a full takeover rather than the small dialog this used to be.
+  if (pendingExam) {
+    return (
+      <ExamInstructionsScreen
+        exam={pendingExam}
+        questions={pendingQuestions}
+        studentName={profile?.name}
+        rollNumber={profile?.rollNumber}
+        agreedToTerms={agreedToTerms}
+        onAgreedChange={setAgreedToTerms}
+        onConfirm={confirmStartExam}
+        onBack={() => { setPendingExam(null); setPendingReattemptId(null); }}
+        isLaunching={isLaunchingExam}
+        confirmLabel={pendingReattemptId ? 'I Agree and Restart Exam' : 'I Agree and Start Exam'}
+        confirmLoadingLabel="Starting..."
+      />
+    );
+  }
+
   return (
     <div className="space-y-11 pb-24 animate-in fade-in duration-500 font-sans text-slate-800">
-      
+
       {/* 4-Tab Main Layout Header styled with Soft Playground claymorphic themes */}
       <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="space-y-11">
         
@@ -673,48 +702,6 @@ export const StudentPortal: React.FC = () => {
            <ErrorBook />
         </TabsContent>
       </Tabs>
-
-      <Dialog open={!!pendingExam} onOpenChange={(open) => { if (!open) { setPendingExam(null); setPendingReattemptId(null); } }}>
-        <DialogContent className="sm:max-w-lg rounded-3xl">
-          <DialogHeader>
-            <DialogTitle>Exam Rules & Proctoring Acknowledgment</DialogTitle>
-            <DialogDescription>
-              Please confirm before starting "{pendingExam?.title}".
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex items-start gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-            <input
-              type="checkbox"
-              id="portal-agree-checkbox"
-              checked={agreedToTerms}
-              onChange={e => setAgreedToTerms(e.target.checked)}
-              className="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer mt-0.5"
-            />
-            <label htmlFor="portal-agree-checkbox" className="text-xs text-slate-700 select-none cursor-pointer leading-relaxed font-medium">
-              I have read and understood all instructions. I agree to abide by the rules and regulations of the examination, and I acknowledge that any form of malpractice, window switching, or proctoring violation will be recorded and could lead to disqualification.
-            </label>
-          </div>
-
-          <DialogFooter className="gap-3">
-            <Button
-              variant="outline"
-              className="rounded-xl font-bold"
-              onClick={() => { setPendingExam(null); setPendingReattemptId(null); }}
-              disabled={isLaunchingExam}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700"
-              onClick={confirmStartExam}
-              disabled={!agreedToTerms || isLaunchingExam}
-            >
-              {isLaunchingExam ? "Starting..." : "I Agree and Start Exam"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

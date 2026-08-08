@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { db, doc, getDoc, collection, query, where, getDocs, onSnapshot } from '../lib/firebase';
 import { handleErrorAndLog } from '../lib/customErrors';
 import { setSessionToken } from '../lib/sessionStore';
+import { ExamInstructionsScreen } from './ExamInstructionsScreen';
 
 export const LoginPage: React.FC = () => {
   const { user, profile, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithDemo, signOut, sendPasswordResetEmail } = useAuth();
@@ -34,6 +35,8 @@ export const LoginPage: React.FC = () => {
   const [inviteStep, setInviteStep] = useState<'credentials' | 'agree'>('credentials');
   const [agreedToInviteTerms, setAgreedToInviteTerms] = useState(false);
   const [inviteVerifiedPayload, setInviteVerifiedPayload] = useState<any | null>(null);
+  const [inviteExam, setInviteExam] = useState<any | null>(null);
+  const [inviteQuestions, setInviteQuestions] = useState<any[]>([]);
 
   // Login inputs & touch states
   const [email, setEmail] = useState('');
@@ -238,11 +241,29 @@ export const LoginPage: React.FC = () => {
         return;
       }
 
-      // Identity confirmed — require the same rules/proctoring acknowledgment the
-      // roll-number/link entry flow (StudentLinkEntry.tsx) already requires, before actually
-      // creating/resuming/reattempting the attempt.
+      // Identity confirmed — require the same rules/proctoring acknowledgment (and the same
+      // exam-structure "Before You Begin" screen) the roll-number/link entry flow
+      // (StudentLinkEntry.tsx) already requires, before actually creating/resuming/
+      // reattempting the attempt.
       setInviteVerifiedPayload(verifyPayload);
       setAgreedToInviteTerms(false);
+
+      try {
+        const examSnap = await getDoc(doc(db, 'exams', verifyPayload.finalExamId));
+        if (examSnap.exists()) {
+          setInviteExam({ id: examSnap.id, ...examSnap.data() });
+          const qsSnap = await getDocs(query(collection(db, 'questions'), where('examId', '==', verifyPayload.finalExamId)));
+          setInviteQuestions(qsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } else {
+          setInviteExam({ title: verifyPayload.examTitle });
+          setInviteQuestions([]);
+        }
+      } catch (examErr) {
+        console.warn("Failed to load exam structure for instructions screen:", examErr);
+        setInviteExam({ title: verifyPayload.examTitle });
+        setInviteQuestions([]);
+      }
+
       setInviteStep('agree');
       toast.success("Identity verified! Please read and agree to the instructions to proceed.", { id: toastId });
       setIsVerifyingDetails(false);
@@ -255,7 +276,11 @@ export const LoginPage: React.FC = () => {
   };
 
   const handleConfirmInviteExam = async () => {
-    if (!agreedToInviteTerms || !inviteVerifiedPayload) return;
+    if (!inviteVerifiedPayload) return;
+    if (!agreedToInviteTerms) {
+      toast.error("Please read and agree to the instructions by selecting the checkbox.");
+      return;
+    }
 
     const {
       matchedStudentId,
@@ -348,6 +373,24 @@ export const LoginPage: React.FC = () => {
         </div>
         <p className="text-slate-400 font-sans font-black text-xs uppercase tracking-widest animate-pulse">Decrypting Security Token Hash...</p>
       </div>
+    );
+  }
+
+  // Same full-page "Before You Begin" screen every other entry flow uses (StudentLinkEntry.tsx,
+  // StudentPortal.tsx) — a full takeover, not nested in the login card layout below.
+  if (inviteToken && inviteStep === 'agree') {
+    return (
+      <ExamInstructionsScreen
+        exam={inviteExam || { title: inviteData?.examTitle }}
+        questions={inviteQuestions}
+        studentName={inviteVerifiedPayload?.matchedStudentData?.name}
+        rollNumber={inviteVerifiedPayload?.matchedStudentData?.rollNumber}
+        agreedToTerms={agreedToInviteTerms}
+        onAgreedChange={setAgreedToInviteTerms}
+        onConfirm={handleConfirmInviteExam}
+        onBack={() => setInviteStep('credentials')}
+        isLaunching={isVerifyingDetails}
+      />
     );
   }
 
@@ -720,48 +763,7 @@ export const LoginPage: React.FC = () => {
           </AnimatePresence>
 
           {/* Conditional Rendering: Invite Verification VS Classic Login/Signup */}
-          {inviteToken && inviteStep === 'agree' ? (
-            <div className="space-y-4">
-              <div className="flex items-start gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                <input
-                  type="checkbox"
-                  id="invite-agree-checkbox"
-                  checked={agreedToInviteTerms}
-                  onChange={e => setAgreedToInviteTerms(e.target.checked)}
-                  className="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer mt-0.5"
-                />
-                <label htmlFor="invite-agree-checkbox" className="text-xs text-slate-700 select-none cursor-pointer leading-relaxed font-medium">
-                  I have read and understood all instructions. I agree to abide by the rules and regulations of the examination, and I acknowledge that any form of malpractice, window switching, or proctoring violation will be recorded and could lead to disqualification.
-                </label>
-              </div>
-
-              <div className="pt-3 space-y-2.5">
-                <button
-                  type="button"
-                  onClick={handleConfirmInviteExam}
-                  className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-600/10 border-none hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                  disabled={isVerifyingDetails || !agreedToInviteTerms}
-                >
-                  {isVerifyingDetails ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-white" />
-                  ) : (
-                    <>
-                      <Lock className="h-3.5 w-3.5 text-indigo-200" /> I Agree and Start Exam
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setInviteStep('credentials')}
-                  disabled={isVerifyingDetails}
-                  className="w-full h-12 rounded-xl bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 text-[10px] font-extrabold uppercase tracking-widest cursor-pointer transition-colors"
-                >
-                  Back to Details
-                </button>
-              </div>
-            </div>
-          ) : inviteToken ? (
+          {inviteToken ? (
             <form onSubmit={handleVerifySubmit} className="space-y-4">
               
               {/* Field 1: Enter Name */}
