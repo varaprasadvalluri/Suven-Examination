@@ -1,0 +1,245 @@
+{
+  "entities": {
+    "School": {
+      "title": "School",
+      "description": "Represents a school group in the portal.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "adminEmail": { "type": "string", "format": "email" },
+        "allowedDomains": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "authPolicy": { "type": "string", "enum": ["google", "password", "both"] },
+        "region": { "type": "string" },
+        "totalStudents": { "type": "number" },
+        "attendanceRate": { "type": "number" },
+        "avgScore": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "adminEmail", "status", "authPolicy", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Represents a user in the system (Admin or Student).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "student"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email", "role", "createdAt"]
+    },
+    "Exam": {
+      "title": "Exam",
+      "description": "Represents an online examination.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "duration": { "type": "number", "description": "Duration in minutes" },
+        "totalMarks": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["published", "draft"] }
+      },
+      "required": ["title", "creatorId", "duration", "totalMarks", "createdAt", "status"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "A question within an exam.",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "options": { "type": "array", "items": { "type": "string" } },
+        "correctAnswerIndex": { "type": "number" },
+        "marks": { "type": "number" }
+      },
+      "required": ["text", "options", "correctAnswerIndex", "marks"]
+    },
+    "Attempt": {
+      "title": "Attempt",
+      "description": "A student's attempt at an exam.",
+      "type": "object",
+      "properties": {
+        "examId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "answers": { "type": "array", "items": { "type": "number" } },
+        "score": { "type": "number" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["started", "in-progress", "completed"] },
+        "timePerQuestion": { "type": "object", "description": "Mapping of questionId to seconds spent" },
+        "violationsCount": { "type": "number" },
+        "tabSwitches": { "type": "number" },
+        "accuracy": { "type": "number", "description": "Percentage of correct answers" },
+        "avgTimePerCorrect": { "type": "number" }
+      },
+      "required": ["examId", "studentId", "startTime", "status"]
+    },
+    "Microschedule": {
+      "title": "Microschedule",
+      "description": "Daily study plan for a student.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "topics": { "type": "array", "items": { "type": "object", "properties": { "title": { "type": "string" }, "completed": { "type": "boolean" }, "type": { "type": "string", "enum": ["study", "practice"] } } } },
+        "assignedExams": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["studentId", "date"]
+    },
+    "ErrorBookEntry": {
+      "title": "ErrorBookEntry",
+      "description": "Compilations of wrong answers for revision.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "examId": { "type": "string" },
+        "questionId": { "type": "string" },
+        "questionText": { "type": "string" },
+        "selectedAnswer": { "type": "number" },
+        "correctAnswer": { "type": "number" },
+        "explanation": { "type": "string" },
+        "subject": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "questionId", "createdAt"]
+    },
+    "ProctoringLog": {
+      "title": "ProctoringLog",
+      "description": "Security logs for exam proctoring events.",
+      "type": "object",
+      "properties": {
+        "attemptId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "type": { "type": "string", "enum": ["look_away", "multi_person", "tab_switch", "blur"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "snapshotUrl": { "type": "string", "description": "Link to evidence image if applicable" }
+      },
+      "required": ["attemptId", "type", "timestamp"]
+    },
+    "Invitation": {
+      "title": "Invitation",
+      "description": "Secure invitation tokens for student exam access.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentEmail": { "type": "string" },
+        "examId": { "type": "string" },
+        "examTitle": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "status": { "type": "string", "enum": ["sent", "used"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "studentId", "studentName", "examId", "examTitle", "status", "createdAt"]
+    },
+    "SecureExamLink": {
+      "title": "SecureExamLink",
+      "description": "Represents a dynamic cryptographically secure exam portal access link.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "examId": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "examId", "schoolId", "isActive", "expiresAt", "createdAt"]
+    },
+    "LoginOption": {
+      "title": "LoginOption",
+      "description": "Dynamic workspace authentication pathway options.",
+      "type": "object",
+      "properties": {
+        "value": { "type": "string" },
+        "label": { "type": "string" },
+        "icon": { "type": "string" },
+        "desc": { "type": "string" },
+        "order": { "type": "number" }
+      },
+      "required": ["value", "label", "icon", "desc"]
+    },
+    "Syllabus": {
+      "title": "Syllabus",
+      "description": "Syllabus velocity tracking for a subject.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subject": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "status": { "type": "string", "enum": ["On Track", "Behind", "Critical"] },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "status": { "type": "string", "enum": ["completed", "in-progress", "pending"] },
+              "coverage": { "type": "number" },
+              "testsConducted": { "type": "number" }
+            }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["subject", "topics"]
+    }
+  },
+  "firestore": {
+    "/schools/{schoolId}": {
+      "schema": "School",
+      "description": "Collection of registered schools"
+    },
+    "/login_options/{optionId}": {
+      "schema": "LoginOption",
+      "description": "Dynamic pathway workspace roles selectable at login gating."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles."
+    },
+    "/invitations/{inviteId}": {
+      "schema": "Invitation",
+      "description": "Candidate assessment invite tokens."
+    },
+    "/secure_exam_links/{linkId}": {
+      "schema": "SecureExamLink",
+      "description": "Dynamic secure exam general access links."
+    },
+    "/exams/{examId}": {
+      "schema": "Exam",
+      "description": "Exam definitions."
+    },
+    "/exams/{examId}/questions/{questionId}": {
+      "schema": "Question",
+      "description": "Questions nested within an exam."
+    },
+    "/attempts/{attemptId}": {
+      "schema": "Attempt",
+      "description": "Exam attempts by students."
+    },
+    "/microschedules/{scheduleId}": {
+      "schema": "Microschedule",
+      "description": "Student daily roadmaps."
+    },
+    "/error_books/{entryId}": {
+      "schema": "ErrorBookEntry",
+      "description": "Personalized weakness trackers."
+    },
+    "/proctoring_logs/{logId}": {
+      "schema": "ProctoringLog",
+      "description": "Security events."
+    },
+    "/syllabus/{syllabusId}": {
+      "schema": "Syllabus",
+      "description": "Syllabus tracking documents."
+    }
+  }
+}

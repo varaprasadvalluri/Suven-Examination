@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // The app never talks to Firestore directly from the browser — every read/write goes
+    // through the Node server (server.ts), which authenticates to Firestore with its own
+    // service-account credentials (not subject to these rules) and enforces its own
+    // session/role/tenant authorization before touching any collection. These rules exist
+    // only as a backstop in case a direct client SDK call is ever introduced by mistake, so
+    // default-deny is safe and has no effect on current app behavior.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

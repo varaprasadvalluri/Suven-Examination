@@ -1,0 +1,54 @@
+# Google App Engine (Standard Environment) Configuration
+# Optimized for high-concurrency 10,000-student examination workloads
+
+runtime: node22
+env: standard
+
+# Custom scaling configuration to handle instant high-concurrency spikes (9:00 AM exam start)
+instance_class: F2 # Allocates 384MB RAM and 1.2GHz CPU per instance. Upgrade to F4 if heavy cryptography is added.
+
+automatic_scaling:
+  # Maintain warm standby instances to completely bypass cold-start latency
+  min_idle_instances: 5
+  max_idle_instances: 15
+  
+  # Latency-based scaling controls
+  min_pending_latency: 200ms
+  max_pending_latency: 500ms
+  
+  # Scale rapidly based on traffic throughput rather than just CPU usage
+  target_cpu_utilization: 0.65
+  target_throughput_utilization: 0.65
+  
+  # Node.js concurrent request threshold per instance
+  max_concurrent_requests: 80
+
+# Environment variables injected into the production environment
+env_variables:
+  NODE_ENV: 'production'
+  PORT: '8080' # App Engine automatically sets and routes external traffic to PORT 8080
+  
+  # Redis connectivity details (Cloud Memorystore) for session coordination
+  # REDIS_HOST: 'YOUR_MEMORYSTORE_REDIS_IP'
+  # REDIS_PORT: '6379'
+
+# Routing Handlers: Directly offloads static asset delivery to Google's Edge Infrastructure
+# This prevents our Node.js server thread from wasting bandwidth/CPU delivering CSS, JS, and images.
+handlers:
+  # 1. Route for static CSS & JavaScript assets produced by Vite
+  - url: /assets
+    static_dir: dist/assets
+    secure: always
+    expiration: "30d"
+
+  # 2. Route for standard public static files (manifests, icons, etc)
+  - url: /(.*\.(json|ico|png|svg|txt))$
+    static_files: dist/\1
+    upload: dist/(.*\.(json|ico|png|svg|txt))$
+    secure: always
+    expiration: "7d"
+
+  # 3. Fallback route: All dynamic API calls and page routing passed to Node.js / Express
+  - url: /.*
+    script: auto
+    secure: always

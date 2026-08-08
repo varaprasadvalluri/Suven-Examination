@@ -1,0 +1,75 @@
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  # Step 1: Build the optimized production Docker image using Cloud Build.
+  # Firebase config is baked into the frontend bundle at build time (vite.config.ts), so it
+  # has to be passed as --build-arg here. All values (including the API key) come from
+  # substitutions — none of this is a real secret, it's the same public Firebase web config
+  # that ships in every Firebase web app's JS bundle. See GCP_DEPLOYMENT.md.
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'FIREBASE_PROJECT_ID=$_FIREBASE_PROJECT_ID'
+      - '--build-arg'
+      - 'FIRESTORE_DATABASE_ID=$_FIRESTORE_DATABASE_ID'
+      - '--build-arg'
+      - 'FIREBASE_API_KEY=$_FIREBASE_API_KEY'
+      - '--build-arg'
+      - 'FIREBASE_APP_ID=$_FIREBASE_APP_ID'
+      - '--build-arg'
+      - 'FIREBASE_AUTH_DOMAIN=$_FIREBASE_AUTH_DOMAIN'
+      - '--build-arg'
+      - 'FIREBASE_STORAGE_BUCKET=$_FIREBASE_STORAGE_BUCKET'
+      - '--build-arg'
+      - 'FIREBASE_MESSAGING_SENDER_ID=$_FIREBASE_MESSAGING_SENDER_ID'
+      - '-t'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:latest'
+      - '-t'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:$COMMIT_SHA'
+      - '.'
+
+  # Step 2: Push the image to Artifact Registry (reusing the repo Cloud Run's own
+  # auto-deploy pipeline already created — avoids needing extra IAM permissions to
+  # create a new gcr.io registry from scratch)
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:$COMMIT_SHA']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:latest']
+
+  # Step 3: Deploy to Google Cloud Run. Cost-minimized default (min 1 / max 5) for normal
+  # day-to-day traffic — bump min/max up (e.g. min 5 / max 50) before any real exam window
+  # with many concurrent students, then scale back down afterward. See GCP_DEPLOYMENT.md.
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args: [
+      'run', 'deploy', 'suven-examination',
+      '--image', 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:$COMMIT_SHA',
+      '--region', 'asia-south1',
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--port', '3000',
+      '--min-instances', '1',          # Scale to zero-ish idle cost; auto-scales up under real load
+      '--max-instances', '50',          # Raise before an exam window with many concurrent students
+      '--cpu', '2',                    # Dedicate 2 vCPUs per container instance
+      '--memory', '2Gi',               # Dedicate 2GB memory per container instance
+      '--concurrency', '100',          # Allow up to 100 parallel connections per container instance
+      '--timeout', '60s'
+    ]
+
+images:
+  - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:latest'
+  - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:$COMMIT_SHA'
+
+# Non-secret Firebase web config (same values that ship in any Firebase web app's JS bundle
+# regardless — see GCP_DEPLOYMENT.md). Override at trigger time with
+# `--substitutions=_FIREBASE_PROJECT_ID=...` if these ever change.
+substitutions:
+  _FIREBASE_PROJECT_ID: 'project-02bb6275-51ac-45e7-940'
+  _FIRESTORE_DATABASE_ID: 'suven-edu'
+  _FIREBASE_API_KEY: 'AIzaSyD-AzMGuVYnFwhFLOStoerl21LSD7vkIvc'
+  _FIREBASE_APP_ID: '1:486328864423:web:6a971b689b5a81e51c5582'
+  _FIREBASE_AUTH_DOMAIN: 'project-02bb6275-51ac-45e7-940.firebaseapp.com'
+  _FIREBASE_STORAGE_BUCKET: 'project-02bb6275-51ac-45e7-940.firebasestorage.app'
+  _FIREBASE_MESSAGING_SENDER_ID: '486328864423'
