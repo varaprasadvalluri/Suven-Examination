@@ -36,6 +36,35 @@ export const ResultDetails: React.FC = () => {
     }
   };
 
+  // Idle auto-logout — result screen only, never during the exam itself (ExamInterface.tsx
+  // has no equivalent, so nothing here risks interrupting a student mid-test). Session TTL is
+  // otherwise a flat 24h with no idle check at all (server/config.ts JWT_SESSION_TTL_SECONDS),
+  // which on a shared school lab computer means a result tab left open stays authenticated far
+  // longer than anyone is actually looking at it.
+  useEffect(() => {
+    if (profile?.role !== 'student') return;
+
+    const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+    let timer: ReturnType<typeof setTimeout>;
+
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        toast.info("You were logged out after a period of inactivity.");
+        handleLogout();
+      }, IDLE_TIMEOUT_MS);
+    };
+
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    activityEvents.forEach(evt => window.addEventListener(evt, resetTimer));
+    resetTimer();
+
+    return () => {
+      clearTimeout(timer);
+      activityEvents.forEach(evt => window.removeEventListener(evt, resetTimer));
+    };
+  }, [profile?.role]);
+
   useEffect(() => {
     const fetchData = async () => {
       if (!attemptId) return;
