@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import 'dotenv/config';
+import './server/loadEnv';
 
 import { fileURLToPath } from 'url';
 import { PORT } from './server/config';

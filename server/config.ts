@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './loadEnv';
 import crypto from 'crypto';
 
 // Single source of truth for Firebase config — env vars only (same names the frontend
