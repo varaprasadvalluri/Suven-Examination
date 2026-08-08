@@ -20,6 +20,14 @@ let isProcessingQueue = false;
 const WRITE_BATCH_SIZE = 500; // Firestore's actual per-batch operation limit
 const MAX_CONCURRENT_BATCHES = 12; // bounds how many batch-commit calls run at once per tick
 
+// Drain rate is ~WRITE_BATCH_SIZE * MAX_CONCURRENT_BATCHES per 1.2s tick (~5,000 ops/sec).
+// If Firestore itself slows down (quota throttling, an outage, a slow region) faster than
+// requests keep arriving, this in-memory array has no other bound and will grow until the
+// Cloud Run instance OOMs — taking down every in-flight write for every student on that
+// instance, not just the ones that caused the backlog. Capping it turns that into a
+// controlled 503 for the newest requests instead, once ~4 ticks of backlog have piled up.
+const MAX_QUEUE_SIZE = 20000;
+
 export async function processWriteBatch(batchToProcess: WriteTask[]): Promise<void> {
   try {
     const batch = clientWriteBatch(clientDb);
@@ -77,13 +85,22 @@ export async function processWriteBatch(batchToProcess: WriteTask[]): Promise<vo
   }
 }
 
-// Process the cushioned queue every 1.2 seconds to absorb user bursts. Drains the FULL
-// backlog each tick — in parallel batches, bounded by MAX_CONCURRENT_BATCHES — rather than
-// a single fixed-size batch per tick. A single-batch-per-tick design caps throughput at
-// ~333 writes/sec (400 ops / 1.2s); at up to ~100k concurrent students each autosaving
-// every ~30s, sustained demand is ~3,300 writes/sec, so a fixed single batch would fall
-// permanently behind under real exam-day load and grow an ever-larger in-memory backlog.
-setInterval(async () => {
+// Drains the FULL backlog each call — in parallel batches, bounded by MAX_CONCURRENT_BATCHES
+// — rather than a single fixed-size batch per tick. A single-batch-per-tick design caps
+// throughput at ~333 writes/sec (400 ops / 1.2s); at up to ~100k concurrent students each
+// autosaving every ~30s, sustained demand is ~3,300 writes/sec, so a fixed single batch would
+// fall permanently behind under real exam-day load and grow an ever-larger in-memory backlog.
+//
+// Called from two places: the interval below (backstop) and enqueueWrite (eager trigger).
+// Under heavy concurrent async load (e.g. many simultaneous enroll transactions competing
+// for the event loop), a pure setInterval can get starved — measured under a 1500-concurrent
+// real-Firestore load test, the interval fired only 21 times in 3.5 minutes instead of the
+// expected ~175, letting writes queue for up to 100+ seconds before a flush got a turn.
+// Triggering a flush attempt immediately on enqueue (not just waiting for the timer) gives
+// pending writes a chance to run at the next available microtask/await point instead of
+// depending solely on a timer callback that can be delayed arbitrarily. isProcessingQueue
+// still guards against concurrent runs, so redundant triggers are cheap no-ops.
+async function flushQueue(): Promise<void> {
   if (writeQueue.length === 0 || isProcessingQueue) return;
   isProcessingQueue = true;
 
@@ -100,7 +117,9 @@ setInterval(async () => {
   } finally {
     isProcessingQueue = false;
   }
-}, 1200);
+}
+
+setInterval(() => { flushQueue().catch(err => console.error('[WRITE CUSHION] Flush error:', err)); }, 1200);
 
 // Enqueues a write task and returns a promise that resolves when the queue flush cycle
 // actually commits it (pure extraction of the inline pattern previously in the
@@ -112,6 +131,10 @@ export function enqueueWrite(params: {
   data?: any;
 }): Promise<any> {
   return new Promise((resolve, reject) => {
+    if (writeQueue.length >= MAX_QUEUE_SIZE) {
+      reject(new Error('Write queue is saturated — server is falling behind on database writes. Please retry shortly.'));
+      return;
+    }
     writeQueue.push({
       id: `task_${crypto.randomBytes(8).toString('hex')}`,
       type: params.type,
@@ -121,5 +144,6 @@ export function enqueueWrite(params: {
       resolve,
       reject
     });
+    flushQueue().catch(err => console.error('[WRITE CUSHION] Flush error:', err));
   });
 }

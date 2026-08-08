@@ -52,6 +52,7 @@ const ExamInterfaceCore: React.FC = () => {
   const [isSubmitConfirmOpen, setIsSubmitConfirmOpen] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
+  const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState(false);
   const [hasWarnedUnder5Min, setHasWarnedUnder5Min] = useState(false);
   
   const [timePerQuestion, setTimePerQuestion] = useState<Record<number, number>>({});
@@ -1220,6 +1221,13 @@ const ExamInterfaceCore: React.FC = () => {
                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> Proctored
             </span>
             <Button
+              onClick={() => setIsMobilePaletteOpen(true)}
+              variant="outline"
+              className="md:hidden bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700 h-9 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            >
+              <ListChecks size={14} className="text-indigo-400" />
+            </Button>
+            <Button
               onClick={() => setIsInstructionsOpen(true)}
               variant="outline"
               className="bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700 h-9 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer"
@@ -1312,14 +1320,14 @@ const ExamInterfaceCore: React.FC = () => {
             </div>
 
             {/* Action Bar */}
-            <div className="flex items-center justify-between mt-6 shrink-0 gap-4">
-               <div className="flex gap-3">
+            <div className="flex items-center justify-between mt-6 shrink-0 gap-4 flex-wrap">
+               <div className="flex gap-3 flex-wrap">
                   <Button onClick={handleClearResponse} variant="outline" className="border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-slate-200 bg-transparent h-11 px-4 md:px-6 rounded-xl font-bold text-xs cursor-pointer">Clear Response</Button>
                   <Button onClick={handleMarkForReview} variant="outline" className="border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-slate-200 bg-transparent h-11 px-4 md:px-6 rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer">
                      <div className="h-1.5 w-1.5 rounded-full bg-amber-400 hidden md:block" /> Mark for Review
                   </Button>
                </div>
-               <div className="flex gap-3">
+               <div className="flex gap-3 flex-wrap">
                   <Button onClick={() => setCurrentIndex(c => Math.max(0, c - 1))} disabled={currentIndex === 0} variant="outline" className="border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-slate-100 bg-transparent h-11 px-4 md:px-6 rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer">
                     <ArrowLeft size={16} /> <span className="hidden md:inline">Previous</span>
                   </Button>
@@ -1333,10 +1341,19 @@ const ExamInterfaceCore: React.FC = () => {
             </div>
          </div>
 
-         {/* Right Sidebar */}
-         <div className="w-80 bg-[#171a26] border-l border-slate-800 flex flex-col shrink-0">
+         {/* Right Sidebar — full-screen overlay on mobile (toggled), static sidebar on md+ */}
+         {isMobilePaletteOpen && (
+           <div className="md:hidden fixed inset-0 bg-black/60 z-40" onClick={() => setIsMobilePaletteOpen(false)} />
+         )}
+         <div className={`${isMobilePaletteOpen ? 'flex' : 'hidden'} md:flex fixed md:static inset-y-0 right-0 z-50 md:z-auto w-[85vw] max-w-sm md:w-80 md:max-w-none bg-[#171a26] border-l border-slate-800 flex-col shrink-0`}>
             <div className="p-3 border-b border-slate-800 bg-[#131620] flex items-center justify-between">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Question Palette</span>
+              <button
+                onClick={() => setIsMobilePaletteOpen(false)}
+                className="md:hidden text-slate-400 hover:text-slate-200 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
               {paletteFilter !== 'ALL' && (
                 <button 
                   onClick={() => setPaletteFilter('ALL')} 
@@ -1417,7 +1434,7 @@ const ExamInterfaceCore: React.FC = () => {
                              return (
                                <button
                                  key={i}
-                                 onClick={() => setCurrentIndex(i)}
+                                 onClick={() => { setCurrentIndex(i); setIsMobilePaletteOpen(false); }}
                                  className={`h-10 w-full rounded-lg border flex items-center justify-center text-xs font-bold transition-all cursor-pointer ${bgColor}`}
                                >
                                  {i + 1}
@@ -1657,6 +1674,20 @@ const ExamInterfaceCore: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Full-screen submission overlay — `loading` is only true here during the initial
+          fetch (guarded above by `!attempt`) or while handleSubmit is in flight, so this
+          only ever shows for the latter. Previously the only feedback during submission was
+          the confirm dialog's button text changing to "Transmitting...", easy to miss. */}
+      {loading && attempt && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-5">
+          <div className="h-14 w-14 border-4 border-slate-700 border-t-indigo-500 rounded-full animate-spin" />
+          <div className="text-center">
+            <p className="text-white font-black text-sm uppercase tracking-wider">Submitting Your Exam...</p>
+            <p className="text-slate-400 text-xs mt-1.5">Please don't close this tab or go back.</p>
+          </div>
+        </div>
+      )}
 
     </div>
   );

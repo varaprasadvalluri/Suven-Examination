@@ -1,6 +1,5 @@
 import express from 'express';
 import Redis from 'ioredis';
-import { firebaseConfig } from '../config';
 import { clientDb, clientCollection, clientQuery, clientLimit, clientGetDocs } from '../firestoreClient';
 
 const router = express.Router();
@@ -25,6 +24,7 @@ const handleHealthCheck = async (req: any, res: any) => {
   } catch (err: any) {
     firestoreStatus = 'error';
     firestoreDetails = err.message || String(err);
+    console.error('[Health Check] Firestore error:', firestoreDetails);
   }
 
   // 2. Validate Redis connectivity dynamically if details are configured
@@ -69,6 +69,7 @@ const handleHealthCheck = async (req: any, res: any) => {
     } catch (err: any) {
       redisStatus = 'offline';
       redisDetails = err.message || String(err);
+      console.error('[Health Check] Redis error:', redisDetails);
     } finally {
       if (tempRedis) {
         try {
@@ -84,24 +85,21 @@ const handleHealthCheck = async (req: any, res: any) => {
   const totalDuration = parseFloat((performance.now() - start).toFixed(1));
   const overallStatus = (firestoreStatus === 'connected' && (redisStatus === 'connected' || redisStatus === 'unconfigured')) ? 'healthy' : 'degraded';
 
+  // Publicly reachable, unauthenticated (load balancers/uptime monitors hit this) — keep the
+  // response to status/latency only, no projectId/databaseId/memoryUsage/raw error strings,
+  // since those are recon info for an anonymous caller and aren't needed to answer "is it up".
   res.status(overallStatus === 'healthy' ? 200 : 500).json({
     status: overallStatus,
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    memoryUsage: process.memoryUsage(),
     totalLatencyMs: totalDuration,
     services: {
       firestore: {
         status: firestoreStatus,
-        latencyMs: firestoreLatency,
-        projectId: firebaseConfig.projectId,
-        databaseId: firebaseConfig.firestoreDatabaseId,
-        details: firestoreDetails || undefined
+        latencyMs: firestoreLatency
       },
       redis: {
         status: redisStatus,
-        latencyMs: redisLatency,
-        details: redisDetails
+        latencyMs: redisLatency
       }
     }
   });

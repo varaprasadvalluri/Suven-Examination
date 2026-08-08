@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { Button } from './ui/button';
 import { LogOut, Menu, X, Bell, Search, Globe, ChevronRight } from 'lucide-react';
@@ -173,6 +173,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     return typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
   });
+
+  // The line above only runs once at mount — without this, resizing the window (e.g.
+  // minimizing then maximizing back) never re-checks the breakpoint, so the sidebar can end
+  // up permanently closed even on a full-width desktop window.
+  useEffect(() => {
+    const handleResize = () => setIsSidebarOpen(window.innerWidth >= 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   if (loading) {
     return (

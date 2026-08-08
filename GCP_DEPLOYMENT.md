@@ -85,7 +85,7 @@ This single command:
 To ensure maximum performance during the exam launch peak (e.g., exactly at 9:00 AM), we configure Cloud Run with the following settings (included in `cloudbuild.yaml`):
 
 * **`--min-instances 5`**: Keeps 5 instances fully pre-warmed and running continuously. This eliminates container cold starts when 10,000 students try to log in simultaneously.
-* **`--max-instances 50`**: Allows Cloud Run to automatically scale up to 50 active container pods if needed.
+* **`--max-instances 100`**: Allows Cloud Run to automatically scale up to 100 active container pods if needed.
 * **`--concurrency 100`**: Allows each container instance to handle up to 100 parallel requests simultaneously using Node.js's asynchronous event loop.
 * **`--cpu 2 --memory 2Gi`**: Allocates 2 vCPUs and 2GB of RAM to each container instance to comfortably handle routing, parsing, and cryptographic proctor validation.
 
@@ -93,7 +93,7 @@ To ensure maximum performance during the exam launch peak (e.g., exactly at 9:00
 
 ## 🔑 Required: Session Signing Secret (`JWT_SECRET`)
 
-Because multiple Cloud Run instances run simultaneously (`--min-instances 5`, up to `--max-instances 50`), every instance **must share the same `JWT_SECRET`** — it's what signs/verifies student and staff session tokens. If it isn't set, each instance generates its own random secret at boot, and users will get random 401 errors as their requests land on different instances. This must be set **once** before (or right after) the first deploy — `gcloud run deploy` preserves existing environment variables/secrets across future deploys, so `cloudbuild.yaml` doesn't need to reference it.
+Because multiple Cloud Run instances run simultaneously (`--min-instances 5`, up to `--max-instances 100`), every instance **must share the same `JWT_SECRET`** — it's what signs/verifies student and staff session tokens. If it isn't set, each instance generates its own random secret at boot, and users will get random 401 errors as their requests land on different instances. This must be set **once** before (or right after) the first deploy — `gcloud run deploy` preserves existing environment variables/secrets across future deploys, so `cloudbuild.yaml` doesn't need to reference it.
 
 **Recommended (Secret Manager):**
 ```bash

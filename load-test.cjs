@@ -5,10 +5,11 @@
  * It is built using pure Node.js (no external npm dependencies) so you can run it anywhere
  * instantly by running:
  * 
- *    node load-test.js [target_url] [number_of_students]
- * 
+ *    node load-test.cjs [target_url] [number_of_students] [duration_seconds] [concurrency_limit]
+ *
  * Example:
- *    node load-test.js http://localhost:3000 500
+ *    node load-test.cjs http://localhost:3000 500
+ *    node load-test.cjs http://localhost:3000 20000 5 2000
  */
 
 const http = require('http');
@@ -19,6 +20,7 @@ const { URL } = require('url');
 const targetArg = process.argv[2] || 'http://localhost:3000';
 const studentsArg = parseInt(process.argv[3], 10) || 100;
 const durationArg = parseInt(process.argv[4], 10) || 10; // in seconds
+const concurrencyArg = parseInt(process.argv[5], 10) || 50;
 
 // Configuration
 const CONFIG = {
@@ -27,7 +29,7 @@ const CONFIG = {
   testDurationSeconds: durationArg,
   rampUpMs: 2000, // Ramp-up window to stagger initial connections
   heartbeatIntervalMs: 3000, // Simulated proctor heartbeat interval
-  concurrencyLimit: 50, // Max simultaneous HTTP requests in flight
+  concurrencyLimit: concurrencyArg, // Max simultaneous HTTP requests in flight
 };
 
 // State metrics tracker

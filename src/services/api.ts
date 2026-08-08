@@ -383,13 +383,13 @@ export const circuitBreaker = {
       this.notifyListeners();
       
       if (newState === 'OPEN') {
-        toast.warning('High database/network latency detected! SuvenEdu has activated Read-Only Cache Failover to safeguard your exam progress.', {
+        toast.warning('Connection is slow right now.', {
           duration: 8000,
-          description: 'You can continue answering; changes are cached locally and will sync when latency stabilizes.',
+          description: 'You can keep answering — your changes are saved locally and will sync automatically once the connection improves.',
           icon: '🛡️'
         });
       } else if (newState === 'CLOSED') {
-        toast.success('Database latency stabilized. Connected successfully back to live Firebase/Redis nodes.', {
+        toast.success('Connection restored. Syncing your saved answers...', {
           duration: 4000,
           icon: '✅'
         });

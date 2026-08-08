@@ -6,6 +6,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { firebaseConfig } from '../config';
 import { storageUploadLimiter } from '../middleware/rateLimit';
 import { createBreaker } from '../lib/circuitBreaker';
+import { requireSession } from '../auth/middleware';
 
 const router = express.Router();
 
@@ -52,7 +53,7 @@ function getBucket() {
 // 1. Issue a short-lived v4 signed URL the browser can PUT the file to directly — same
 // "server signs, client uploads straight to the provider" shape as /api/cloudinary/sign,
 // so no image bytes ever pass through this Node process or Firestore.
-router.post('/api/storage/sign-upload', storageUploadLimiter, async (req, res) => {
+router.post('/api/storage/sign-upload', requireSession, storageUploadLimiter, async (req, res) => {
   const { contentType } = req.body || {};
   const ext = ALLOWED_CONTENT_TYPES[contentType];
   if (!ext) {
@@ -107,7 +108,7 @@ export async function cleanupFirebaseStorageAsset(publicId: string | undefined |
 }
 
 // 2. Direct deletion of a Firebase Storage object (mirrors /api/cloudinary/delete)
-router.post('/api/storage/delete', async (req, res) => {
+router.post('/api/storage/delete', requireSession, async (req, res) => {
   const { publicId } = req.body || {};
   if (!publicId) {
     return res.status(400).json({ error: 'Missing publicId' });

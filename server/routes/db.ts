@@ -31,6 +31,7 @@ import {
 import { cleanupCloudinaryAsset } from './cloudinary';
 import { cleanupFirebaseStorageAsset, FIREBASE_STORAGE_ID_PREFIX } from './firebaseStorage';
 import { mockLoadTestStore } from './gatekeeper';
+import { LOAD_TEST_SECRET } from '../config';
 
 const router = express.Router();
 
@@ -157,7 +158,15 @@ router.post('/api/db/query', async (req, res) => {
     if (caller.role !== 'student') return false;
     if (!examId) return true;
     const attemptSnap = await clientGetDoc(clientDoc(clientDb, 'attempts', `att_${examId}_${caller.uid}`));
-    return !attemptSnap.exists();
+    if (!attemptSnap.exists()) return true;
+    // Checking existence alone was wrong: the attempt doc is created the moment enrollment
+    // happens, before the student answers a single question, so this returned "don't sanitize"
+    // (i.e. include correctAnswerIndex/numericalAnswer/explanation) from the very first
+    // questions fetch of a live, in-progress exam — verified live, a fresh 'started' attempt's
+    // own session could read every correct answer over the API the instant the exam opened.
+    // Only a genuinely finished attempt should see answers, for the post-submission review.
+    const status = (attemptSnap.data() as any)?.status;
+    return status !== 'completed';
   }
 
   // Applied only to the outgoing response, never to what gets stored in queryCache — the
@@ -311,12 +320,13 @@ router.post('/api/db/write', requireSession, checkDuplicateSubmission, async (re
     return res.status(400).json({ error: 'Missing type or collectionName parameters.' });
   }
 
+  // Same trusted-secret gate as gatekeeper.ts's isLoadTestRequest — the old check matched
+  // attacker-controlled docId/data substrings ("test-roll-", "StressTester"), letting anyone
+  // silently mock a real write (data never persisted) by naming their own doc/fields that way.
   const isLoadTestWrite =
-    req.headers['x-load-test'] === 'true' ||
-    docId?.includes('test-roll-') ||
-    docId?.includes('StressTester') ||
-    data?.clientFootprint?.includes('StressTester') ||
-    (collectionName === 'attempts' && docId?.startsWith('att_') && docId?.includes('test-roll-'));
+    !!LOAD_TEST_SECRET &&
+    req.headers['x-load-test'] === 'true' &&
+    req.headers['x-load-test-secret'] === LOAD_TEST_SECRET;
 
   if (isLoadTestWrite) {
     const key = `${collectionName}_${docId || 'autogen'}`;

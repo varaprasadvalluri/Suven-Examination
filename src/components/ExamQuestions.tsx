@@ -23,6 +23,7 @@ export const ExamQuestions: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
+  const [isSavingQuestion, setIsSavingQuestion] = useState(false);
   const [isDocxLoading, setIsDocxLoading] = useState(false);
   const [questionPage, setQuestionPage] = useState(1);
   const [questionPageSize, setQuestionPageSize] = useState(10);
@@ -282,6 +283,7 @@ export const ExamQuestions: React.FC = () => {
       }
     }
 
+    setIsSavingQuestion(true);
     try {
       await addDoc(collection(db, 'questions'), {
         text: newQuestion.text,
@@ -296,11 +298,11 @@ export const ExamQuestions: React.FC = () => {
         imageUrl: newQuestion.imageUrl || '',
         imagePublicId: newQuestion.imagePublicId || ''
       });
-      toast.success("Question created on secure nodes");
-      setNewQuestion({ 
-        text: '', 
-        options: ['', '', '', ''], 
-        correctAnswerIndex: 0, 
+      toast.success("Question saved");
+      setNewQuestion({
+        text: '',
+        options: ['', '', '', ''],
+        correctAnswerIndex: 0,
         marks: 4,
         subject: exam?.subject || 'Physics',
         type: 'single',
@@ -311,8 +313,10 @@ export const ExamQuestions: React.FC = () => {
       });
       setIsAdding(false);
     } catch (error) {
-      toast.error("Failed to add question to database");
+      toast.error("Failed to save question. Please try again.");
       handleFirestoreError(error, OperationType.WRITE, 'questions');
+    } finally {
+      setIsSavingQuestion(false);
     }
   };
 
@@ -947,11 +951,12 @@ export const ExamQuestions: React.FC = () => {
                </div>
             </CardContent>
             <div className="flex items-center justify-end gap-3 px-6 py-4 bg-slate-50 border-t border-slate-100">
-              <Button variant="outline" className="h-11 rounded-xl font-bold" onClick={() => setIsAdding(false)}>
+              <Button variant="outline" className="h-11 rounded-xl font-bold" onClick={() => setIsAdding(false)} disabled={isSavingQuestion}>
                 Cancel
               </Button>
-              <Button className="h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 rounded-xl shadow-lg shadow-indigo-100 border-none" onClick={handleAddQuestion}>
-                Save & Insert Question
+              <Button className="h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 rounded-xl shadow-lg shadow-indigo-100 border-none flex items-center gap-2" onClick={handleAddQuestion} disabled={isSavingQuestion}>
+                {isSavingQuestion ? <Loader2 size={16} className="animate-spin" /> : null}
+                {isSavingQuestion ? 'Saving...' : 'Save & Insert Question'}
               </Button>
             </div>
           </Card>

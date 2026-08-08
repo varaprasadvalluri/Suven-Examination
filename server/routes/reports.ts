@@ -45,6 +45,10 @@ router.post('/api/reports/merit-list-xlsx', requireSession, requireRole('admin',
     ));
     const attempts = attemptsSnap.docs.map(d => (d.data() as any));
 
+    const examsSnap = await clientGetDocs(clientCollection(clientDb, 'exams'));
+    const examNameMap = new Map<string, string>();
+    examsSnap.docs.forEach(d => examNameMap.set(d.id, (d.data() as any)?.title || d.id));
+
     const attemptsByStudent = new Map<string, any[]>();
     attempts.forEach(a => {
       if (!a.studentId) return;
@@ -86,12 +90,20 @@ router.post('/api/reports/merit-list-xlsx', requireSession, requireRole('admin',
         improvement = '+0%';
       }
 
+      const examNames = studAttempts
+        .map(a => examNameMap.get(a.examId) || a.examId)
+        .filter(Boolean)
+        .join(', ');
+
       return {
         name: stud.name || 'Autonomous Candidate',
         rollNumber: stud.rollNumber || '',
+        className: stud.class || '',
+        section: stud.section || '',
         score: averageScore,
         percentile: averagePercentage,
         examsAttended,
+        examNames,
         improvement,
         branch: stud.schoolName || schoolNameMap.get(stud.schoolId) || 'Autonomous Hub',
         status: averagePercentage >= 90 ? 'Elite' : averagePercentage >= 75 ? 'Advanced' : 'Rising'
@@ -104,9 +116,12 @@ router.post('/api/reports/merit-list-xlsx', requireSession, requireRole('admin',
       'Rank': i + 1,
       'Name': r.name,
       'Roll No.': r.rollNumber,
+      'Class': r.className,
+      'Section': r.section,
       'Score': r.score,
       'Percentage': r.percentile,
       'Exams Attended': r.examsAttended,
+      'Exam Names': r.examNames,
       'Trend': r.improvement,
       'Branch': r.branch,
       'Status': r.status
@@ -114,8 +129,8 @@ router.post('/api/reports/merit-list-xlsx', requireSession, requireRole('admin',
 
     const worksheet = XLSX.utils.json_to_sheet(sheetRows);
     worksheet['!cols'] = [
-      { wch: 6 }, { wch: 28 }, { wch: 14 }, { wch: 8 },
-      { wch: 12 }, { wch: 15 }, { wch: 10 }, { wch: 24 }, { wch: 12 }
+      { wch: 6 }, { wch: 28 }, { wch: 14 }, { wch: 8 }, { wch: 8 },
+      { wch: 8 }, { wch: 12 }, { wch: 15 }, { wch: 40 }, { wch: 10 }, { wch: 24 }, { wch: 12 }
     ];
 
     const workbook = XLSX.utils.book_new();

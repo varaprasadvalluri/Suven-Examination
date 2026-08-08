@@ -174,7 +174,7 @@ router.post('/api/db/seed', requireSession, requireRole('admin'), async (req, re
         city: "Hyderabad",
         state: "Telangana",
         code: "NCOH-01",
-        adminEmail: "amruthav1301@gmail.com", // Grant automatic admin status to this user
+        adminEmail: process.env.SEED_SCHOOL1_ADMIN_EMAIL || "admin@suvenedu.demo",
         createdAt: new Date().toISOString()
       },
       {

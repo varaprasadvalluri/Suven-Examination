@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { db, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, doc, updateDoc, limit, orderBy } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, doc, updateDoc, limit, orderBy, getDocs } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { Exam, Attempt } from '../types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { StudentAdvancedAnalytics } from './StudentAdvancedAnalytics';
 import { MicroscheduleDashboard } from './MicroscheduleDashboard';
 import { ErrorBook } from './ErrorBook';
+import { ExamInstructionsScreen } from './ExamInstructionsScreen';
 
 // Cute hand-drawn aesthetic responsive icons for children
 const MathIcon: React.FC = () => (
@@ -102,6 +103,11 @@ export const StudentPortal: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
+  const [pendingExam, setPendingExam] = useState<Exam | null>(null);
+  const [pendingReattemptId, setPendingReattemptId] = useState<string | null>(null);
+  const [pendingQuestions, setPendingQuestions] = useState<any[]>([]);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [isLaunchingExam, setIsLaunchingExam] = useState(false);
   const navigate = useNavigate();
 
   // URL search params to drive main tabs (Portal, Ranker Diagnostics, Learning Roadmap, Error Book)
@@ -175,9 +181,24 @@ export const StudentPortal: React.FC = () => {
     };
   }, [profile, canTakeExams]);
 
+  // Fetches the exam's questions for the "Before You Begin" screen's exam-structure/marking
+  // breakdown — same data StudentLinkEntry.tsx and LoginPage.tsx's invite flow already load.
+  const openInstructions = async (exam: Exam, reattemptId: string | null) => {
+    setAgreedToTerms(false);
+    setPendingReattemptId(reattemptId);
+    setPendingExam(exam);
+    setPendingQuestions([]);
+    try {
+      const qsSnap = await getDocs(query(collection(db, 'questions'), where('examId', '==', exam.id)));
+      setPendingQuestions(qsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.warn('Failed to load exam structure for instructions screen:', err);
+    }
+  };
+
   const startExam = async (exam: Exam) => {
     if (!profile) return;
-    
+
     // Check time window
     const now = new Date();
     if (exam.startTime) {
@@ -202,21 +223,10 @@ export const StudentPortal: React.FC = () => {
     // unlock it here.
     if (existingAttempt?.status === 'completed' || existingAttempt?.status === 'expired') {
       if (existingAttempt.canReattempt) {
-        try {
-          const attemptRef = doc(db, 'attempts', existingAttempt.id);
-          await updateDoc(attemptRef, {
-            status: 'started',
-            score: 0,
-            answers: [],
-            startTime: new Date().toISOString(),
-            canReattempt: false
-          });
-          navigate(`/exam/${existingAttempt.id}`);
-          return;
-        } catch (error) {
-          toast.error("Failed to re-initialize exam attempt");
-          return;
-        }
+        // Reattempt resets score/answers to zero and restarts the clock — same as a brand
+        // new attempt in every way that matters, so it needs the same acknowledgment gate.
+        openInstructions(exam, existingAttempt.id);
+        return;
       }
       toast.error(
         existingAttempt.status === 'expired'
@@ -226,29 +236,59 @@ export const StudentPortal: React.FC = () => {
       return;
     }
 
-    // Direct to existing if started
+    // Direct to existing if started — already agreed when they first started it.
     if (existingAttempt?.status === 'started' || existingAttempt?.status === 'in-progress') {
       navigate(`/exam/${existingAttempt.id}`);
       return;
     }
 
+    // Fresh attempt — require the same rules/proctoring acknowledgment the secure-link entry
+    // flow (StudentLinkEntry.tsx) already requires, before actually creating it.
+    openInstructions(exam, null);
+  };
+
+  const confirmStartExam = async () => {
+    if (!profile || !pendingExam) return;
+    if (!agreedToTerms) {
+      toast.error("Please read and agree to the instructions by selecting the checkbox.");
+      return;
+    }
+
+    setIsLaunchingExam(true);
     try {
-      const attemptData = {
-        examId: exam.id,
-        examTitle: exam.title,
-        studentId: profile.uid,
-        studentName: profile.name,
-        schoolId: profile.schoolId || null,
-        answers: [],
-        score: 0,
-        startTime: new Date().toISOString(),
-        status: 'started'
-      };
-      
-      const docRef = await addDoc(collection(db, 'attempts'), attemptData);
-      navigate(`/exam/${docRef.id}`);
+      let attemptId: string;
+      if (pendingReattemptId) {
+        const attemptRef = doc(db, 'attempts', pendingReattemptId);
+        await updateDoc(attemptRef, {
+          status: 'started',
+          score: 0,
+          answers: [],
+          startTime: new Date().toISOString(),
+          canReattempt: false
+        });
+        attemptId = pendingReattemptId;
+      } else {
+        const attemptData = {
+          examId: pendingExam.id,
+          examTitle: pendingExam.title,
+          studentId: profile.uid,
+          studentName: profile.name,
+          schoolId: profile.schoolId || null,
+          answers: [],
+          score: 0,
+          startTime: new Date().toISOString(),
+          status: 'started'
+        };
+        const docRef = await addDoc(collection(db, 'attempts'), attemptData);
+        attemptId = docRef.id;
+      }
+      setPendingExam(null);
+      setPendingReattemptId(null);
+      navigate(`/exam/${attemptId}`);
     } catch (error) {
-      toast.error("Failed to start exam");
+      toast.error(pendingReattemptId ? "Failed to re-initialize exam attempt" : "Failed to start exam");
+    } finally {
+      setIsLaunchingExam(false);
     }
   };
 
@@ -279,9 +319,29 @@ export const StudentPortal: React.FC = () => {
     return matchesSearch && matchesTab;
   });
 
+  // Same full-page "Before You Begin" screen every entry flow uses (StudentLinkEntry.tsx,
+  // LoginPage.tsx's invite flow) — a full takeover rather than the small dialog this used to be.
+  if (pendingExam) {
+    return (
+      <ExamInstructionsScreen
+        exam={pendingExam}
+        questions={pendingQuestions}
+        studentName={profile?.name}
+        rollNumber={profile?.rollNumber}
+        agreedToTerms={agreedToTerms}
+        onAgreedChange={setAgreedToTerms}
+        onConfirm={confirmStartExam}
+        onBack={() => { setPendingExam(null); setPendingReattemptId(null); }}
+        isLaunching={isLaunchingExam}
+        confirmLabel={pendingReattemptId ? 'I Agree and Restart Exam' : 'I Agree and Start Exam'}
+        confirmLoadingLabel="Starting..."
+      />
+    );
+  }
+
   return (
     <div className="space-y-11 pb-24 animate-in fade-in duration-500 font-sans text-slate-800">
-      
+
       {/* 4-Tab Main Layout Header styled with Soft Playground claymorphic themes */}
       <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="space-y-11">
         
