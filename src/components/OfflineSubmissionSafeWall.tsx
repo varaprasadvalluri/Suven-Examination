@@ -27,7 +27,9 @@ export const OfflineSubmissionSafeWall: React.FC<OfflineSubmissionSafeWallProps>
   const [proofHash, setProofHash] = useState('');
   const [isSyncingToServer, setIsSyncingToServer] = useState(false);
 
-  // Generate Salted Offline Proof-of-Completion Hash
+  // Display-only receipt for the student to quote to support if sync fails — NOT a
+  // cryptographic proof (non-standard 32-bit hash, no server-side verification exists).
+  // Never treat this string as evidence in a dispute; it's trivially forgeable.
   useEffect(() => {
     const timestamp = new Date().toISOString();
     const answersSerialized = JSON.stringify(answers);

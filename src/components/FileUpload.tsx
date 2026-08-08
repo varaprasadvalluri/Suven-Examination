@@ -4,6 +4,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { UploadCloud, Image, Trash2, Link as LinkIcon, AlertCircle, Sparkles, Loader2, ImagePlus } from 'lucide-react';
 import { toast } from 'sonner';
+import { authHeaders } from '../lib/sessionStore';
 
 interface FileUploadProps {
   imageUrl?: string;
@@ -97,7 +98,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       const response = await fetch('/api/storage/sign-upload', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...authHeaders()
         },
         body: JSON.stringify({ contentType: file.type })
       });
@@ -175,7 +177,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       const response = await fetch(isFirebaseStorageAsset ? '/api/storage/delete' : '/api/cloudinary/delete', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...authHeaders()
         },
         body: JSON.stringify({ publicId: imagePublicId })
       });
