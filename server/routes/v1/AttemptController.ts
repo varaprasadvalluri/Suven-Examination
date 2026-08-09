@@ -3,6 +3,7 @@ import { requireSession } from '../../auth/middleware';
 import { authorizeWrite, scopeFieldFor, scopeValueFor, ProxyRole } from '../../authorization';
 import { checkDuplicateSubmission } from '../../middleware/duplicateSubmission';
 import { attemptDao } from '../../dao/FirestoreAttemptDao';
+import { recomputeAttemptScore } from '../../lib/scoreVerification';
 
 const router = express.Router();
 
@@ -43,6 +44,12 @@ router.post('/api/v1/attempts/:attemptId/submit', requireSession, (req: any, _re
 }, checkDuplicateSubmission, async (req: any, res) => {
   const { docId, data } = req.body;
   try {
+    // Never trust a client-submitted score/accuracy — recompute from the real answer key
+    // before this write is authorized or queued. See server/lib/scoreVerification.ts.
+    const verified = await recomputeAttemptScore(docId, data.answers || []);
+    data.score = verified.score;
+    data.accuracy = verified.accuracy;
+
     const decision = await authorizeWrite(req.auth, 'update', 'attempts', docId, data);
     if (decision.ok === false) {
       return res.status(decision.status).json({ error: decision.error });
