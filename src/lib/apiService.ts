@@ -200,18 +200,19 @@ function wrapDocsResult(rawDocs: any[]) {
 }
 
 // Named-route fast paths: same request/response contract as the generic /api/db/query proxy
-// below, just routed to a resource-shaped endpoint instead (server/routes/schools.ts,
-// loginOptions.ts, students.ts, examQuestions.ts). Deliberately narrow — only intercepts the
-// EXACT constraint shapes those routes actually implement; anything else (extra where/orderBy/
-// limit, a different collection) falls through to the generic proxy unchanged below, since a
-// near-match routed to the wrong endpoint would silently change query results.
+// below, just routed to a resource-shaped endpoint instead (server/routes/v1/SchoolController.ts,
+// LoginOptionsController.ts, StudentController.ts, ExamQuestionController.ts,
+// AttemptController.ts). Deliberately narrow — only intercepts the EXACT constraint shapes those
+// routes actually implement; anything else (extra where/orderBy/limit, a different collection)
+// falls through to the generic proxy unchanged below, since a near-match routed to the wrong
+// endpoint would silently change query results.
 async function tryNamedGetDoc(docRef: any): Promise<ReturnType<typeof wrapDocResult> | null> {
   if (docRef.collectionName === 'schools' && docRef.id) {
-    const payload = await safeFetchJson(`/api/schools/${encodeURIComponent(docRef.id)}`);
+    const payload = await safeFetchJson(`/api/v1/schools/${encodeURIComponent(docRef.id)}`);
     return wrapDocResult(docRef.id, payload.data);
   }
   if (docRef.collectionName === 'attempts' && docRef.id) {
-    const payload = await safeFetchJson(`/api/attempts/${encodeURIComponent(docRef.id)}`);
+    const payload = await safeFetchJson(`/api/v1/attempts/${encodeURIComponent(docRef.id)}`);
     return wrapDocResult(docRef.id, payload.data);
   }
   return null;
@@ -223,22 +224,22 @@ function isExactWhere(c: any, field: string, op: string, value?: any) {
 
 async function tryNamedGetDocs(collectionName: string, constraints: any[]): Promise<any | null> {
   if (collectionName === 'schools' && constraints.length === 0) {
-    const payload = await safeFetchJson('/api/schools');
+    const payload = await safeFetchJson('/api/v1/schools');
     return wrapDocsResult(payload.data || []);
   }
   if (collectionName === 'login_options' && constraints.length === 0) {
-    const payload = await safeFetchJson('/api/login-options');
+    const payload = await safeFetchJson('/api/v1/login-options');
     return wrapDocsResult(payload.data || []);
   }
   if (collectionName === 'questions' && constraints.length === 1 && isExactWhere(constraints[0], 'examId', '==')) {
-    const payload = await safeFetchJson(`/api/exams/${encodeURIComponent(constraints[0].value)}/questions`);
+    const payload = await safeFetchJson(`/api/v1/exams/${encodeURIComponent(constraints[0].value)}/questions`);
     return wrapDocsResult(payload.data || []);
   }
   if (collectionName === 'users' && constraints.length === 2) {
     const schoolIdC = constraints.find((c: any) => isExactWhere(c, 'schoolId', '=='));
     const roleC = constraints.find((c: any) => isExactWhere(c, 'role', '==', 'student'));
     if (schoolIdC && roleC) {
-      const payload = await safeFetchJson(`/api/schools/${encodeURIComponent(schoolIdC.value)}/students`);
+      const payload = await safeFetchJson(`/api/v1/schools/${encodeURIComponent(schoolIdC.value)}/students`);
       return wrapDocsResult(payload.data || []);
     }
   }
@@ -324,8 +325,21 @@ export async function updateDoc(docRef: any, data: any) {
   // what server/routes/attempts.ts's submit endpoint implements, and force-fitting them would
   // risk the dup-submission lock / ownership check firing on writes it was never meant to gate.
   if (docRef.collectionName === 'attempts' && data && data.status === 'completed') {
-    await safeFetchJson(`/api/attempts/${encodeURIComponent(docRef.id)}/submit`, {
+    await safeFetchJson(`/api/v1/attempts/${encodeURIComponent(docRef.id)}/submit`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    dispatchDbWrite(docRef.collectionName, 'update', docRef.id);
+    return { success: true };
+  }
+
+  // Named-route fast path for user profile updates (e.g. Layout.tsx's school-context toggle).
+  // Same authorizeWrite('update', 'users', ...) check either way — this just avoids the generic
+  // proxy hop. See server/routes/v1/StudentController.ts's PATCH /api/v1/students/:studentId.
+  if (docRef.collectionName === 'users') {
+    await safeFetchJson(`/api/v1/students/${encodeURIComponent(docRef.id)}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
