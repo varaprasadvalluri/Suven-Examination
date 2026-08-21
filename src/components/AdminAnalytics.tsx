@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, getDocs, query } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { Attempt, School, Exam } from '../types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -43,8 +44,18 @@ import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import { DataLoader } from './DataLoader';
 
+// This page's "Institutional Benchmarks"/"Subject Performance"/"Active Load Velocity" charts
+// used to fall back to fully invented data (fake comparison schools like "Stanford Med",
+// hardcoded proficiency percentages, an "Active Load Velocity" chart built from a fixed
+// percentage-of-total formula with hardcoded violation counts, framed as a pulsing "Telemetry
+// Stream") whenever real data was sparse or absent — indistinguishable from genuine numbers.
+// Removed rather than labeled: every stat below is computed from real fetched documents, and
+// an honest zero/empty state is shown when there's nothing to compute from yet.
+const REAL_ANALYTICS_FETCH_LIMIT = 3000;
+
 export const AdminAnalytics: React.FC = () => {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [schools, setSchools] = useState<School[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
@@ -56,10 +67,14 @@ export const AdminAnalytics: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      // Bounded platform-wide reads (this page is admin-only, System Insights across every
+      // school) — was previously an unbounded getDocs on the full attempts collection, in
+      // violation of the app's own "no platform-wide scans" rule. Ordered by startTime desc
+      // so the bounded sample is the most recent activity, not an arbitrary slice.
       const [schoolsSnap, examsSnap, attemptsSnap] = await Promise.all([
-        getDocs(collection(db, 'schools')),
-        getDocs(collection(db, 'exams')),
-        getDocs(collection(db, 'attempts'))
+        getDocs(query(collection(db, 'schools'), limit(REAL_ANALYTICS_FETCH_LIMIT))),
+        getDocs(query(collection(db, 'exams'), limit(REAL_ANALYTICS_FETCH_LIMIT))),
+        getDocs(query(collection(db, 'attempts'), orderBy('startTime', 'desc'), limit(REAL_ANALYTICS_FETCH_LIMIT)))
       ]);
 
       const fetchedSchools = schoolsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as School);
@@ -96,14 +111,14 @@ export const AdminAnalytics: React.FC = () => {
       const totalMarks = exam?.totalMarks || 100;
       totalScorePercentage += (a.score / totalMarks) * 100;
     });
-    const averageScore = completedAttempts.length > 0 ? Math.round(totalScorePercentage / completedAttempts.length) : 76; // Premium fallback if no attempts
+    const averageScore = completedAttempts.length > 0 ? Math.round(totalScorePercentage / completedAttempts.length) : 0;
 
     // Average Security Violations (malpracticeScore / tabSwitches / violationsCount)
     let totalViolations = 0;
     attempts.forEach((a) => {
       totalViolations += (a.violationsCount || 0) + (a.tabSwitches || 0);
     });
-    const avgViolations = totalAttempts > 0 ? (totalViolations / totalAttempts).toFixed(1) : '0.4';
+    const avgViolations = totalAttempts > 0 ? (totalViolations / totalAttempts).toFixed(1) : '0.0';
 
     return {
       totalAttempts,
@@ -117,16 +132,7 @@ export const AdminAnalytics: React.FC = () => {
 
   // Performance metrics across Schools/Institutes
   const schoolPerformanceData = useMemo(() => {
-    if (schools.length === 0 || attempts.length === 0) {
-      // Dynamic simulated comparative data based on suvenedu style
-      return [
-        { name: 'Stanford Med', attempts: 140, avgScore: 84, securityEscalations: 2 },
-        { name: 'Cambridge Science', attempts: 95, avgScore: 78, securityEscalations: 5 },
-        { name: 'MIT Biotech', attempts: 180, avgScore: 91, securityEscalations: 1 },
-        { name: 'Oxford Neurological', attempts: 110, avgScore: 81, securityEscalations: 4 },
-        { name: 'Imperial College', attempts: 75, avgScore: 75, securityEscalations: 8 }
-      ];
-    }
+    if (schools.length === 0) return [];
 
     const schoolMap = new Map<string, { totalScore: number; count: number; attemptsCount: number; violations: number }>();
     schools.forEach((s) => {
@@ -151,7 +157,7 @@ export const AdminAnalytics: React.FC = () => {
 
     return schools.map((s) => {
       const statsObj = schoolMap.get(s.id);
-      const avgScore = statsObj && statsObj.count > 0 ? Math.round(statsObj.totalScore / statsObj.count) : 84; // Neutral standard for presentation
+      const avgScore = statsObj && statsObj.count > 0 ? Math.round(statsObj.totalScore / statsObj.count) : 0;
 
       return {
         name: s.name.length > 20 ? s.name.substring(0, 18) + '...' : s.name,
@@ -182,59 +188,34 @@ export const AdminAnalytics: React.FC = () => {
       subjectMap.set(subject, statsObj);
     });
 
-    const categories = Array.from(subjectMap.entries()).map(([key, val]) => ({
+    return Array.from(subjectMap.entries()).map(([key, val]) => ({
       subject: key,
       attempts: val.attempts,
-      proficiency: val.count > 0 ? Math.round(val.totalPercentage / val.count) : 75
+      proficiency: val.count > 0 ? Math.round(val.totalPercentage / val.count) : 0
     }));
-
-    if (categories.length === 0) {
-      return [
-        { subject: 'Mathematics', attempts: 98, proficiency: 86 },
-        { subject: 'Physics', attempts: 74, proficiency: 79 },
-        { subject: 'Chemistry', attempts: 60, proficiency: 73 },
-        { subject: 'Biology', attempts: 45, proficiency: 81 },
-        { subject: 'Computer Science', attempts: 112, proficiency: 92 }
-      ];
-    }
-    return categories;
   }, [attempts, exams]);
 
-  // Diurnal Exam Load Profile over time (Attempts trend)
+  // Real hourly distribution of the bounded attempts sample, bucketed by each attempt's
+  // actual startTime — previously a fixed percentage-of-total formula with hardcoded
+  // violation counts per hour, framed as a pulsing "Telemetry Stream" despite having no real
+  // per-hour query behind it anywhere in this app. Both fields here are now genuinely derived
+  // from the same `attempts` array the rest of the page uses (bounded to the most recent
+  // REAL_ANALYTICS_FETCH_LIMIT attempts — a real recent-activity profile, not a live stream).
   const diurnalLoadData = useMemo(() => {
-    return [
-      {
-        interval: '08:00',
-        loadedAttempts: computedStats.totalAttempts > 0 ? Math.max(5, Math.round(computedStats.totalAttempts * 0.12)) : 12,
-        violations: 1
-      },
-      {
-        interval: '10:00',
-        loadedAttempts: computedStats.totalAttempts > 0 ? Math.max(12, Math.round(computedStats.totalAttempts * 0.28)) : 35,
-        violations: 3
-      },
-      {
-        interval: '12:00',
-        loadedAttempts: computedStats.totalAttempts > 0 ? Math.max(8, Math.round(computedStats.totalAttempts * 0.18)) : 22,
-        violations: 2
-      },
-      {
-        interval: '14:00',
-        loadedAttempts: computedStats.totalAttempts > 0 ? Math.max(14, Math.round(computedStats.totalAttempts * 0.32)) : 41,
-        violations: 1
-      },
-      {
-        interval: '16:00',
-        loadedAttempts: computedStats.totalAttempts > 0 ? Math.max(10, Math.round(computedStats.totalAttempts * 0.2)) : 28,
-        violations: 4
-      },
-      {
-        interval: '18:00',
-        loadedAttempts: computedStats.totalAttempts > 0 ? Math.max(4, Math.round(computedStats.totalAttempts * 0.08)) : 10,
-        violations: 0
-      }
-    ];
-  }, [computedStats.totalAttempts]);
+    const buckets = Array.from({ length: 12 }, (_, i) => ({
+      interval: `${(i * 2).toString().padStart(2, '0')}:00`,
+      loadedAttempts: 0,
+      violations: 0
+    }));
+    attempts.forEach((a) => {
+      const start = a.startTime ? new Date(a.startTime) : null;
+      if (!start || isNaN(start.getTime())) return;
+      const bucketIndex = Math.floor(start.getHours() / 2);
+      buckets[bucketIndex].loadedAttempts++;
+      buckets[bucketIndex].violations += a.violationsCount || 0;
+    });
+    return buckets;
+  }, [attempts]);
 
   const handleExportSystemAnalytics = async () => {
     setIsExporting(true);
@@ -453,12 +434,8 @@ export const AdminAnalytics: React.FC = () => {
                 <div>
                   <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">Active Load Velocity</CardTitle>
                   <CardDescription className="text-slate-400 font-semibold text-xs mt-1">
-                    Diurnal assessments traffic and corresponding anomaly records.
+                    Hourly distribution of the {computedStats.totalAttempts} most recent attempts, by start time.
                   </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider">Telemetry Stream</span>
                 </div>
               </div>
             </CardHeader>
@@ -515,29 +492,15 @@ export const AdminAnalytics: React.FC = () => {
                   Target &lt; 1.0
                 </Badge>
               </div>
-
-              <div className="space-y-4">
-                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Active Incident Handlers</p>
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    <span>Computer Proctored Snapshot Listener</span>
-                  </div>
-                  <span className="font-mono text-[10px] text-emerald-400">ACTIVE</span>
-                </div>
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    <span>Iframe Tab Boundary Blurriness Warden</span>
-                  </div>
-                  <span className="font-mono text-[10px] text-emerald-400">ACTIVE</span>
-                </div>
-              </div>
+              <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                Combined tab-switch and flagged-violation count across the {computedStats.totalAttempts}-attempt sample above.
+              </p>
             </CardContent>
             <div className="p-6 md:p-8 border-t border-slate-900 bg-slate-950/80">
               <Button
+                onClick={() => navigate('/admin/proctoring')}
                 variant="outline"
-                className="w-full text-slate-300 hover:text-white border-slate-800 hover:bg-slate-900 rounded-2xl h-12 uppercase font-black text-[10px] tracking-widest flex items-center justify-center gap-2"
+                className="w-full text-slate-300 hover:text-white border-slate-800 hover:bg-slate-900 rounded-2xl h-12 uppercase font-black text-[10px] tracking-widest flex items-center justify-center gap-2 cursor-pointer"
               >
                 Review Security Logs <ChevronRight size={14} />
               </Button>

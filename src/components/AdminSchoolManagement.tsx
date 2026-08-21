@@ -1,6 +1,6 @@
 import React, { useEffect, useState, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useDbObserver } from '../lib/observerPattern';
+import { useDbObserver, GlobalDbSubject } from '../lib/observerPattern';
 import {
   db,
   handleFirestoreError,
@@ -19,9 +19,9 @@ import {
   limit,
   startAfter,
   getCountFromServer,
-  where,
-  writeBatch
+  where
 } from '../lib/firebase';
+import { authHeaders } from '../lib/sessionStore';
 import { School, AuthPolicy } from '../types';
 import { Button } from './ui/button';
 import { ConfirmationDialog } from './ConfirmationDialog';
@@ -449,41 +449,44 @@ export const AdminSchoolManagement: React.FC = () => {
     );
     try {
       const schoolId = schoolToDelete.id;
-      const batch = writeBatch(db);
 
-      // 1. Fetch & delete all user accounts under this school
-      const usersQ = query(collection(db, 'users'), where('schoolId', '==', schoolId));
-      const usersSnap = await getDocs(usersQ);
-      usersSnap.forEach((uDoc) => batch.delete(uDoc.ref));
-
-      // 2. Fetch & delete all student invitations under this school
-      const invQ = query(collection(db, 'invitations'), where('schoolId', '==', schoolId));
-      const invSnap = await getDocs(invQ);
-      invSnap.forEach((iDoc) => batch.delete(iDoc.ref));
-
-      // 3. Fetch & delete all exam attempts under this school
-      const attQ = query(collection(db, 'attempts'), where('schoolId', '==', schoolId));
-      const attSnap = await getDocs(attQ);
-      attSnap.forEach((aDoc) => batch.delete(aDoc.ref));
-
-      // 4. Fetch & delete all error books under this school
-      const ebQ = query(collection(db, 'error_books'), where('schoolId', '==', schoolId));
-      const ebSnap = await getDocs(ebQ);
-      ebSnap.forEach((eDoc) => batch.delete(eDoc.ref));
-
-      // 5. Fetch & delete secure exam links under this school
-      const linkQ = query(collection(db, 'secure_exam_links'), where('schoolId', '==', schoolId));
-      const linkSnap = await getDocs(linkQ);
-      linkSnap.forEach((lDoc) => batch.delete(lDoc.ref));
-
-      // 6. Delete the school document itself
-      batch.delete(doc(db, 'schools', schoolId));
-
-      await batch.commit();
-
-      toast.success(`School "${schoolToDelete.name}" and all associated student profiles and exam data permanently hard deleted.`, {
-        id: toastId
+      // Real server-side cascade delete (server/routes/v1/SchoolController.ts) using the
+      // production write-cushion (server/db/writeQueue.ts) — not a client-side batch mock.
+      // Reports exact per-collection success/failure instead of assuming all-or-nothing.
+      const response = await fetch(`/api/v1/schools/${schoolId}/hard-delete`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() }
       });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || `Hard delete failed (status ${response.status})`);
+      }
+
+      if (payload.success) {
+        toast.success(`School "${schoolToDelete.name}" and all associated student profiles and exam data permanently hard deleted.`, {
+          id: toastId
+        });
+        // The old writeBatch mock triggered this same notify as a side effect of its per-op
+        // dispatchDbWrite calls — calling the real server endpoint directly bypasses that,
+        // so the school directory would otherwise sit stale showing the just-deleted school
+        // until a manual reload. Fire it explicitly so useDbObserver(['schools'], ...) above
+        // refetches immediately.
+        GlobalDbSubject.getInstance().notify({ type: 'delete', collectionName: 'schools', docId: schoolId });
+      } else {
+        // Some dependent records failed to delete — the school doc itself is deliberately
+        // left in place in this case (see the endpoint's own comment), so the operator can
+        // retry rather than being left with orphaned data and no parent school.
+        const failedCollections = Object.entries(payload.results || {})
+          .filter(([, r]: [string, any]) => r.failed > 0)
+          .map(([name, r]: [string, any]) => `${name} (${r.failed})`)
+          .join(', ');
+        toast.error(
+          `Partial delete: some records could not be removed — ${failedCollections || 'unknown collection'}. The school was NOT deleted; retry once resolved.`,
+          { id: toastId, duration: 10000 }
+        );
+      }
+
       setIsDeleteConfirmOpen(false);
       setSchoolToDelete(null);
     } catch (error) {

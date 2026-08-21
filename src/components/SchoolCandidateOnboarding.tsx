@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db, setDoc, doc, collection, getDocs, query, where } from '../lib/firebase';
+import { db, setDoc, getDoc, doc, collection, getDocs, query, where } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -63,6 +63,11 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
     rollNumber: `REG-${Math.floor(10000 + Math.random() * 90000)}`,
     dob: ''
   });
+  // Tracks whether the operator deliberately typed this roll number vs it still being the
+  // auto-generated default — governs collision behavior below: an auto-generated collision
+  // silently retries with a fresh one, but overwriting a roll number the operator explicitly
+  // chose is never done silently.
+  const [rollNumberEdited, setRollNumberEdited] = useState(false);
 
   // Fetch school details
   useEffect(() => {
@@ -85,6 +90,7 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
   const handleAutoGenerateRoll = () => {
     const newRoll = `REG-${Math.floor(10000 + Math.random() * 90000)}`;
     setManualStudent((prev) => ({ ...prev, rollNumber: newRoll }));
+    setRollNumberEdited(false);
     toast.info(`Generated new register code: ${newRoll}`);
   };
 
@@ -126,8 +132,34 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
     setIsSubmittingCandidate(true);
 
     try {
-      const finalRoll = manualStudent.rollNumber.trim() || `REG-${Math.floor(10000 + Math.random() * 90000)}`;
-      const uid = `std_${profile.schoolId}_${finalRoll.replace(/\s+/g, '_').toLowerCase()}`;
+      let finalRoll = manualStudent.rollNumber.trim() || `REG-${Math.floor(10000 + Math.random() * 90000)}`;
+      let uid = `std_${profile.schoolId}_${finalRoll.replace(/\s+/g, '_').toLowerCase()}`;
+
+      // The roll number becomes the doc ID below (plain setDoc, which merges rather than
+      // rejecting an existing doc) — without this check, two students who end up with the
+      // same roll number at this school silently overwrite each other's profile. An
+      // auto-generated collision (only 90,000 possible values) retries with a fresh one; a
+      // roll number the operator deliberately typed is never silently changed or overwritten.
+      let existing = await getDoc(doc(db, 'users', uid));
+      if (existing.exists()) {
+        if (rollNumberEdited) {
+          toast.error(`Roll number "${finalRoll}" is already in use at this school. Please choose a different one.`);
+          setIsSubmittingCandidate(false);
+          return;
+        }
+        let attempts = 0;
+        while (existing.exists() && attempts < 5) {
+          finalRoll = `REG-${Math.floor(10000 + Math.random() * 90000)}`;
+          uid = `std_${profile.schoolId}_${finalRoll.replace(/\s+/g, '_').toLowerCase()}`;
+          existing = await getDoc(doc(db, 'users', uid));
+          attempts++;
+        }
+        if (existing.exists()) {
+          toast.error('Could not generate a unique register number. Please try again.');
+          setIsSubmittingCandidate(false);
+          return;
+        }
+      }
 
       const candidatePayload = {
         name: manualStudent.name.trim(),
@@ -155,9 +187,10 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
         rollNumber: `REG-${Math.floor(10000 + Math.random() * 90000)}`,
         dob: ''
       });
+      setRollNumberEdited(false);
     } catch (error) {
       console.error('Failed to onboard student:', error);
-      toast.error('Failed to register candidate. Please check database permissions.');
+      toast.error('Failed to register candidate. Please try again.');
     } finally {
       setIsSubmittingCandidate(false);
     }
@@ -324,7 +357,10 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                         <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-indigo-500 pointer-events-none" />
                         <Input
                           value={manualStudent.rollNumber}
-                          onChange={(e) => setManualStudent({ ...manualStudent, rollNumber: e.target.value })}
+                          onChange={(e) => {
+                            setManualStudent({ ...manualStudent, rollNumber: e.target.value });
+                            setRollNumberEdited(true);
+                          }}
                           placeholder="e.g. REG-78401"
                           className="h-11 pl-10 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-xs font-mono font-bold uppercase focus:border-indigo-600 focus:bg-white"
                         />

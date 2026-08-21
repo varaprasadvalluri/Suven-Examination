@@ -3,6 +3,19 @@ import { requireSession, requireRole } from '../../auth/middleware';
 import { authorizeWrite } from '../../authorization';
 import { studentDao } from '../../dao';
 import { asyncHandler } from '../../middleware/errorHandler';
+import {
+  clientDb,
+  clientCollection,
+  clientDoc,
+  clientQuery,
+  clientWhere,
+  clientLimit,
+  clientGetDoc,
+  clientGetDocs
+} from '../../firestoreClient';
+import { enqueueWrite } from '../../db/writeQueue';
+import { logger } from '../../lib/logger';
+import { NotFoundError, ForbiddenError } from '../../lib/errors';
 
 const router = express.Router();
 
@@ -140,6 +153,106 @@ router.patch(
     }
     const updateResult = await studentDao.update(studentId, decision.data);
     return res.status(200).json(updateResult);
+  })
+);
+
+// Cascade-deletes a student and their attempts/error_books/invitations/proctoring_logs.
+// Replaces the previous client-side implementation (SchoolStudentOnboarding.tsx used
+// Firestore's `writeBatch` API, but this app's writeBatch (src/lib/apiService.ts) is a
+// client-side mock — commit() awaits one /api/db/write HTTP call per queued op in a
+// sequential loop, no real atomicity). If ANY single one of the (potentially many) queued
+// deletes failed for any reason, the whole commit() threw and surfaced a single generic
+// "Discrepancy executing folder delete block" toast with no indication of what actually
+// failed or what state the data was left in — the exact bug this route fixes, mirroring
+// the same fix already applied to school hard-delete (see SchoolController.ts). Uses the
+// real write-cushion (server/db/writeQueue.ts) and reports exact per-collection outcomes.
+const STUDENT_DEPENDENT_COLLECTIONS = ['attempts', 'error_books', 'invitations', 'proctoring_logs'] as const;
+const DELETE_PAGE_SIZE = 500;
+
+/**
+ * @openapi
+ * /api/v1/students/{studentId}/cascade-delete:
+ *   delete:
+ *     summary: Permanently delete a student and all their attempts/error_books/invitations/proctoring_logs
+ *     description: >
+ *       Admin or school role. A school caller may only delete a student belonging to their
+ *       own school. Real Firestore batched deletes via the write-cushion, not a client-side
+ *       mock — reports exact per-collection success/failure. The student's own user doc is
+ *       only deleted once every dependent collection is fully cleared; a partial failure
+ *       leaves the student doc in place instead of orphaning leftover data with no owner.
+ *     tags: [Students]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: studentId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Per-collection deletion counts, whether the student doc itself was removed
+ *       401:
+ *         description: Missing or invalid session
+ *       403:
+ *         description: Caller is not admin/school, or a school caller doesn't own this student
+ *       404:
+ *         description: Student not found
+ */
+router.delete(
+  '/api/v1/students/:studentId/cascade-delete',
+  requireSession,
+  requireRole('admin', 'school'),
+  asyncHandler(async (req: any, res) => {
+    const { studentId } = req.params;
+
+    const studentSnap = await clientGetDoc(clientDoc(clientDb, 'users', studentId));
+    if (!studentSnap.exists()) {
+      throw new NotFoundError('Student not found.');
+    }
+    const studentData = studentSnap.data() as any;
+    if (req.auth.role === 'school' && studentData.schoolId !== req.auth.schoolId) {
+      throw new ForbiddenError('Forbidden: you may only delete your own students');
+    }
+
+    const results: Record<string, { deleted: number; failed: number }> = {};
+
+    for (const collectionName of STUDENT_DEPENDENT_COLLECTIONS) {
+      let deleted = 0;
+      let failed = 0;
+
+      while (true) {
+        const snap = await clientGetDocs(
+          clientQuery(clientCollection(clientDb, collectionName), clientWhere('studentId', '==', studentId), clientLimit(DELETE_PAGE_SIZE))
+        );
+        if (snap.docs.length === 0) break;
+
+        const settled = await Promise.allSettled(snap.docs.map((d: any) => enqueueWrite({ type: 'delete', collectionName, docId: d.id })));
+        for (const outcome of settled) {
+          if (outcome.status === 'fulfilled') deleted++;
+          else failed++;
+        }
+
+        if (failed > 0) break;
+        if (snap.docs.length < DELETE_PAGE_SIZE) break;
+      }
+
+      results[collectionName] = { deleted, failed };
+    }
+
+    const anyFailures = Object.values(results).some((r) => r.failed > 0);
+    let studentDeleted = false;
+    if (!anyFailures) {
+      try {
+        await enqueueWrite({ type: 'delete', collectionName: 'users', docId: studentId });
+        studentDeleted = true;
+      } catch (err) {
+        logger.error('Failed to delete student user doc after dependent-collection cascade succeeded', { studentId, error: err });
+      }
+    }
+
+    logger.info('Student cascade-delete completed', { studentId, schoolId: studentData.schoolId, results, studentDeleted });
+
+    res.status(200).json({ success: !anyFailures && studentDeleted, studentDeleted, results });
   })
 );
 

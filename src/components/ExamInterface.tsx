@@ -864,6 +864,7 @@ const ExamInterfaceCore: React.FC = () => {
         const payload = {
           attemptId,
           studentId: attempt.studentId,
+          schoolId: attempt.schoolId || null,
           examId: attempt.examId,
           type,
           description,

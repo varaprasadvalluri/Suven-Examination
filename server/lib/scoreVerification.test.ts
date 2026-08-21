@@ -21,6 +21,7 @@ vi.mock('../../src/lib/examScoring', () => ({
 
 import { clientGetDoc, clientGetDocs } from '../firestoreClient';
 import { scoreExam } from '../../src/lib/examScoring';
+import { orderQuestionsForAttempt } from '../../src/lib/examQuestionOrder';
 import { scoreVerificationService } from './scoreVerification';
 
 const mockGetDoc = clientGetDoc as unknown as ReturnType<typeof vi.fn>;
@@ -76,14 +77,24 @@ describe('recomputeAttemptScore', () => {
         constraints: expect.arrayContaining([expect.objectContaining({ field: 'examId', op: '==', value: 'exam_1' })])
       })
     );
-    expect(mockScoreExam).toHaveBeenCalledWith(
+    // scoreExam pairs answers[idx] with questions[idx] purely by position, and `answers` was
+    // recorded against the student's per-attempt SHUFFLED order (ExamInterface.tsx), not
+    // whatever order Firestore happened to return — so the fetched questions must be run
+    // through the same orderQuestionsForAttempt(questions, attemptDocId) reorder before being
+    // handed to scoreExam, not passed through in raw fetch order. Compute the expected order
+    // the same way production code does, so this test breaks if that reorder is ever dropped.
+    const expectedOrder = orderQuestionsForAttempt(
       [
         { id: 'q1', text: 'Q1', correctAnswerIndex: 1 },
         { id: 'q2', text: 'Q2', correctAnswerIndex: 0 }
       ],
-      answers,
-      { studentId: 'student_1', examId: 'exam_1', examSubject: 'Midterm Math' }
+      'att_1'
     );
+    expect(mockScoreExam).toHaveBeenCalledWith(expectedOrder, answers, {
+      studentId: 'student_1',
+      examId: 'exam_1',
+      examSubject: 'Midterm Math'
+    });
     // The client-submitted answers feed scoring, but the returned score/accuracy come
     // straight from the server-side recompute — never trusted/echoed from client input.
     expect(result).toBe(scoringResult);

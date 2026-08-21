@@ -59,12 +59,18 @@ export const SCOPE_FIELD: Record<string, { school?: string; student?: string }> 
   attempts: { school: 'schoolId', student: 'studentId' },
   syllabus: { school: 'schoolId' },
   invitations: { school: 'schoolId' },
-  // proctoring_logs/error_books documents carry studentId but never schoolId in practice
-  // (verified against actual write payloads) — school-role access to these is trusted at
-  // the COLLECTION_ACCESS level rather than scope-injected, since injecting a schoolId
-  // constraint that matches no document would silently break school's real query pattern
-  // (querying by studentId, e.g. SchoolStudentOnboarding's per-student cascade delete).
-  proctoring_logs: { student: 'studentId' },
+  // proctoring_logs now carries schoolId (ExamInterface.tsx's logActivity writes it
+  // alongside studentId) so school-role reads can be scope-injected like every other
+  // tenant-scoped collection — previously trusted at the COLLECTION_ACCESS level only,
+  // which let a school see every other school's proctoring logs (LiveProctoringWall.tsx
+  // had no schoolId filter to inject against). Studentid-only queries elsewhere (e.g.
+  // SchoolStudentOnboarding's per-student cascade delete) still work fine with schoolId
+  // additionally injected, since a school only ever queries its own students. Logs written
+  // before this change lack schoolId and won't match the injected `==` constraint — they
+  // become invisible to school-role reads (not to admin, which bypasses scope injection
+  // entirely) rather than a security hole; acceptable since proctoring logs aren't a
+  // long-lived record schools need historical access to past the exam they were captured in.
+  proctoring_logs: { school: 'schoolId', student: 'studentId' },
   error_books: { student: 'studentId' },
   secure_exam_links: { school: 'schoolId' },
   report_jobs: { school: 'schoolId' }

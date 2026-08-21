@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useDbObserver } from '../lib/observerPattern';
+import { useDbObserver, GlobalDbSubject } from '../lib/observerPattern';
 import { useNavigate } from 'react-router-dom';
 import {
   db,
@@ -22,6 +22,7 @@ import {
   updateDoc
 } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
+import { authHeaders } from '../lib/sessionStore';
 import { SchoolCandidateOnboarding } from './SchoolCandidateOnboarding';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -1114,49 +1115,45 @@ export const SchoolStudentOnboarding: React.FC = () => {
     try {
       const studentId = deletingStudent.uid || deletingStudent.id;
 
-      const batch = writeBatch(db);
-
-      // 1. Fetch attempts for the student
-      const attemptsQuery = query(collection(db, 'attempts'), where('studentId', '==', studentId));
-      const attemptsSnap = await getDocs(attemptsQuery);
-      attemptsSnap.forEach((docSnap) => {
-        batch.delete(docSnap.ref);
+      // Real server-side cascade delete (server/routes/v1/StudentController.ts), using the
+      // production write-cushion — not the client-side writeBatch mock this used to call,
+      // whose commit() awaits one HTTP write per doc sequentially with no real atomicity: a
+      // single failed delete anywhere in the chain threw and surfaced this exact "Discrepancy
+      // executing folder delete block" message with no indication of what actually failed.
+      const response = await fetch(`/api/v1/students/${studentId}/cascade-delete`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() }
       });
+      const payload = await response.json();
 
-      // 2. Fetch error books for the student
-      const errorBooksQuery = query(collection(db, 'error_books'), where('studentId', '==', studentId));
-      const errorBooksSnap = await getDocs(errorBooksQuery);
-      errorBooksSnap.forEach((docSnap) => {
-        batch.delete(docSnap.ref);
-      });
+      if (!response.ok) {
+        throw new Error(payload?.error || `Delete failed (status ${response.status})`);
+      }
 
-      // 3. Fetch invitations for the student
-      const invitationsQuery = query(collection(db, 'invitations'), where('studentId', '==', studentId));
-      const invitationsSnap = await getDocs(invitationsQuery);
-      invitationsSnap.forEach((docSnap) => {
-        batch.delete(docSnap.ref);
-      });
-
-      // 4. Fetch proctoring logs for the student
-      const logsQuery = query(collection(db, 'proctoring_logs'), where('studentId', '==', studentId));
-      const logsSnap = await getDocs(logsQuery);
-      logsSnap.forEach((docSnap) => {
-        batch.delete(docSnap.ref);
-      });
-
-      // 5. Delete the student profile document itself
-      const studentDocRef = doc(db, 'users', studentId);
-      batch.delete(studentDocRef);
-
-      // Commit the atomic cascade deletion
-      await batch.commit();
-
-      toast.success('Academic records and all exam activity purged successfully.', { id: toastId });
-      setIsDeleteDialogOpen(false);
-      setDeletingStudent(null);
+      if (payload.success) {
+        toast.success('Academic records and all exam activity purged successfully.', { id: toastId });
+        setIsDeleteDialogOpen(false);
+        setDeletingStudent(null);
+        // The old writeBatch mock used to trigger this same notify as a side effect of its
+        // per-op dispatchDbWrite calls (src/lib/apiService.ts) — calling the real server
+        // endpoint directly bypasses that, so the student list (and anything else observing
+        // 'users') would otherwise sit stale showing the just-deleted student until a manual
+        // reload. Fire it explicitly so useDbObserver(['users','invitations'], handleRetry)
+        // above refetches immediately.
+        GlobalDbSubject.getInstance().notify({ type: 'delete', collectionName: 'users', docId: studentId });
+      } else {
+        const failedCollections = Object.entries(payload.results || {})
+          .filter(([, r]: [string, any]) => r.failed > 0)
+          .map(([name, r]: [string, any]) => `${name} (${r.failed})`)
+          .join(', ');
+        toast.error(
+          `Partial delete: some records could not be removed — ${failedCollections || 'unknown collection'}. The student was NOT deleted; retry once resolved.`,
+          { id: toastId, duration: 10000 }
+        );
+      }
     } catch (err) {
       console.error(err);
-      toast.error('Discrepancy executing folder delete block.', { id: toastId });
+      toast.error('Failed to delete student.', { id: toastId });
     }
   };
 

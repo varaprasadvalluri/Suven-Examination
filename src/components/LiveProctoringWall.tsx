@@ -17,7 +17,13 @@ export const LiveProctoringWall: React.FC = () => {
 
   useEffect(() => {
     if (!profile) return;
-    const logsQuery = query(collection(db, 'proctoring_logs'), orderBy('timestamp', 'desc'), limit(50));
+    // Server-side (server/authorization.ts's injectReadScope) now enforces this scoping
+    // regardless — the school-role where() here just keeps the client query's intent
+    // explicit and matches the sibling attempts query's pattern below.
+    const logsQuery =
+      profile.role === 'school'
+        ? query(collection(db, 'proctoring_logs'), where('schoolId', '==', profile.schoolId || ''), orderBy('timestamp', 'desc'), limit(50))
+        : query(collection(db, 'proctoring_logs'), orderBy('timestamp', 'desc'), limit(50));
     const unsubLogs = onSnapshot(logsQuery, (snap) => {
       setLogs(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });

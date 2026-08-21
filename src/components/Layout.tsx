@@ -367,8 +367,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           className="h-20 flex items-center px-2 border-b-[3px] border-dashed border-slate-200"
           style={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
-          <div className="w-12 h-12 bg-amber-400 border-2 border-b-[5px] border-slate-800 rounded-2xl flex items-center justify-center shadow-md text-slate-900 mr-3.5 shrink-0 transition-transform hover:rotate-12 duration-305 cursor-pointer">
-            <span className="text-2xl filter drop-shadow">✨</span>
+          <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-md mr-3.5 shrink-0 transition-transform hover:rotate-12 duration-305 cursor-pointer">
+            <img src="/icon-192.png" alt="SuvenEdu" className="w-full h-full object-cover" />
           </div>
           <div className="flex flex-col overflow-hidden">
             <span className="text-2xl font-black tracking-tight text-indigo-950 font-display uppercase select-none leading-none">

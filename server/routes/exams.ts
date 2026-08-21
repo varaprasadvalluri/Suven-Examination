@@ -14,6 +14,8 @@ import {
   clientUpdateDoc,
   clientAddDoc
 } from '../firestoreClient';
+import { asyncHandler } from '../middleware/errorHandler';
+import { BadRequestError, ForbiddenError, NotFoundError, InternalServerError } from '../lib/errors';
 
 const router = express.Router();
 
@@ -59,21 +61,23 @@ const router = express.Router();
  *       500:
  *         description: Server/Firestore error
  */
-router.put('/api/exams/:examId', requireSession, async (req: any, res) => {
-  const { examId } = req.params;
-  const { title, description, subject, difficulty, duration, totalMarks, startTime, endTime, assignedSchoolIds } = req.body;
+router.put(
+  '/api/exams/:examId',
+  requireSession,
+  asyncHandler(async (req: any, res) => {
+    const { examId } = req.params;
+    const { title, description, subject, difficulty, duration, totalMarks, startTime, endTime, assignedSchoolIds } = req.body;
 
-  try {
     const examRef = clientDoc(clientDb, 'exams', examId);
     const examSnap = await clientGetDoc(examRef);
 
     if (!examSnap.exists()) {
-      return res.status(404).json({ error: 'Exam paper not found.' });
+      throw new NotFoundError('Exam paper not found.');
     }
 
     // Schools view exams/question papers only; only admins author them.
     if (req.auth.role !== 'admin') {
-      return res.status(403).json({ error: 'Forbidden: only admins may modify exams' });
+      throw new ForbiddenError('Forbidden: only admins may modify exams');
     }
 
     const updateData: any = {
@@ -134,11 +138,8 @@ router.put('/api/exams/:examId', requireSession, async (req: any, res) => {
       message: 'Exam paper, dates, and institutional cluster associations updated successfully.',
       updatedFields: updateData
     });
-  } catch (err: any) {
-    console.error('Error updating exam paper in Node:', err);
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
+  })
+);
 
 /**
  * @openapi
@@ -179,114 +180,118 @@ router.put('/api/exams/:examId', requireSession, async (req: any, res) => {
  *       500:
  *         description: Parser execution failed, or its output couldn't be parsed/saved, or an unhandled error in the upload handler itself
  */
-router.post('/api/exams/:examId/import-doc', requireSession, async (req: any, res) => {
-  const { examId } = req.params;
-  const { base64Data, fileName, subject } = req.body;
+router.post(
+  '/api/exams/:examId/import-doc',
+  requireSession,
+  asyncHandler(async (req: any, res) => {
+    const { examId } = req.params;
+    const { base64Data, fileName, subject } = req.body;
 
-  if (!base64Data || !fileName) {
-    return res.status(400).json({ error: 'Missing required parameters: base64Data or fileName.' });
-  }
-
-  const examSnapForAuth = await clientGetDoc(clientDoc(clientDb, 'exams', examId));
-  if (!examSnapForAuth.exists()) {
-    return res.status(404).json({ error: 'Exam paper not found.' });
-  }
-  // Schools view exams/question papers only; only admins author them.
-  if (req.auth.role !== 'admin') {
-    return res.status(403).json({ error: 'Forbidden: only admins may modify exams' });
-  }
-
-  const tempDir = os.tmpdir ? os.tmpdir() : '/tmp';
-  const uniqueName = `upload_${Date.now()}_${path.basename(fileName)}`;
-  const tempFilePath = path.join(tempDir, uniqueName);
-
-  try {
-    const buffer = Buffer.from(base64Data, 'base64');
-    fs.writeFileSync(tempFilePath, buffer);
-
-    const safeSubject = (subject || 'General').replace(/["'\\]/g, '');
-
-    // execFile (not exec) passes each argument literally — no shell parsing, so examId/
-    // fileName/subject can never break out into shell metacharacters (command injection).
-    execFile(
-      'python3',
-      ['docx_parser.py', tempFilePath, examId, safeSubject],
-      { env: { ...process.env } },
-      async (error, stdout, stderr) => {
-        try {
-          if (fs.existsSync(tempFilePath)) {
-            fs.unlinkSync(tempFilePath);
-          }
-        } catch (cleanupErr) {
-          console.error('Temp file cleanup failed:', cleanupErr);
-        }
-
-        if (error) {
-          console.error('Python docx_parser exec error:', error);
-          console.error('Python stderr:', stderr);
-          return res.status(500).json({ error: 'Document parser execution failed.', details: stderr });
-        }
-
-        try {
-          const parsedDocResult = JSON.parse(stdout.trim());
-          if (!parsedDocResult.success) {
-            return res.status(400).json({ error: parsedDocResult.error || 'Document parsing returned failure status.' });
-          }
-
-          // Save parsed questions using Node Client SDK Firestore Reference
-          const questionsRef = clientCollection(clientDb, 'questions');
-          let savedCount = 0;
-
-          for (const parsedQuestion of parsedDocResult.questions || []) {
-            // `Number(x)` never actually returns null/undefined (missing/malformed input
-            // becomes NaN instead), so `Number(parsedQuestion.correctAnswerIndex) ?? 0` never
-            // falls back to 0 the way it looks like it should — a malformed import silently
-            // stored NaN as the correct-answer index, making that question ungradeable-correct
-            // for every student. Number.isFinite() is the actual check needed here.
-            const parsedCorrectAnswerIndex = Number(parsedQuestion.correctAnswerIndex);
-            const questionDoc = {
-              text: parsedQuestion.text || 'Untitled Question',
-              options: parsedQuestion.options || [],
-              correctAnswerIndex: Number.isFinite(parsedCorrectAnswerIndex) ? parsedCorrectAnswerIndex : 0,
-              marks: Number(parsedQuestion.marks) || 4,
-              examId: examId,
-              subject: parsedQuestion.subject || subject || 'General',
-              type: parsedQuestion.type || 'single',
-              numericalAnswer: String(parsedQuestion.numericalAnswer || ''),
-              explanation: parsedQuestion.explanation || ''
-            };
-            await clientAddDoc(questionsRef, questionDoc);
-            savedCount++;
-          }
-
-          return res.status(200).json({
-            success: true,
-            count: savedCount,
-            message: `Successfully imported ${savedCount} questions to assessment.`
-          });
-        } catch (parseErr) {
-          console.error('Failed to parse Python parser output or save questions:', stdout);
-          return res.status(500).json({
-            error: 'Invalid response from document parser or save questions failure.',
-            rawOutput: stdout,
-            details: stderr
-          });
-        }
-      }
-    );
-  } catch (err: any) {
-    console.error('Failed in document upload API handler:', err);
-    try {
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
-      }
-    } catch (cleanupErr) {
-      // Best-effort cleanup — a leftover temp file isn't worth failing the request over,
-      // but silently swallowing it made a real disk/permissions problem invisible.
-      console.warn('Failed to clean up temp upload file:', tempFilePath, cleanupErr);
+    if (!base64Data || !fileName) {
+      throw new BadRequestError('Missing required parameters: base64Data or fileName.');
     }
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
+
+    const examSnapForAuth = await clientGetDoc(clientDoc(clientDb, 'exams', examId));
+    if (!examSnapForAuth.exists()) {
+      throw new NotFoundError('Exam paper not found.');
+    }
+    // Schools view exams/question papers only; only admins author them.
+    if (req.auth.role !== 'admin') {
+      throw new ForbiddenError('Forbidden: only admins may modify exams');
+    }
+
+    const tempDir = os.tmpdir ? os.tmpdir() : '/tmp';
+    const uniqueName = `upload_${Date.now()}_${path.basename(fileName)}`;
+    const tempFilePath = path.join(tempDir, uniqueName);
+
+    try {
+      const buffer = Buffer.from(base64Data, 'base64');
+      fs.writeFileSync(tempFilePath, buffer);
+
+      const safeSubject = (subject || 'General').replace(/["'\\]/g, '');
+
+      // execFile (not exec) passes each argument literally — no shell parsing, so examId/
+      // fileName/subject can never break out into shell metacharacters (command injection).
+      execFile(
+        'python3',
+        ['docx_parser.py', tempFilePath, examId, safeSubject],
+        { env: { ...process.env } },
+        async (error, stdout, stderr) => {
+          try {
+            if (fs.existsSync(tempFilePath)) {
+              fs.unlinkSync(tempFilePath);
+            }
+          } catch (cleanupErr) {
+            console.error('Temp file cleanup failed:', cleanupErr);
+          }
+
+          if (error) {
+            console.error('Python docx_parser exec error:', error);
+            console.error('Python stderr:', stderr);
+            return res.status(500).json({ error: 'Document parser execution failed.', details: stderr });
+          }
+
+          try {
+            const parsedDocResult = JSON.parse(stdout.trim());
+            if (!parsedDocResult.success) {
+              return res.status(400).json({ error: parsedDocResult.error || 'Document parsing returned failure status.' });
+            }
+
+            // Save parsed questions using Node Client SDK Firestore Reference
+            const questionsRef = clientCollection(clientDb, 'questions');
+            let savedCount = 0;
+
+            for (const parsedQuestion of parsedDocResult.questions || []) {
+              // `Number(x)` never actually returns null/undefined (missing/malformed input
+              // becomes NaN instead), so `Number(parsedQuestion.correctAnswerIndex) ?? 0` never
+              // falls back to 0 the way it looks like it should — a malformed import silently
+              // stored NaN as the correct-answer index, making that question ungradeable-correct
+              // for every student. Number.isFinite() is the actual check needed here.
+              const parsedCorrectAnswerIndex = Number(parsedQuestion.correctAnswerIndex);
+              const questionDoc = {
+                text: parsedQuestion.text || 'Untitled Question',
+                options: parsedQuestion.options || [],
+                correctAnswerIndex: Number.isFinite(parsedCorrectAnswerIndex) ? parsedCorrectAnswerIndex : 0,
+                marks: Number(parsedQuestion.marks) || 4,
+                examId: examId,
+                subject: parsedQuestion.subject || subject || 'General',
+                type: parsedQuestion.type || 'single',
+                numericalAnswer: String(parsedQuestion.numericalAnswer || ''),
+                explanation: parsedQuestion.explanation || ''
+              };
+              await clientAddDoc(questionsRef, questionDoc);
+              savedCount++;
+            }
+
+            return res.status(200).json({
+              success: true,
+              count: savedCount,
+              message: `Successfully imported ${savedCount} questions to assessment.`
+            });
+          } catch (parseErr) {
+            console.error('Failed to parse Python parser output or save questions:', stdout);
+            return res.status(500).json({
+              error: 'Invalid response from document parser or save questions failure.',
+              rawOutput: stdout,
+              details: stderr
+            });
+          }
+        }
+      );
+    } catch (err: any) {
+      console.error('Failed in document upload API handler:', err);
+      try {
+        if (fs.existsSync(tempFilePath)) {
+          fs.unlinkSync(tempFilePath);
+        }
+      } catch (cleanupErr) {
+        // Best-effort cleanup — a leftover temp file isn't worth failing the request over,
+        // but silently swallowing it made a real disk/permissions problem invisible.
+        console.warn('Failed to clean up temp upload file:', tempFilePath, cleanupErr);
+      }
+      throw new InternalServerError(err.message || String(err));
+    }
+  })
+);
 
 export default router;

@@ -8,7 +8,9 @@ import './server/loadEnv';
 
 import { fileURLToPath } from 'url';
 import { PORT } from './server/config';
+import { requestContextMiddleware } from './server/lib/requestContext';
 import healthRouter from './server/routes/health';
+import clientErrorsRouter from './server/routes/clientErrors';
 import cloudinaryRouter from './server/routes/cloudinary';
 import firebaseStorageRouter from './server/routes/firebaseStorage';
 import gatekeeperRouter from './server/routes/gatekeeper';
@@ -50,7 +52,12 @@ app.use(compression());
 // Default express.json() limit (100kb) is too small for a full merit-list export payload
 // (thousands of student rows) — raised for that route without affecting anything else.
 app.use(express.json({ limit: '2mb' }));
+// Must run before every router below — everything downstream (routes, DAO calls, thrown
+// errors) executes inside this request's AsyncLocalStorage context, so logger.ts and
+// errorHandler.ts can read the trace id without it being threaded through every call site.
+app.use(requestContextMiddleware);
 app.use(healthRouter);
+app.use(clientErrorsRouter);
 app.use(cloudinaryRouter);
 app.use(firebaseStorageRouter);
 app.use(gatekeeperRouter);

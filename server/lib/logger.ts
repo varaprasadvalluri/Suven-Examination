@@ -14,10 +14,14 @@
 // existing console.* call in the codebase (see server/lib/logger.ts's sibling comment in the
 // project's quality-pass notes for why that's an intentional follow-up, not done in one pass).
 
+import { getTraceId } from './requestContext';
+
 type LogContext = Record<string, unknown>;
 
 function write(severity: 'INFO' | 'WARNING' | 'ERROR', message: string, context?: LogContext) {
   const entry: Record<string, unknown> = { severity, message, timestamp: new Date().toISOString() };
+  const traceId = getTraceId();
+  if (traceId) entry.traceId = traceId;
   if (context) {
     for (const [key, value] of Object.entries(context)) {
       // Error objects don't serialize usefully via plain JSON.stringify (message/stack are

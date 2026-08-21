@@ -2,6 +2,7 @@ import express from 'express';
 import * as XLSX from 'xlsx';
 import { requireSession, requireRole } from '../auth/middleware';
 import { clientDb, clientCollection, clientQuery, clientWhere, clientLimit, clientGetDocs } from '../firestoreClient';
+import { asyncHandler } from '../middleware/errorHandler';
 
 const router = express.Router();
 
@@ -46,14 +47,17 @@ const MAX_EXPORT_ROWS = 300000;
 // deliberately NOT dependent on whatever the browser currently has loaded (the on-screen
 // ranking table caps what it fetches for its own live-listener performance; export needs to
 // keep working even as total students grow well past what's safe to hold in a browser tab).
-router.post('/api/reports/merit-list-xlsx', requireSession, requireRole('admin', 'school'), async (req: any, res) => {
-  // school role can only ever export their own school, regardless of what's sent —
-  // same trust boundary authorizeWrite already applies to writes, applied here to reads.
-  const requestedSchoolId = req.body?.schoolId;
-  const effectiveSchoolId: string | undefined =
-    req.auth.role === 'school' ? req.auth.schoolId : requestedSchoolId && requestedSchoolId !== 'all' ? requestedSchoolId : undefined;
+router.post(
+  '/api/reports/merit-list-xlsx',
+  requireSession,
+  requireRole('admin', 'school'),
+  asyncHandler(async (req: any, res) => {
+    // school role can only ever export their own school, regardless of what's sent —
+    // same trust boundary authorizeWrite already applies to writes, applied here to reads.
+    const requestedSchoolId = req.body?.schoolId;
+    const effectiveSchoolId: string | undefined =
+      req.auth.role === 'school' ? req.auth.schoolId : requestedSchoolId && requestedSchoolId !== 'all' ? requestedSchoolId : undefined;
 
-  try {
     const schoolsSnap = await clientGetDocs(clientCollection(clientDb, 'schools'));
     const schoolNameMap = new Map<string, string>();
     schoolsSnap.docs.forEach((d) => schoolNameMap.set(d.id, (d.data() as any)?.name || d.id));
@@ -178,10 +182,7 @@ router.post('/api/reports/merit-list-xlsx', requireSession, requireRole('admin',
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.status(200).send(buffer);
-  } catch (err: any) {
-    console.error('[Merit List Export] Failed to generate XLSX:', err);
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
+  })
+);
 
 export default router;

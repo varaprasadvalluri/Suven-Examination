@@ -492,11 +492,15 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
     }
   }
 
+  // Echoes the server's requestContext.ts traceId — same purpose as apiService.ts's
+  // safeFetchJson: correlate a failed call here with its matching backend log line.
+  const traceId = crypto.randomUUID();
   try {
     const response = await fetch(url, {
       ...options,
-      headers: { ...authHeaders(), ...(options.headers || {}) }
+      headers: { ...authHeaders(), 'X-Request-Id': traceId, ...(options.headers || {}) }
     });
+    const responseTraceId = response.headers.get('X-Request-Id') || traceId;
     status = response.status;
 
     const durationMs = performance.now() - startTime;
@@ -544,8 +548,9 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
 
       // Attach the HTTP status so callers can react to auth failures (401) without
       // string-matching the message — see StudentDashboard.tsx's session-expiry handling.
-      const httpError = new Error(errorMessage) as Error & { status?: number };
+      const httpError = new Error(errorMessage) as Error & { status?: number; traceId?: string };
       httpError.status = response.status;
+      httpError.traceId = responseTraceId;
       throw httpError;
     }
 

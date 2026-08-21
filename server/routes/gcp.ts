@@ -2,6 +2,8 @@ import express from 'express';
 import { requireSession, requireRole } from '../auth/middleware';
 import { auth, detectedContainerProjectId, clientDb, clientCollection, clientGetDocs } from '../firestoreClient';
 import { createBreaker } from '../lib/circuitBreaker';
+import { asyncHandler } from '../middleware/errorHandler';
+import { InternalServerError } from '../lib/errors';
 
 // Each GCP API called here is already individually try/caught with a graceful per-field
 // error message on failure — the breaker only adds fail-fast behavior once a given API is
@@ -44,122 +46,123 @@ const router = express.Router();
  *       500:
  *         description: Firestore users scan failed
  */
-router.post('/api/gcp/sync-iam', requireSession, requireRole('admin'), async (req, res) => {
-  const logs: string[] = [];
-  const stats: Record<string, any> = {
-    usersScanned: 0,
-    rolesAssigned: 0,
-    bindingsCreated: 0
-  };
+router.post(
+  '/api/gcp/sync-iam',
+  requireSession,
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const logs: string[] = [];
+    const stats: Record<string, any> = {
+      usersScanned: 0,
+      rolesAssigned: 0,
+      bindingsCreated: 0
+    };
 
-  const addLog = (msg: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    console.log(`[IAM Sync] ${msg}`);
-    logs.push(`[${timestamp}] ${msg}`);
-  };
+    const addLog = (msg: string) => {
+      const timestamp = new Date().toLocaleTimeString();
+      console.log(`[IAM Sync] ${msg}`);
+      logs.push(`[${timestamp}] ${msg}`);
+    };
 
-  const targetProjectId = 'project-02bb6275-51ac-45e7-940';
-  addLog(`Initiating Automated IAM Policy Synchronization pipeline...`);
-  addLog(`Target GCP Project: "${targetProjectId}"`);
-  addLog(`Connecting to active Firestore database to retrieve authorized personnel...`);
+    const targetProjectId = 'project-02bb6275-51ac-45e7-940';
+    addLog(`Initiating Automated IAM Policy Synchronization pipeline...`);
+    addLog(`Target GCP Project: "${targetProjectId}"`);
+    addLog(`Connecting to active Firestore database to retrieve authorized personnel...`);
 
-  try {
-    // Fetch users with admin or coordinator privileges
-    const usersColRef = clientCollection(clientDb, 'users');
-    const usersSnap = await clientGetDocs(usersColRef);
+    try {
+      // Fetch users with admin or coordinator privileges
+      const usersColRef = clientCollection(clientDb, 'users');
+      const usersSnap = await clientGetDocs(usersColRef);
 
-    addLog(`Scanning users registry for administrative credentials...`);
+      addLog(`Scanning users registry for administrative credentials...`);
 
-    const staffMembers: { email: string; role: string; name: string }[] = [];
+      const staffMembers: { email: string; role: string; name: string }[] = [];
 
-    if (!usersSnap.empty) {
-      usersSnap.forEach((docSnap) => {
-        const userDoc = docSnap.data();
-        const isStaff =
-          userDoc.role === 'admin' ||
-          userDoc.role === 'super_admin' ||
-          userDoc.role === 'school_admin' ||
-          userDoc.role === 'system_admin' ||
-          userDoc.role === 'coordinator' ||
-          userDoc.isAdmin === true;
+      if (!usersSnap.empty) {
+        usersSnap.forEach((docSnap) => {
+          const userDoc = docSnap.data();
+          const isStaff =
+            userDoc.role === 'admin' ||
+            userDoc.role === 'super_admin' ||
+            userDoc.role === 'school_admin' ||
+            userDoc.role === 'system_admin' ||
+            userDoc.role === 'coordinator' ||
+            userDoc.isAdmin === true;
 
-        if (isStaff && userDoc.email) {
-          staffMembers.push({
-            email: userDoc.email,
-            role: userDoc.role || 'admin',
-            name: userDoc.name || 'Staff User'
-          });
-        }
-      });
-    }
+          if (isStaff && userDoc.email) {
+            staffMembers.push({
+              email: userDoc.email,
+              role: userDoc.role || 'admin',
+              name: userDoc.name || 'Staff User'
+            });
+          }
+        });
+      }
 
-    stats.usersScanned = staffMembers.length;
-    addLog(`Identified ${staffMembers.length} authorized staff members eligible for IAM privileges.`);
-
-    // If there are no staff members from DB, auto-populate with default organization emails
-    if (staffMembers.length === 0) {
-      addLog(`⚠️ No active staff accounts found in the database. Auto-populating with default organization emails for safety.`);
-      const defaultStaff = [
-        { email: process.env.PRIMARY_ADMIN_EMAIL || 'admin@suvenedu.demo', role: 'super_admin', name: 'Primary Admin' },
-        { email: process.env.OPERATIONS_ADMIN_EMAIL || 'operations@suvenedu.demo', role: 'coordinator', name: 'Operations Lead' }
-      ];
-      staffMembers.push(...defaultStaff);
       stats.usersScanned = staffMembers.length;
-    }
+      addLog(`Identified ${staffMembers.length} authorized staff members eligible for IAM privileges.`);
 
-    addLog(`Beginning role compilation for GCP Resource Manager IAM policy update...`);
-
-    // Define roles to be assigned
-    const rolesToAssign = [
-      'roles/datastore.owner', // Necessary for Firestore management
-      'roles/firebase.admin', // Necessary for Firebase management
-      'roles/resourcemanager.projectIamAdmin', // Manage other users
-      'roles/viewer' // General visibility
-    ];
-
-    addLog(`Fetching existing IAM Policy metadata for project "${targetProjectId}"...`);
-    await new Promise((resolve) => setTimeout(resolve, 800)); // Simulate API latency
-    addLog(`Successfully retrieved policy. ETag: "BwYp7-2Xv9k="`);
-
-    // Simulate binding process
-    for (const staff of staffMembers) {
-      addLog(`Syncing IAM Bindings for user: "${staff.email}" (${staff.name})`);
-
-      let rolesForUser = [...rolesToAssign];
-      if (staff.role === 'coordinator') {
-        rolesForUser = ['roles/datastore.owner', 'roles/viewer'];
+      // If there are no staff members from DB, auto-populate with default organization emails
+      if (staffMembers.length === 0) {
+        addLog(`⚠️ No active staff accounts found in the database. Auto-populating with default organization emails for safety.`);
+        const defaultStaff = [
+          { email: process.env.PRIMARY_ADMIN_EMAIL || 'admin@suvenedu.demo', role: 'super_admin', name: 'Primary Admin' },
+          { email: process.env.OPERATIONS_ADMIN_EMAIL || 'operations@suvenedu.demo', role: 'coordinator', name: 'Operations Lead' }
+        ];
+        staffMembers.push(...defaultStaff);
+        stats.usersScanned = staffMembers.length;
       }
 
-      for (const role of rolesForUser) {
-        addLog(`  -> Granting role "${role}" to member "user:${staff.email}"`);
-        await new Promise((resolve) => setTimeout(resolve, 100)); // micro latency
-        stats.rolesAssigned++;
-        stats.bindingsCreated++;
+      addLog(`Beginning role compilation for GCP Resource Manager IAM policy update...`);
+
+      // Define roles to be assigned
+      const rolesToAssign = [
+        'roles/datastore.owner', // Necessary for Firestore management
+        'roles/firebase.admin', // Necessary for Firebase management
+        'roles/resourcemanager.projectIamAdmin', // Manage other users
+        'roles/viewer' // General visibility
+      ];
+
+      addLog(`Fetching existing IAM Policy metadata for project "${targetProjectId}"...`);
+      await new Promise((resolve) => setTimeout(resolve, 800)); // Simulate API latency
+      addLog(`Successfully retrieved policy. ETag: "BwYp7-2Xv9k="`);
+
+      // Simulate binding process
+      for (const staff of staffMembers) {
+        addLog(`Syncing IAM Bindings for user: "${staff.email}" (${staff.name})`);
+
+        let rolesForUser = [...rolesToAssign];
+        if (staff.role === 'coordinator') {
+          rolesForUser = ['roles/datastore.owner', 'roles/viewer'];
+        }
+
+        for (const role of rolesForUser) {
+          addLog(`  -> Granting role "${role}" to member "user:${staff.email}"`);
+          await new Promise((resolve) => setTimeout(resolve, 100)); // micro latency
+          stats.rolesAssigned++;
+          stats.bindingsCreated++;
+        }
+        addLog(`✨ IAM Sync completed for "${staff.email}" [Status: ACTIVE]`);
       }
-      addLog(`✨ IAM Sync completed for "${staff.email}" [Status: ACTIVE]`);
+
+      addLog(`Applying transaction modifications and committing updated IAM Policy to GCP Cloud Resource Manager...`);
+      await new Promise((resolve) => setTimeout(resolve, 1200)); // final commit latency
+
+      addLog(`🎉 IAM Policy deployed successfully. Active bindings updated with zero downtime.`);
+      addLog(`All personnel have been granted complete Firestore ("suven-edu") and Firebase Administration privileges.`);
+
+      return res.status(200).json({
+        success: true,
+        logs,
+        stats,
+        targetProjectId
+      });
+    } catch (err: any) {
+      addLog(`❌ Sync error encountered: ${err.message || String(err)}`);
+      throw new InternalServerError(err.message || String(err), { success: false, logs });
     }
-
-    addLog(`Applying transaction modifications and committing updated IAM Policy to GCP Cloud Resource Manager...`);
-    await new Promise((resolve) => setTimeout(resolve, 1200)); // final commit latency
-
-    addLog(`🎉 IAM Policy deployed successfully. Active bindings updated with zero downtime.`);
-    addLog(`All personnel have been granted complete Firestore ("suven-edu") and Firebase Administration privileges.`);
-
-    return res.status(200).json({
-      success: true,
-      logs,
-      stats,
-      targetProjectId
-    });
-  } catch (err: any) {
-    addLog(`❌ Sync error encountered: ${err.message || String(err)}`);
-    return res.status(500).json({
-      success: false,
-      error: err.message || String(err),
-      logs
-    });
-  }
-});
+  })
+);
 
 // GCP LIVE BILLING & INFRASTRUCTURE MONITORING GATEWAY
 /**

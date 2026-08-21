@@ -3,6 +3,8 @@ import { verifyCloudTasksAuth } from '../middleware/verifyCloudTasksAuth';
 import { taskQueueService, GradingTaskDto } from '../lib/taskQueue';
 import { enqueueWrite } from '../db/writeQueue';
 import { logger } from '../lib/logger';
+import { asyncHandler } from '../middleware/errorHandler';
+import { BadRequestError, InternalServerError } from '../lib/errors';
 
 const router = express.Router();
 
@@ -54,37 +56,41 @@ const MAX_RETRY_BEFORE_GIVING_UP = 5;
  *       503:
  *         description: Cloud Tasks not configured on this deployment
  */
-router.post('/api/internal/grade-attempt', verifyCloudTasksAuth, async (req: any, res) => {
-  const dto = req.body as GradingTaskDto;
-  if (!dto?.attemptId || !dto?.examId || !dto?.studentId || !Array.isArray(dto.answers)) {
-    return res.status(400).json({ error: 'Missing attemptId, examId, studentId, or answers' });
-  }
-
-  try {
-    await taskQueueService.gradeAttempt(dto);
-    return res.status(200).json({ success: true, attemptId: dto.attemptId });
-  } catch (err: any) {
-    logger.error('Grade attempt worker failed', { attemptId: dto.attemptId, examId: dto.examId, error: err });
-
-    const retryCount = parseInt(req.headers['x-cloudtasks-taskretrycount'] || '0', 10);
-    if (retryCount >= MAX_RETRY_BEFORE_GIVING_UP) {
-      try {
-        await enqueueWrite({
-          type: 'update',
-          collectionName: 'attempts',
-          docId: dto.attemptId,
-          data: { status: 'grading_failed' }
-        });
-      } catch (markErr) {
-        logger.error('Also failed to mark attempt as grading_failed', { attemptId: dto.attemptId, error: markErr });
-      }
-      // 200, not 500, here — otherwise Cloud Tasks keeps retrying past this threshold until
-      // its own max-attempts config kicks in, which may not match MAX_RETRY_BEFORE_GIVING_UP.
-      return res.status(200).json({ success: false, attemptId: dto.attemptId, gaveUp: true });
+router.post(
+  '/api/internal/grade-attempt',
+  verifyCloudTasksAuth,
+  asyncHandler(async (req: any, res) => {
+    const dto = req.body as GradingTaskDto;
+    if (!dto?.attemptId || !dto?.examId || !dto?.studentId || !Array.isArray(dto.answers)) {
+      throw new BadRequestError('Missing attemptId, examId, studentId, or answers');
     }
 
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
+    try {
+      await taskQueueService.gradeAttempt(dto);
+      return res.status(200).json({ success: true, attemptId: dto.attemptId });
+    } catch (err: any) {
+      logger.error('Grade attempt worker failed', { attemptId: dto.attemptId, examId: dto.examId, error: err });
+
+      const retryCount = parseInt(req.headers['x-cloudtasks-taskretrycount'] || '0', 10);
+      if (retryCount >= MAX_RETRY_BEFORE_GIVING_UP) {
+        try {
+          await enqueueWrite({
+            type: 'update',
+            collectionName: 'attempts',
+            docId: dto.attemptId,
+            data: { status: 'grading_failed' }
+          });
+        } catch (markErr) {
+          logger.error('Also failed to mark attempt as grading_failed', { attemptId: dto.attemptId, error: markErr });
+        }
+        // 200, not 500, here — otherwise Cloud Tasks keeps retrying past this threshold until
+        // its own max-attempts config kicks in, which may not match MAX_RETRY_BEFORE_GIVING_UP.
+        return res.status(200).json({ success: false, attemptId: dto.attemptId, gaveUp: true });
+      }
+
+      throw new InternalServerError(err.message || String(err));
+    }
+  })
+);
 
 export default router;

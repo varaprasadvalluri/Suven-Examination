@@ -1,6 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { ShieldAlert, X, Copy, Check, RefreshCw, Terminal, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
-import { initializeGlobalErrorMiddleware } from '../lib/customErrors';
+import { initializeGlobalErrorMiddleware, reportClientCrash } from '../lib/customErrors';
 
 interface Props {
   children: ReactNode;
@@ -47,6 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     console.error('[CENTRAL RUNTIME RENDER CRASH CAUGHT BY ERROR BOUNDARY]:', error, errorInfo);
+    reportClientCrash({ message: error.message, stack: error.stack, code: 'REACT_RENDER_CRASH', action: 'React Render' });
   }
 
   // Listen to custom exceptions dispatched from any async flow

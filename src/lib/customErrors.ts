@@ -132,6 +132,30 @@ export function mapToCustomException(error: any, actionContext: string): CustomA
 }
 
 /**
+ * Best-effort report of a client-side exception to the server's centralized logger
+ * (POST /api/client-errors — see server/routes/clientErrors.ts), so it lands in the same
+ * structured Cloud Logging stream as backend errors instead of only ever existing in one
+ * user's browser console. Never throws, never blocks, never retries — this is diagnostics,
+ * not a feature request.
+ */
+export function reportClientCrash(payload: { message: string; stack?: string; code?: string; action?: string; traceId?: string }): void {
+  try {
+    fetch('/api/client-errors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // Survives a reload/navigation happening right after the crash (e.g. the
+      // ErrorBoundary's "Reload Portal Instance" button).
+      keepalive: true,
+      body: JSON.stringify({ ...payload, url: window.location.href, userAgent: navigator.userAgent })
+    }).catch(() => {
+      // Swallow — reporting a crash must never itself surface a new error to the user.
+    });
+  } catch {
+    // Swallow synchronous failures too (e.g. fetch/JSON unavailable in this environment).
+  }
+}
+
+/**
  * Handles, maps, logs the raw error to console for developers,
  * and broadcasts the custom error event for our global visual handler.
  */
@@ -149,6 +173,15 @@ export function handleErrorAndLog(error: any, actionContext: string): CustomAppE
     console.error('Raw Stack Trace:\n', error.stack);
   }
   console.groupEnd();
+
+  // 2b. Report to the centralized server log — see reportClientCrash() above.
+  reportClientCrash({
+    message: customException.friendlyMessage,
+    stack: error?.stack,
+    code: customException.code,
+    action: actionContext,
+    traceId: error?.traceId
+  });
 
   // 3. Display brief toast warning instantly
   toast.error(customException.friendlyMessage, {

@@ -69,15 +69,24 @@ export function serverTimestamp() {
 
 // Centralized safe fetch helper to prevent JSON parsing crashes on HTML responses and handle offline states gracefully
 async function safeFetchJson(url: string, options: RequestInit = {}, _isRetry = false): Promise<any> {
+  // Per-call trace id — echoes the server's requestContext.ts (see server/lib/requestContext.ts),
+  // so a failed call here and its matching backend log line share one id, the same way a Sleuth
+  // traceId lets you find one request's log lines across a Spring Boot service.
+  const traceId = crypto.randomUUID();
   try {
     const response = await fetch(url, {
       ...options,
-      headers: { ...authHeaders(), ...(options.headers || {}) }
+      headers: { ...authHeaders(), 'X-Request-Id': traceId, ...(options.headers || {}) }
     });
+    const responseTraceId = response.headers.get('X-Request-Id') || traceId;
 
     const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
-      throw new Error(`Server returned non-JSON response (status ${response.status}, content-type: ${contentType || 'none'}).`);
+      const err = new Error(
+        `Server returned non-JSON response (status ${response.status}, content-type: ${contentType || 'none'}).`
+      ) as Error & { traceId?: string };
+      err.traceId = responseTraceId;
+      throw err;
     }
 
     const payload = await response.json();
@@ -90,7 +99,9 @@ async function safeFetchJson(url: string, options: RequestInit = {}, _isRetry = 
         await new Promise((resolve) => setTimeout(resolve, 800));
         return safeFetchJson(url, options, true);
       }
-      throw new Error(payload.error || `HTTP error! status: ${response.status}`);
+      const err = new Error(payload.error || `HTTP error! status: ${response.status}`) as Error & { traceId?: string };
+      err.traceId = payload.traceId || responseTraceId;
+      throw err;
     }
 
     return payload;

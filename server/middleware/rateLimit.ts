@@ -53,3 +53,11 @@ export const storageUploadLimiter = rateLimit({
   limit: 10,
   message: { error: 'Too many upload requests. Please wait a few minutes and try again.' }
 });
+
+// Diagnostics sink, not a feature endpoint — a crash-looping client shouldn't be able to
+// flood server logs. Low limit is intentional.
+export const clientErrorReportLimiter = rateLimit({
+  ...commonConfig,
+  limit: 20,
+  message: { error: 'Too many error reports. Please wait a few minutes and try again.' }
+});

@@ -7,6 +7,8 @@ import { firebaseConfig } from '../config';
 import { storageUploadLimiter } from '../middleware/rateLimit';
 import { createBreaker } from '../lib/circuitBreaker';
 import { requireSession } from '../auth/middleware';
+import { asyncHandler } from '../middleware/errorHandler';
+import { BadRequestError, InternalServerError } from '../lib/errors';
 
 const router = express.Router();
 
@@ -94,14 +96,17 @@ function getBucket() {
  *       500:
  *         description: FIREBASE_STORAGE_BUCKET not configured, or signing failed
  */
-router.post('/api/storage/sign-upload', requireSession, storageUploadLimiter, async (req, res) => {
-  const { contentType } = req.body || {};
-  const ext = ALLOWED_CONTENT_TYPES[contentType];
-  if (!ext) {
-    return res.status(400).json({ error: 'Unsupported or missing contentType. Allowed: ' + Object.keys(ALLOWED_CONTENT_TYPES).join(', ') });
-  }
+router.post(
+  '/api/storage/sign-upload',
+  requireSession,
+  storageUploadLimiter,
+  asyncHandler(async (req, res) => {
+    const { contentType } = req.body || {};
+    const ext = ALLOWED_CONTENT_TYPES[contentType];
+    if (!ext) {
+      throw new BadRequestError('Unsupported or missing contentType. Allowed: ' + Object.keys(ALLOWED_CONTENT_TYPES).join(', '));
+    }
 
-  try {
     const bucket = getBucket();
     const objectPath = `questions/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`;
     const file = bucket.file(objectPath);
@@ -123,11 +128,8 @@ router.post('/api/storage/sign-upload', requireSession, storageUploadLimiter, as
       // secure_url already gives us today. See migration notes for the one-time gsutil step.
       downloadUrl: `https://storage.googleapis.com/${bucket.name}/${objectPath}`
     });
-  } catch (err: any) {
-    console.error('Firebase Storage signing error:', err);
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
+  })
+);
 
 // Centralized cleanup, mirrored on cleanupCloudinaryAsset in cloudinary.ts — takes the raw
 // `imagePublicId` field value (i.e. still carrying the FIREBASE_STORAGE_ID_PREFIX) so callers
@@ -177,17 +179,21 @@ export async function cleanupFirebaseStorageAsset(publicId: string | undefined |
  *       500:
  *         description: Not a Firebase Storage publicId, or deletion failed
  */
-router.post('/api/storage/delete', requireSession, async (req, res) => {
-  const { publicId } = req.body || {};
-  if (!publicId) {
-    return res.status(400).json({ error: 'Missing publicId' });
-  }
+router.post(
+  '/api/storage/delete',
+  requireSession,
+  asyncHandler(async (req, res) => {
+    const { publicId } = req.body || {};
+    if (!publicId) {
+      throw new BadRequestError('Missing publicId');
+    }
 
-  const cleanupResult = await cleanupFirebaseStorageAsset(publicId);
-  if (cleanupResult.success) {
-    return res.status(200).json({ success: true });
-  }
-  return res.status(500).json({ error: cleanupResult.error });
-});
+    const cleanupResult = await cleanupFirebaseStorageAsset(publicId);
+    if (cleanupResult.success) {
+      return res.status(200).json({ success: true });
+    }
+    throw new InternalServerError(cleanupResult.error || 'Failed to delete Firebase Storage object');
+  })
+);
 
 export default router;

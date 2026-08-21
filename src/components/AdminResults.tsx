@@ -9,8 +9,6 @@ import {
   query,
   where,
   getDocs,
-  addDoc,
-  updateDoc,
   limit,
   startAfter,
   getCountFromServer,
@@ -20,23 +18,7 @@ import {
 import { Attempt, Exam } from '../types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Button } from './ui/button';
-import {
-  ArrowLeft,
-  Download,
-  Users,
-  TrendingUp,
-  Award,
-  PlayCircle,
-  Loader2,
-  FileDown,
-  CheckCircle,
-  Brain,
-  AlertTriangle,
-  ShieldAlert,
-  Sparkles,
-  Clock,
-  RotateCcw
-} from 'lucide-react';
+import { ArrowLeft, Download, Users, TrendingUp, Award, Brain, AlertTriangle, ShieldAlert, Sparkles, Clock, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { ConfirmationDialog } from './ConfirmationDialog';
@@ -53,12 +35,6 @@ export const AdminResults: React.FC = () => {
   // Pagination State
   const [page, setPage] = useState(1);
   const pageSize = 10;
-
-  // Background report generation state parameters
-  const [isGeneratingBulk, setIsGeneratingBulk] = useState(false);
-  const [jobProgress, setJobProgress] = useState(0);
-  const [activeJobDocId, setActiveJobDocId] = useState<string | null>(null);
-  const [downloadZipUrl, setDownloadZipUrl] = useState<string | null>(null);
 
   const { profile } = useAuth();
   const canViewResults = profile?.permissions?.includes('view_results');
@@ -332,69 +308,6 @@ export const AdminResults: React.FC = () => {
     });
   }, [questions, analyticsAttempts, exam]);
 
-  // MODULE 4: Bulk PDF Generation triggers
-  const handleTriggerBulkPdfReport = async () => {
-    if (attempts.length === 0) {
-      toast.error('No student attempts available to generate reports.');
-      return;
-    }
-
-    setIsGeneratingBulk(true);
-    setJobProgress(5);
-    setDownloadZipUrl(null);
-
-    try {
-      // 1. Register job in Firestore
-      const jobRef = await addDoc(collection(db, 'report_jobs'), {
-        examId: examId,
-        schoolId: profile?.schoolId || 'school-general-head',
-        status: 'queued',
-        progressPercent: 5,
-        totalStudents: attempts.length,
-        processedCount: 0,
-        createdAt: new Date().toISOString()
-      });
-
-      setActiveJobDocId(jobRef.id);
-      toast.success('Job submitted to Cloud Functions task queue.');
-
-      // 2. Fire the background worker simulation (syncing Firestore checkpoints)
-      let currentProgress = 5;
-      const interval = setInterval(async () => {
-        currentProgress += 15;
-        if (currentProgress >= 100) {
-          currentProgress = 100;
-          clearInterval(interval);
-
-          const finalPath = `institutions/${profile?.schoolId}/downloads/${Date.now()}_bulk_reports.zip`;
-          const secureUrl = `http://example.com/mock-storage/${encodeURIComponent(finalPath)}?alt=media`;
-
-          await updateDoc(doc(db, 'report_jobs', jobRef.id), {
-            status: 'completed',
-            progressPercent: 100,
-            downloadUrl: secureUrl,
-            completedAt: new Date().toISOString()
-          });
-
-          setDownloadZipUrl(secureUrl);
-          setIsGeneratingBulk(false);
-          toast.success('Background PDF report generation complete!');
-        } else {
-          setJobProgress(currentProgress);
-          await updateDoc(doc(db, 'report_jobs', jobRef.id), {
-            status: 'processing',
-            progressPercent: currentProgress,
-            processedCount: Math.floor((currentProgress / 100) * attempts.length)
-          });
-        }
-      }, 700);
-    } catch (err: any) {
-      console.error(err);
-      toast.error('Failed to register background job');
-      setIsGeneratingBulk(false);
-    }
-  };
-
   if (!canViewResults)
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in duration-500">
@@ -474,88 +387,14 @@ export const AdminResults: React.FC = () => {
         </div>
       </div>
 
-      {/* ============================================================================
-          MODULE 4 & 5 INTEGRATION: ENTERPRISE JOB BUNDLER & QUESTION ANALYTICS
-          ============================================================================ */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start my-8">
-        {/* LEFT BAR: Bulk Reports Generator Manager Node (Module 4) */}
-        <div className="lg:col-span-4 bg-slate-900 text-slate-100 p-6 rounded-[24px] border-b-4 border-slate-950 flex flex-col gap-5 shadow-xl">
-          <div>
-            <span className="flex items-center gap-1.5 bg-indigo-500/15 border border-indigo-400/25 text-indigo-300 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full w-fit mb-2 font-mono">
-              Enterprise Bulk Handshake
-            </span>
-            <h3 className="text-base font-black tracking-tight text-white leading-tight font-display">Background Report Generator</h3>
-            <p className="text-[11px] text-slate-400 font-medium mt-1 leading-normal">
-              Spins up an isolated asynchronous Node.js process to draft individual student performance sheets, archive them into a single
-              section folder, and pipe the secure download ZIP endpoint back here.
-            </p>
-          </div>
-
-          {!isGeneratingBulk && !downloadZipUrl ? (
-            <Button
-              onClick={handleTriggerBulkPdfReport}
-              className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider gap-2 shadow-lg"
-            >
-              <PlayCircle size={15} /> Request Section PDF ZIP
-            </Button>
-          ) : isGeneratingBulk ? (
-            <div className="space-y-3 bg-slate-950/40 p-4 rounded-xl border border-slate-800">
-              <div className="flex justify-between items-center text-[10px]">
-                <span className="text-indigo-300 font-bold uppercase tracking-wider flex items-center gap-1.5 font-mono">
-                  <Loader2 size={12} className="animate-spin text-indigo-400" />
-                  Cloud Task: {activeJobDocId?.substring(0, 8)}...
-                </span>
-                <span className="font-mono font-bold text-white">{jobProgress}%</span>
-              </div>
-
-              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                <div className="bg-indigo-550 h-full transition-all duration-300 rounded-full" style={{ width: `${jobProgress}%` }} />
-              </div>
-
-              <p className="text-[9px] text-slate-500 font-medium text-center">Generating Vector PDFs & packing into ZIP.</p>
-            </div>
-          ) : (
-            <div className="space-y-4 bg-emerald-950/35 border border-emerald-500/20 p-4 rounded-xl">
-              <div className="flex gap-2.5 items-start">
-                <CheckCircle className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block leading-tight font-mono">
-                    Bundle ZIP Compiled
-                  </span>
-                  <p className="text-[10px] text-slate-300 font-semibold mt-1">
-                    Your section-wide PDF batch has been prepared and encrypted securely in Storage.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => window.open(downloadZipUrl || '', '_blank')}
-                  className="flex-1 h-9 bg-emerald-600 hover:bg-emerald-750 text-white text-[10px] font-black uppercase tracking-widest gap-1.5 rounded-lg border-none cursor-pointer"
-                >
-                  <FileDown size={13} /> Download ZIP
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setDownloadZipUrl(null);
-                    setActiveJobDocId(null);
-                  }}
-                  className="h-9 px-3 border-slate-700 hover:bg-slate-850 hover:text-white bg-slate-800 text-white text-[10px] font-black uppercase"
-                >
-                  Clear Job
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <div className="text-[9px] text-slate-500 italic leading-snug border-t border-slate-800/60 pt-3">
-            * Complete Section Reports: Compiles all finished, checked student attempts for Section A.
-          </div>
-        </div>
-
-        {/* RIGHT DASHBOARD: Detailed Question-Level Anomalies & Metrics (Module 5) */}
-        <div className="lg:col-span-8 space-y-4">
+      {/* Question-Level Anomalies & Metrics. This used to sit alongside a "bulk PDF ZIP
+          export" panel that was entirely fake — a setInterval-driven fake progress bar
+          ending in a download link pointing at a literal example.com placeholder, no real
+          PDF or ZIP ever generated. Removed outright: this app has no real PDF-generation
+          pipeline (no library, no server endpoint) to make it real, and a fabricated
+          "success" state for a destructive-looking export is actively misleading. */}
+      <div className="my-8">
+        <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
               <h3 className="text-base font-black tracking-tight text-slate-950 leading-tight">Question Item-Response Analytics</h3>

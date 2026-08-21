@@ -271,6 +271,25 @@ export const ResultDetails: React.FC = () => {
   const isStudent = profile?.role === 'student';
 
   if (isStudent) {
+    const resultSubjectColor: Record<string, { bg: string; border: string; text: string }> = {
+      Mathematics: { bg: '#FFE28A', border: '#E8B92E', text: '#7A5B00' },
+      Physics: { bg: '#B5F2D2', border: '#4CBE86', text: '#0F5132' },
+      Science: { bg: '#B5F2D2', border: '#4CBE86', text: '#0F5132' },
+      'Computer Science': { bg: '#BAE6FD', border: '#38BDF8', text: '#075985' },
+      English: { bg: '#FFB2B8', border: '#F45C6B', text: '#7A1224' },
+      'General Knowledge': { bg: '#E1CCFF', border: '#B586F0', text: '#4C1D95' }
+    };
+    const resultColor = resultSubjectColor[exam.subject || ''] || { bg: '#FFD2C4', border: '#F0916E', text: '#7C2D12' };
+    // Small one-shot confetti flourish on mount — plain motion.span dots, no new dependency.
+    const CONFETTI_DOTS = [
+      { x: -60, y: -40, color: '#f2a81e', delay: 0 },
+      { x: 55, y: -55, color: '#4CBE86', delay: 0.04 },
+      { x: -35, y: 45, color: '#38BDF8', delay: 0.08 },
+      { x: 65, y: 35, color: '#F45C6B', delay: 0.05 },
+      { x: 0, y: -65, color: '#B586F0', delay: 0.02 },
+      { x: -70, y: 10, color: '#f2a81e', delay: 0.1 }
+    ];
+
     return (
       <div className="max-w-3xl mx-auto space-y-8 pb-20">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -288,26 +307,40 @@ export const ResultDetails: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-[#0F172A] p-6 md:p-10 rounded-[32px] text-white shadow-2xl relative overflow-hidden text-center md:text-left"
+          className="bg-[#0B1E3F] p-6 md:p-10 rounded-[32px] text-white shadow-2xl relative overflow-hidden text-center md:text-left"
         >
-          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-emerald-600/20 rounded-full blur-[100px]" />
+          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-[#f2a81e]/20 rounded-full blur-[100px]" />
+
+          {/* One-shot confetti burst, positioned relative to the shield badge */}
+          <div className="absolute right-10 top-10 hidden md:block pointer-events-none">
+            {CONFETTI_DOTS.map((dot, i) => (
+              <motion.span
+                key={i}
+                className="absolute h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: dot.color }}
+                initial={{ x: 0, y: 0, opacity: 1, scale: 0 }}
+                animate={{ x: dot.x, y: dot.y, opacity: 0, scale: 1 }}
+                transition={{ duration: 0.6, delay: dot.delay, ease: 'easeOut' }}
+              />
+            ))}
+          </div>
+
           <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
             <div className="space-y-4 flex-1">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-[0.25em] text-emerald-400">
                 <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                Secure Submission Receipt
+                Submission Confirmed
               </div>
               <h1 className="text-2xl md:text-4xl font-display font-black tracking-tight leading-tight uppercase">
-                Attempt Securely Logged! ✓
+                Nice work — you're all done! ✓
               </h1>
               <p className="text-slate-400 text-sm font-semibold max-w-lg leading-relaxed">
-                Great work! Your answers have been encrypted, verified, and successfully transmitted to your school's secure evaluation
-                directory.
+                Your answers have been saved and sent to your school for evaluation. Great job showing up and giving it your best shot!
               </p>
               <div className="pt-2 text-xs text-slate-500 leading-normal">
                 <p>
                   <strong>Receipt Token:</strong>{' '}
-                  <code className="text-emerald-400 font-mono text-[10px]">
+                  <code className="text-[#f2a81e] font-mono text-[10px]">
                     {attempt.id?.substring(0, 8).toUpperCase()}-{(attempt.startTime || '').substring(0, 10)}
                   </code>
                 </p>
@@ -317,15 +350,26 @@ export const ResultDetails: React.FC = () => {
               </div>
             </div>
 
-            <div className="shrink-0 w-32 h-32 rounded-3xl bg-emerald-500/10 border-2 border-emerald-500/20 flex flex-col items-center justify-center relative select-none">
+            <div className="shrink-0 w-32 h-32 rounded-3xl bg-[#f2a81e]/10 border-2 border-[#f2a81e]/30 flex flex-col items-center justify-center relative select-none">
               <span className="text-5xl">🛡️</span>
               <span className="text-[10px] uppercase font-black tracking-widest text-emerald-400 mt-2">Verified</span>
             </div>
           </div>
         </motion.div>
 
-        <Card className="rounded-[28px] border-2 border-slate-200 border-b-[6px] shadow-sm overflow-hidden bg-white p-5 md:p-8 space-y-6">
-          <h3 className="text-lg font-black uppercase tracking-wider text-slate-800 font-display">📋 Assessment Profile Overview</h3>
+        <Card
+          className="rounded-[28px] border-2 border-b-[6px] shadow-sm overflow-hidden bg-white p-5 md:p-8 space-y-6"
+          style={{ borderColor: resultColor.border }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="h-10 w-10 rounded-xl border-2 flex items-center justify-center shrink-0 text-base font-black"
+              style={{ backgroundColor: resultColor.bg, borderColor: resultColor.border, color: resultColor.text }}
+            >
+              {(exam.subject || '?').charAt(0).toUpperCase()}
+            </div>
+            <h3 className="text-lg font-black uppercase tracking-wider text-slate-800 font-display">Assessment Overview</h3>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-150">
             <div className="space-y-1">
@@ -338,7 +382,9 @@ export const ResultDetails: React.FC = () => {
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none font-display">
                 Category Subject
               </span>
-              <p className="text-indigo-600 font-black text-sm uppercase">{exam.subject || 'General'}</p>
+              <p className="font-black text-sm uppercase" style={{ color: resultColor.text }}>
+                {exam.subject || 'General'}
+              </p>
             </div>
             <div className="space-y-1">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none font-display">

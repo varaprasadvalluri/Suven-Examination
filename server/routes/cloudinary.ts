@@ -3,6 +3,8 @@ import { v2 as cloudinary } from 'cloudinary';
 import { cloudinaryUploadLimiter } from '../middleware/rateLimit';
 import { createBreaker } from '../lib/circuitBreaker';
 import { requireSession } from '../auth/middleware';
+import { asyncHandler } from '../middleware/errorHandler';
+import { BadRequestError, InternalServerError } from '../lib/errors';
 
 const router = express.Router();
 
@@ -93,13 +95,16 @@ function getCloudinary() {
  *       500:
  *         description: Cloudinary not configured, or upload failed
  */
-router.post('/api/cloudinary/upload', requireSession, cloudinaryUploadLimiter, async (req, res) => {
-  const { image } = req.body;
-  if (!image) {
-    return res.status(400).json({ error: 'Missing image data' });
-  }
+router.post(
+  '/api/cloudinary/upload',
+  requireSession,
+  cloudinaryUploadLimiter,
+  asyncHandler(async (req, res) => {
+    const { image } = req.body;
+    if (!image) {
+      throw new BadRequestError('Missing image data');
+    }
 
-  try {
     const cld = getCloudinary();
     const uploadResult = await uploadToCloudinary(cld, image);
     return res.status(200).json({
@@ -107,11 +112,8 @@ router.post('/api/cloudinary/upload', requireSession, cloudinaryUploadLimiter, a
       secure_url: uploadResult.secure_url,
       public_id: uploadResult.public_id
     });
-  } catch (err: any) {
-    console.error('Cloudinary upload error:', err);
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
+  })
+);
 
 // 1.5. Generate signed upload signature and parameters for direct client upload (highly secure & credit-friendly)
 /**
@@ -142,8 +144,11 @@ router.post('/api/cloudinary/upload', requireSession, cloudinaryUploadLimiter, a
  *       500:
  *         description: Cloudinary not configured, or signing failed
  */
-router.post('/api/cloudinary/sign', requireSession, cloudinaryUploadLimiter, async (req, res) => {
-  try {
+router.post(
+  '/api/cloudinary/sign',
+  requireSession,
+  cloudinaryUploadLimiter,
+  asyncHandler(async (req, res) => {
     const cld = getCloudinary();
     const timestamp = Math.round(new Date().getTime() / 1000);
     const folder = 'suven_exams';
@@ -181,11 +186,8 @@ router.post('/api/cloudinary/sign', requireSession, cloudinaryUploadLimiter, asy
       cloud_name: cloudName,
       folder
     });
-  } catch (err: any) {
-    console.error('Cloudinary signing error:', err);
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
+  })
+);
 
 // 1.9. Helper function to clean up Cloudinary assets when questions or exams are deleted
 /**
@@ -238,13 +240,15 @@ export async function cleanupCloudinaryAsset(
  *       500:
  *         description: Deletion failed
  */
-router.post('/api/cloudinary/delete', requireSession, async (req, res) => {
-  const { publicId } = req.body;
-  if (!publicId) {
-    return res.status(400).json({ error: 'Missing publicId' });
-  }
+router.post(
+  '/api/cloudinary/delete',
+  requireSession,
+  asyncHandler(async (req, res) => {
+    const { publicId } = req.body;
+    if (!publicId) {
+      throw new BadRequestError('Missing publicId');
+    }
 
-  try {
     const cleanupResult = await cleanupCloudinaryAsset(publicId);
     if (cleanupResult.success) {
       return res.status(200).json({
@@ -252,12 +256,9 @@ router.post('/api/cloudinary/delete', requireSession, async (req, res) => {
         result: cleanupResult.result
       });
     } else {
-      return res.status(500).json({ error: cleanupResult.error });
+      throw new InternalServerError(cleanupResult.error || 'Failed to delete Cloudinary asset');
     }
-  } catch (err: any) {
-    console.error('Cloudinary delete route error:', err);
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
+  })
+);
 
 export default router;

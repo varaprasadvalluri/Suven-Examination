@@ -12,6 +12,8 @@ import {
   clientQuery,
   clientWhere
 } from '../firestoreClient';
+import { asyncHandler } from '../middleware/errorHandler';
+import { UnauthorizedError, BadRequestError, ForbiddenError, NotFoundError, InternalServerError } from '../lib/errors';
 
 const router = express.Router();
 
@@ -45,30 +47,31 @@ const router = express.Router();
  *         description: Server/Firestore error
  */
 // SECURE SERVER-SIDE AUTHENTICATION ENDPOINTS
-router.post('/api/auth/validate', async (req, res) => {
-  // uid/email must come from a verified Firebase ID token, never trusted from the request
-  // body directly — otherwise any client could mint a session for an arbitrary uid.
-  const authHeader = req.headers.authorization;
-  const idToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : req.body.idToken;
-  if (!idToken) {
-    return res.status(401).json({ error: 'Missing Firebase ID token' });
-  }
+router.post(
+  '/api/auth/validate',
+  asyncHandler(async (req, res) => {
+    // uid/email must come from a verified Firebase ID token, never trusted from the request
+    // body directly — otherwise any client could mint a session for an arbitrary uid.
+    const authHeader = req.headers.authorization;
+    const idToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : req.body.idToken;
+    if (!idToken) {
+      throw new UnauthorizedError('Missing Firebase ID token');
+    }
 
-  let uid: string, email: string | null, displayName: string | null;
-  try {
-    const decoded = await verifyFirebaseIdToken(idToken);
-    uid = decoded.uid;
-    email = decoded.email;
-    displayName = decoded.name || req.body.displayName || null;
-  } catch (err: any) {
-    console.error('[Auth] Firebase ID token verification failed:', err?.message || err);
-    return res.status(401).json({ error: 'Invalid or expired authentication token' });
-  }
+    let uid: string, email: string | null, displayName: string | null;
+    try {
+      const decoded = await verifyFirebaseIdToken(idToken);
+      uid = decoded.uid;
+      email = decoded.email;
+      displayName = decoded.name || req.body.displayName || null;
+    } catch (err: any) {
+      console.error('[Auth] Firebase ID token verification failed:', err?.message || err);
+      throw new UnauthorizedError('Invalid or expired authentication token');
+    }
 
-  const emailLower = email?.toLowerCase() || '';
-  const userRef = clientDoc(clientDb, 'users', uid);
+    const emailLower = email?.toLowerCase() || '';
+    const userRef = clientDoc(clientDb, 'users', uid);
 
-  try {
     const docSnap = await clientGetDoc(userRef);
 
     // 1. Check if there is an existing profile in users by querying email
@@ -239,11 +242,8 @@ router.post('/api/auth/validate', async (req, res) => {
       sessionToken,
       profile: finalProfile
     });
-  } catch (err: any) {
-    console.error('Error validating session in server:', err);
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
+  })
+);
 
 /**
  * @openapi
@@ -281,113 +281,114 @@ router.post('/api/auth/validate', async (req, res) => {
  *       500:
  *         description: Server/Firestore error
  */
-router.post('/api/auth/create-profile', async (req, res) => {
-  // uid/email must come from a verified Firebase ID token, never trusted from the request
-  // body directly — otherwise any client could create/overwrite a profile for an arbitrary uid.
-  const authHeader = req.headers.authorization;
-  const idToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : req.body.idToken;
-  if (!idToken) {
-    return res.status(401).json({ error: 'Missing Firebase ID token' });
-  }
+router.post(
+  '/api/auth/create-profile',
+  asyncHandler(async (req, res) => {
+    // uid/email must come from a verified Firebase ID token, never trusted from the request
+    // body directly — otherwise any client could create/overwrite a profile for an arbitrary uid.
+    const authHeader = req.headers.authorization;
+    const idToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : req.body.idToken;
+    if (!idToken) {
+      throw new UnauthorizedError('Missing Firebase ID token');
+    }
 
-  let uid: string, email: string;
-  try {
-    const decoded = await verifyFirebaseIdToken(idToken);
-    uid = decoded.uid;
-    email = decoded.email || '';
-  } catch (err: any) {
-    console.error('[Auth] Firebase ID token verification failed:', err?.message || err);
-    return res.status(401).json({ error: 'Invalid or expired authentication token' });
-  }
-
-  const { name, role, schoolId } = req.body;
-  if (!uid || !email) {
-    return res.status(400).json({ error: 'Verified token is missing uid or email' });
-  }
-
-  const emailLower = email.toLowerCase();
-
-  // 1. Block public admin self-registration completely
-  if (role === 'admin') {
-    return res.status(403).json({
-      error: 'Admin self-registration is disabled. Admin accounts must be manually created in Firestore by the system administrator.'
-    });
-  }
-
-  // 2. Server-side validation for school role
-  let validSchoolId = schoolId;
-  if (role === 'school') {
-    let isAuthorized = false;
+    let uid: string, email: string;
     try {
-      // Check allowed_schools by email
-      const allowedSchoolsRef = clientCollection(clientDb, 'allowed_schools');
-      const allowedSchoolByEmailQuery = clientQuery(allowedSchoolsRef, clientWhere('email', '==', emailLower));
-      const snap = await clientGetDocs(allowedSchoolByEmailQuery);
+      const decoded = await verifyFirebaseIdToken(idToken);
+      uid = decoded.uid;
+      email = decoded.email || '';
+    } catch (err: any) {
+      console.error('[Auth] Firebase ID token verification failed:', err?.message || err);
+      throw new UnauthorizedError('Invalid or expired authentication token');
+    }
 
-      if (!snap.empty) {
-        isAuthorized = true;
-        validSchoolId = snap.docs[0].data()?.schoolId || 'school-' + uid;
-      } else {
-        // Check schools collection by adminEmail
-        const schoolsRef = clientCollection(clientDb, 'schools');
-        const qSchools = clientQuery(schoolsRef, clientWhere('adminEmail', '==', emailLower));
-        const snapSchools = await clientGetDocs(qSchools);
+    const { name, role, schoolId } = req.body;
+    if (!uid || !email) {
+      throw new BadRequestError('Verified token is missing uid or email');
+    }
 
-        if (!snapSchools.empty) {
+    const emailLower = email.toLowerCase();
+
+    // 1. Block public admin self-registration completely
+    if (role === 'admin') {
+      throw new ForbiddenError(
+        'Admin self-registration is disabled. Admin accounts must be manually created in Firestore by the system administrator.'
+      );
+    }
+
+    // 2. Server-side validation for school role
+    let validSchoolId = schoolId;
+    if (role === 'school') {
+      let isAuthorized = false;
+      try {
+        // Check allowed_schools by email
+        const allowedSchoolsRef = clientCollection(clientDb, 'allowed_schools');
+        const allowedSchoolByEmailQuery = clientQuery(allowedSchoolsRef, clientWhere('email', '==', emailLower));
+        const snap = await clientGetDocs(allowedSchoolByEmailQuery);
+
+        if (!snap.empty) {
           isAuthorized = true;
-          validSchoolId = snapSchools.docs[0].id;
+          validSchoolId = snap.docs[0].data()?.schoolId || 'school-' + uid;
         } else {
-          // Check allowedDomains in schools collection
-          const allSchools = await clientGetDocs(schoolsRef);
-          const found = allSchools.docs.find((docSnap) => {
-            const schoolDoc = docSnap.data();
-            if (!schoolDoc) return false;
-            const isEmailMatch = (schoolDoc.adminEmail || '').trim().toLowerCase() === emailLower;
-            const emailDomain = emailLower.split('@')[1];
-            const isDomainMatch =
-              emailDomain &&
-              Array.isArray(schoolDoc.allowedDomains) &&
-              schoolDoc.allowedDomains.map((domain: string) => domain.trim().toLowerCase()).includes(emailDomain.toLowerCase());
-            return isEmailMatch || isDomainMatch;
-          });
+          // Check schools collection by adminEmail
+          const schoolsRef = clientCollection(clientDb, 'schools');
+          const qSchools = clientQuery(schoolsRef, clientWhere('adminEmail', '==', emailLower));
+          const snapSchools = await clientGetDocs(qSchools);
 
-          if (found) {
+          if (!snapSchools.empty) {
             isAuthorized = true;
-            validSchoolId = found.id;
+            validSchoolId = snapSchools.docs[0].id;
+          } else {
+            // Check allowedDomains in schools collection
+            const allSchools = await clientGetDocs(schoolsRef);
+            const found = allSchools.docs.find((docSnap) => {
+              const schoolDoc = docSnap.data();
+              if (!schoolDoc) return false;
+              const isEmailMatch = (schoolDoc.adminEmail || '').trim().toLowerCase() === emailLower;
+              const emailDomain = emailLower.split('@')[1];
+              const isDomainMatch =
+                emailDomain &&
+                Array.isArray(schoolDoc.allowedDomains) &&
+                schoolDoc.allowedDomains.map((domain: string) => domain.trim().toLowerCase()).includes(emailDomain.toLowerCase());
+              return isEmailMatch || isDomainMatch;
+            });
+
+            if (found) {
+              isAuthorized = true;
+              validSchoolId = found.id;
+            }
           }
         }
+      } catch (err) {
+        console.error('School validation error:', err);
+        throw new InternalServerError('Internal server error during validation');
       }
 
       if (!isAuthorized) {
-        return res.status(403).json({
-          error: `Registration denied: The email address (${emailLower}) has not been onboarded by an Admin. Please contact the administrator to onboard your school before creating an account.`
-        });
+        throw new ForbiddenError(
+          `Registration denied: The email address (${emailLower}) has not been onboarded by an Admin. Please contact the administrator to onboard your school before creating an account.`
+        );
       }
-    } catch (err) {
-      console.error('School validation error:', err);
-      return res.status(500).json({ error: 'Internal server error during validation' });
     }
-  }
 
-  const permissions =
-    role === 'admin'
-      ? ['manage_exams', 'view_results']
-      : role === 'school'
-        ? ['manage_exams', 'view_results', 'manage_students']
-        : ['take_exams'];
+    const permissions =
+      role === 'admin'
+        ? ['manage_exams', 'view_results']
+        : role === 'school'
+          ? ['manage_exams', 'view_results', 'manage_students']
+          : ['take_exams'];
 
-  const userRef = clientDoc(clientDb, 'users', uid);
-  const newProfile = {
-    uid,
-    name,
-    email: emailLower,
-    role,
-    permissions,
-    createdAt: new Date().toISOString(),
-    ...(validSchoolId ? { schoolId: validSchoolId } : {})
-  };
+    const userRef = clientDoc(clientDb, 'users', uid);
+    const newProfile = {
+      uid,
+      name,
+      email: emailLower,
+      role,
+      permissions,
+      createdAt: new Date().toISOString(),
+      ...(validSchoolId ? { schoolId: validSchoolId } : {})
+    };
 
-  try {
     await clientSetDoc(userRef, newProfile);
 
     const sessionToken = signSessionToken({
@@ -402,11 +403,8 @@ router.post('/api/auth/create-profile', async (req, res) => {
       sessionToken,
       profile: newProfile
     });
-  } catch (err: any) {
-    console.error('Error creating profile in server:', err);
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
+  })
+);
 
 /**
  * @openapi
@@ -430,17 +428,16 @@ router.post('/api/auth/create-profile', async (req, res) => {
 // Returns the caller's full current profile (session tokens only carry uid/role/schoolId,
 // not name/permissions/etc.) — a deliberate Firestore read, since this is a low-frequency
 // "fetch my full profile" call, not the hot exam-taking path.
-router.get('/api/auth/session', requireSession, async (req: any, res) => {
-  try {
+router.get(
+  '/api/auth/session',
+  requireSession,
+  asyncHandler(async (req: any, res) => {
     const userSnap = await clientGetDoc(clientDoc(clientDb, 'users', req.auth.uid));
     if (!userSnap.exists()) {
-      return res.status(404).json({ error: 'User profile not found' });
+      throw new NotFoundError('User profile not found');
     }
     return res.status(200).json({ success: true, profile: userSnap.data() });
-  } catch (err: any) {
-    console.error('Error validating session token in server:', err);
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
+  })
+);
 
 export default router;
