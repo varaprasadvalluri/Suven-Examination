@@ -12,7 +12,7 @@ import globals from 'globals';
 // baseline is adopted, not a blocker for having linting at all.
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'Suven-Examination/**', 'node_modules/**', '*.min.js']
+    ignores: ['dist/**', 'Suven-Examination/**', 'node_modules/**', '*.min.js', 'android/**', 'ios/**']
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

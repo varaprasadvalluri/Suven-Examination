@@ -15,10 +15,15 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:migrate": "tsx --tsconfig tsconfig.server.json migrate-db.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "android:sync": "vite build && npx cap sync android"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
     "@fontsource-variable/geist": "^5.2.8",
     "@google-cloud/tasks": "^7.0.0",
     "@google/genai": "^1.29.0",
