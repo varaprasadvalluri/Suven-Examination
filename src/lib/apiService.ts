@@ -70,27 +70,27 @@ export function serverTimestamp() {
 // Centralized safe fetch helper to prevent JSON parsing crashes on HTML responses and handle offline states gracefully
 async function safeFetchJson(url: string, options: RequestInit = {}, _isRetry = false): Promise<any> {
   try {
-    const res = await fetch(url, {
+    const response = await fetch(url, {
       ...options,
       headers: { ...authHeaders(), ...(options.headers || {}) }
     });
 
-    const contentType = res.headers.get('content-type');
+    const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
-      throw new Error(`Server returned non-JSON response (status ${res.status}, content-type: ${contentType || 'none'}).`);
+      throw new Error(`Server returned non-JSON response (status ${response.status}, content-type: ${contentType || 'none'}).`);
     }
 
-    const payload = await res.json();
+    const payload = await response.json();
 
-    if (!res.ok) {
+    if (!response.ok) {
       // A 401 with a token actually present in storage is almost always transient (e.g. a
       // request landing on a Cloud Run instance mid-rollout to a new revision) rather than a
       // genuinely invalid session — retry once before surfacing it as a failure to the user.
-      if (res.status === 401 && !_isRetry && getSessionToken()) {
-        await new Promise(resolve => setTimeout(resolve, 800));
+      if (response.status === 401 && !_isRetry && getSessionToken()) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
         return safeFetchJson(url, options, true);
       }
-      throw new Error(payload.error || `HTTP error! status: ${res.status}`);
+      throw new Error(payload.error || `HTTP error! status: ${response.status}`);
     }
 
     return payload;
@@ -133,7 +133,7 @@ export async function runTransaction(dbInstance: any, updateFunction: (transacti
     }
   };
 
-  const result = await updateFunction(transactionProxy);
+  const transactionResult = await updateFunction(transactionProxy);
 
   // Commit all operations accumulated during the transaction
   for (const op of operations) {
@@ -146,7 +146,7 @@ export async function runTransaction(dbInstance: any, updateFunction: (transacti
   }
 
   dispatchDbWrite();
-  return result;
+  return transactionResult;
 }
 
 // Client-side drop-in mock of Firestore writeBatch
@@ -410,11 +410,7 @@ export async function getCountFromServer(queryRef: any) {
 }
 
 // Core Real-Time subscription simulation (using standard polling interval abstraction)
-export function onSnapshot(
-  ref: any,
-  callback: (snapshot: any) => void,
-  errorCallback?: (error: any) => void
-) {
+export function onSnapshot(ref: any, callback: (snapshot: any) => void, errorCallback?: (error: any) => void) {
   let isUnsubscribed = false;
   let intervalId: any = null;
 
@@ -429,15 +425,16 @@ export function onSnapshot(
       }
     } catch (err: any) {
       const msg = (err?.message || String(err)).toLowerCase();
-      const isTransient = msg.includes('failed to fetch') || 
-                          msg.includes('failed to connect') || 
-                          msg.includes('temporarily restarting') || 
-                          msg.includes('non-json response') || 
-                          msg.includes('html fallback') || 
-                          msg.includes('temporary html fallback') || 
-                          msg.includes('networkerror') || 
-                          msg.includes('aborted');
-      
+      const isTransient =
+        msg.includes('failed to fetch') ||
+        msg.includes('failed to connect') ||
+        msg.includes('temporarily restarting') ||
+        msg.includes('non-json response') ||
+        msg.includes('html fallback') ||
+        msg.includes('temporary html fallback') ||
+        msg.includes('networkerror') ||
+        msg.includes('aborted');
+
       if (isTransient) {
         // Log as low-severity warning during temporary server restarts / HMR reloads
         console.warn('[onSnapshot Polling Transient Notice (Self-recovering)]:', err.message || err);

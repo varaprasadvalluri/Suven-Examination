@@ -74,7 +74,9 @@ const handleHealthCheck = async (req: any, res: any) => {
       if (tempRedis) {
         try {
           tempRedis.disconnect();
-        } catch (e) {}
+        } catch {
+          // Best-effort — this connection only existed for this one health-check ping.
+        }
       }
     }
   } else {
@@ -83,7 +85,8 @@ const handleHealthCheck = async (req: any, res: any) => {
   }
 
   const totalDuration = parseFloat((performance.now() - start).toFixed(1));
-  const overallStatus = (firestoreStatus === 'connected' && (redisStatus === 'connected' || redisStatus === 'unconfigured')) ? 'healthy' : 'degraded';
+  const overallStatus =
+    firestoreStatus === 'connected' && (redisStatus === 'connected' || redisStatus === 'unconfigured') ? 'healthy' : 'degraded';
 
   // Publicly reachable, unauthenticated (load balancers/uptime monitors hit this) — keep the
   // response to status/latency only, no projectId/databaseId/memoryUsage/raw error strings,
@@ -105,7 +108,35 @@ const handleHealthCheck = async (req: any, res: any) => {
   });
 };
 
+/**
+ * @openapi
+ * /health:
+ *   get:
+ *     summary: Liveness/health check (Firestore + optional Redis connectivity, with latency)
+ *     description: Public, unauthenticated — intended for load balancers/uptime monitors. Response is deliberately minimal (status/latency only, no projectId/databaseId/raw error strings) since an anonymous caller shouldn't get recon info.
+ *     tags: [Health]
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: healthy — Firestore connected, and Redis connected or not configured
+ *       500:
+ *         description: degraded — Firestore or Redis (when configured) is unreachable
+ */
 router.get('/health', handleHealthCheck);
+/**
+ * @openapi
+ * /api/health:
+ *   get:
+ *     summary: Liveness/health check (Firestore + optional Redis connectivity, with latency)
+ *     description: Public, unauthenticated. Identical handler to GET /health, kept as a separate path for API-prefixed monitoring setups.
+ *     tags: [Health]
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: healthy — Firestore connected, and Redis connected or not configured
+ *       500:
+ *         description: degraded — Firestore or Redis (when configured) is unreachable
+ */
 router.get('/api/health', handleHealthCheck);
 
 export default router;

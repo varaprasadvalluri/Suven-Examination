@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { seededShuffle, getAttemptSeed, orderQuestionsForAttempt } from './examQuestionOrder';
 
-interface Q { id: string }
+interface Q {
+  id: string;
+}
 
 describe('seededShuffle', () => {
   it('is deterministic for the same seed and input', () => {
@@ -20,9 +22,7 @@ describe('seededShuffle', () => {
 });
 
 describe('orderQuestionsForAttempt', () => {
-  const questions: Q[] = [
-    { id: 'q3' }, { id: 'q1' }, { id: 'q5' }, { id: 'q2' }, { id: 'q4' }
-  ];
+  const questions: Q[] = [{ id: 'q3' }, { id: 'q1' }, { id: 'q5' }, { id: 'q2' }, { id: 'q4' }];
 
   it('produces the same order for the same attemptId regardless of the input array order', () => {
     // Simulates Firestore returning the same doc set in two different raw orders across
@@ -34,19 +34,19 @@ describe('orderQuestionsForAttempt', () => {
     const resultA = orderQuestionsForAttempt(orderA, 'att_exam1_student1');
     const resultB = orderQuestionsForAttempt(orderB, 'att_exam1_student1');
 
-    expect(resultA.map(q => q.id)).toEqual(resultB.map(q => q.id));
+    expect(resultA.map((q) => q.id)).toEqual(resultB.map((q) => q.id));
   });
 
   it('gives different students a different (but each internally stable) order', () => {
-    const orderForA = orderQuestionsForAttempt(questions, 'att_exam1_studentA').map(q => q.id);
-    const orderForB = orderQuestionsForAttempt(questions, 'att_exam1_studentB').map(q => q.id);
+    const orderForA = orderQuestionsForAttempt(questions, 'att_exam1_studentA').map((q) => q.id);
+    const orderForB = orderQuestionsForAttempt(questions, 'att_exam1_studentB').map((q) => q.id);
 
     // Not a hard guarantee for every possible id/seed combination, but true for this fixture
     // and demonstrates the shuffle is actually seeded per-attempt, not a no-op.
     expect(orderForA).not.toEqual(orderForB);
 
     // Re-running for the same attempt must still be stable.
-    expect(orderQuestionsForAttempt(questions, 'att_exam1_studentA').map(q => q.id)).toEqual(orderForA);
+    expect(orderQuestionsForAttempt(questions, 'att_exam1_studentA').map((q) => q.id)).toEqual(orderForA);
   });
 
   it('getAttemptSeed is a pure function of the attemptId string', () => {

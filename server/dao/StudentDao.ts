@@ -6,6 +6,6 @@ import { DocRecord } from './SchoolDao';
 // @Repository sitting under a @PreAuthorize-guarded @RestController method.
 export interface StudentDao {
   findBySchool(schoolId: string): Promise<DocRecord[]>;
-  create(data: any): Promise<any>;
-  update(studentId: string, data: any): Promise<any>;
+  create(studentFields: any): Promise<any>;
+  update(studentId: string, studentFields: any): Promise<any>;
 }

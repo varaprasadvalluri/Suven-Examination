@@ -11,6 +11,37 @@ const router = express.Router();
 // it — see firestoreClient.ts), so this is one bounded call per collection, not N.
 const MAX_EXPORT_ROWS = 300000;
 
+/**
+ * @openapi
+ * /api/reports/merit-list-xlsx:
+ *   post:
+ *     summary: Export a consolidated merit-list ranking report as an XLSX file
+ *     description: >
+ *       Admin or school role. Computed entirely server-side from Firestore, bounded to
+ *       MAX_EXPORT_ROWS (300,000) per collection — not dependent on whatever the browser's
+ *       live ranking table currently has loaded. A 'school' caller is always scoped to their
+ *       own schoolId regardless of what's sent in the request body; only 'admin' may pass an
+ *       explicit schoolId (or omit it / pass 'all' for every school).
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               schoolId: { type: string, description: "Admin only. Omit or 'all' for every school." }
+ *     responses:
+ *       200:
+ *         description: XLSX file stream (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)
+ *       401:
+ *         description: Missing or invalid session
+ *       403:
+ *         description: Caller is not admin/school
+ *       500:
+ *         description: Server/Firestore error, or XLSX generation failure
+ */
 // Consolidated Merit List export. Computed entirely server-side, directly from Firestore —
 // deliberately NOT dependent on whatever the browser currently has loaded (the on-screen
 // ranking table caps what it fetches for its own live-listener performance; export needs to
@@ -20,37 +51,33 @@ router.post('/api/reports/merit-list-xlsx', requireSession, requireRole('admin',
   // same trust boundary authorizeWrite already applies to writes, applied here to reads.
   const requestedSchoolId = req.body?.schoolId;
   const effectiveSchoolId: string | undefined =
-    req.auth.role === 'school' ? req.auth.schoolId : (requestedSchoolId && requestedSchoolId !== 'all' ? requestedSchoolId : undefined);
+    req.auth.role === 'school' ? req.auth.schoolId : requestedSchoolId && requestedSchoolId !== 'all' ? requestedSchoolId : undefined;
 
   try {
     const schoolsSnap = await clientGetDocs(clientCollection(clientDb, 'schools'));
     const schoolNameMap = new Map<string, string>();
-    schoolsSnap.docs.forEach(d => schoolNameMap.set(d.id, (d.data() as any)?.name || d.id));
+    schoolsSnap.docs.forEach((d) => schoolNameMap.set(d.id, (d.data() as any)?.name || d.id));
 
     const studentConstraints = [clientWhere('role', '==', 'student')];
     if (effectiveSchoolId) studentConstraints.push(clientWhere('schoolId', '==', effectiveSchoolId));
-    const studentsSnap = await clientGetDocs(clientQuery(
-      clientCollection(clientDb, 'users'),
-      ...studentConstraints,
-      clientLimit(MAX_EXPORT_ROWS)
-    ));
-    const students = studentsSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+    const studentsSnap = await clientGetDocs(
+      clientQuery(clientCollection(clientDb, 'users'), ...studentConstraints, clientLimit(MAX_EXPORT_ROWS))
+    );
+    const students = studentsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
 
     const attemptConstraints = [clientWhere('status', '==', 'completed')];
     if (effectiveSchoolId) attemptConstraints.push(clientWhere('schoolId', '==', effectiveSchoolId));
-    const attemptsSnap = await clientGetDocs(clientQuery(
-      clientCollection(clientDb, 'attempts'),
-      ...attemptConstraints,
-      clientLimit(MAX_EXPORT_ROWS)
-    ));
-    const attempts = attemptsSnap.docs.map(d => (d.data() as any));
+    const attemptsSnap = await clientGetDocs(
+      clientQuery(clientCollection(clientDb, 'attempts'), ...attemptConstraints, clientLimit(MAX_EXPORT_ROWS))
+    );
+    const attempts = attemptsSnap.docs.map((d) => d.data() as any);
 
     const examsSnap = await clientGetDocs(clientCollection(clientDb, 'exams'));
     const examNameMap = new Map<string, string>();
-    examsSnap.docs.forEach(d => examNameMap.set(d.id, (d.data() as any)?.title || d.id));
+    examsSnap.docs.forEach((d) => examNameMap.set(d.id, (d.data() as any)?.title || d.id));
 
     const attemptsByStudent = new Map<string, any[]>();
-    attempts.forEach(a => {
+    attempts.forEach((a) => {
       if (!a.studentId) return;
       const list = attemptsByStudent.get(a.studentId) || [];
       list.push(a);
@@ -67,7 +94,7 @@ router.post('/api/reports/merit-list-xlsx', requireSession, requireRole('admin',
       let averagePercentage = 0;
       let averageScore = 0;
       if (examsAttended > 0) {
-        const totalAccuracy = studAttempts.reduce((sum, a) => sum + (a.accuracy !== undefined ? a.accuracy : (a.score || 0)), 0);
+        const totalAccuracy = studAttempts.reduce((sum, a) => sum + (a.accuracy !== undefined ? a.accuracy : a.score || 0), 0);
         averagePercentage = Math.round(totalAccuracy / examsAttended);
         const totalScore = studAttempts.reduce((sum, a) => sum + (a.score || 0), 0);
         averageScore = Math.round(totalScore / examsAttended);
@@ -76,14 +103,14 @@ router.post('/api/reports/merit-list-xlsx', requireSession, requireRole('admin',
       let improvement = '-';
       if (examsAttended >= 2) {
         const sorted = [...studAttempts].sort((a, b) => {
-          const tA = a.endTime ? new Date(a.endTime).getTime() : 0;
-          const tB = b.endTime ? new Date(b.endTime).getTime() : 0;
-          return tA - tB;
+          const endTimeA = a.endTime ? new Date(a.endTime).getTime() : 0;
+          const endTimeB = b.endTime ? new Date(b.endTime).getTime() : 0;
+          return endTimeA - endTimeB;
         });
         const latest = sorted[sorted.length - 1];
         const prev = sorted[sorted.length - 2];
-        const accLatest = latest.accuracy !== undefined ? latest.accuracy : (latest.score || 0);
-        const accPrev = prev.accuracy !== undefined ? prev.accuracy : (prev.score || 0);
+        const accLatest = latest.accuracy !== undefined ? latest.accuracy : latest.score || 0;
+        const accPrev = prev.accuracy !== undefined ? prev.accuracy : prev.score || 0;
         const diff = Math.round(accLatest - accPrev);
         improvement = `${diff >= 0 ? '+' : ''}${diff}%`;
       } else if (examsAttended === 1) {
@@ -91,7 +118,7 @@ router.post('/api/reports/merit-list-xlsx', requireSession, requireRole('admin',
       }
 
       const examNames = studAttempts
-        .map(a => examNameMap.get(a.examId) || a.examId)
+        .map((a) => examNameMap.get(a.examId) || a.examId)
         .filter(Boolean)
         .join(', ');
 
@@ -113,24 +140,34 @@ router.post('/api/reports/merit-list-xlsx', requireSession, requireRole('admin',
     rows.sort((a, b) => b.percentile - a.percentile || b.score - a.score);
 
     const sheetRows = rows.map((r, i) => ({
-      'Rank': i + 1,
-      'Name': r.name,
+      Rank: i + 1,
+      Name: r.name,
       'Roll No.': r.rollNumber,
-      'Class': r.className,
-      'Section': r.section,
-      'Score': r.score,
-      'Percentage': r.percentile,
+      Class: r.className,
+      Section: r.section,
+      Score: r.score,
+      Percentage: r.percentile,
       'Exams Attended': r.examsAttended,
       'Exam Names': r.examNames,
-      'Trend': r.improvement,
-      'Branch': r.branch,
-      'Status': r.status
+      Trend: r.improvement,
+      Branch: r.branch,
+      Status: r.status
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(sheetRows);
     worksheet['!cols'] = [
-      { wch: 6 }, { wch: 28 }, { wch: 14 }, { wch: 8 }, { wch: 8 },
-      { wch: 8 }, { wch: 12 }, { wch: 15 }, { wch: 40 }, { wch: 10 }, { wch: 24 }, { wch: 12 }
+      { wch: 6 },
+      { wch: 28 },
+      { wch: 14 },
+      { wch: 8 },
+      { wch: 8 },
+      { wch: 8 },
+      { wch: 12 },
+      { wch: 15 },
+      { wch: 40 },
+      { wch: 10 },
+      { wch: 24 },
+      { wch: 12 }
     ];
 
     const workbook = XLSX.utils.book_new();

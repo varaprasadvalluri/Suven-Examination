@@ -48,7 +48,9 @@ For high-concurrency student examinations, we leverage a native **Serverless Con
 We use **Google Cloud Run** with a custom **Cloud Build** trigger to deploy in seconds.
 
 ### Step 1: Install & Authenticate the Google Cloud SDK
+
 Ensure you have the [Google Cloud CLI](https://cloud.google.com/sdk/gcloud) installed, then run:
+
 ```bash
 # Authenticate with your Google Account
 gcloud auth login
@@ -58,7 +60,9 @@ gcloud config set project ai-studio-8391c2ab-94ef-4c90-9d99-eebfe3329077
 ```
 
 ### Step 2: Enable Google Cloud API Nodes
+
 To support containerized builds, database queries, and managed scaling, enable these essential service APIs:
+
 ```bash
 gcloud services enable \
     cloudbuild.googleapis.com \
@@ -68,11 +72,15 @@ gcloud services enable \
 ```
 
 ### Step 3: Build & Deploy via Google Cloud Build (One Command)
+
 We provided a pre-configured `cloudbuild.yaml` file. Deploying your entire application is as simple as running:
+
 ```bash
 gcloud builds submit --config cloudbuild.yaml .
 ```
+
 This single command:
+
 1. Compresses your codebase and securely uploads it to Cloud Build.
 2. Builds the multi-stage, production-ready **Docker** container.
 3. Pushes the optimized runner image to **Google Container Registry**.
@@ -84,10 +92,10 @@ This single command:
 
 To ensure maximum performance during the exam launch peak (e.g., exactly at 9:00 AM), we configure Cloud Run with the following settings (included in `cloudbuild.yaml`):
 
-* **`--min-instances 5`**: Keeps 5 instances fully pre-warmed and running continuously. This eliminates container cold starts when 50,000 students try to log in simultaneously.
-* **`--max-instances 100`**: region CPU quota ceiling at cpu=2 per instance — gcloud rejects a higher value with "Max instances must be set to 100 or fewer" without a quota increase (https://cloud.google.com/run/quotas). Capacity instead comes from concurrency below.
-* **`--concurrency 500`**: 100 instances * 500 = 50,000 capacity, compensating for the max-instances ceiling above. Higher per-instance concurrency than typical, relies on Node's async I/O model since Firestore calls are non-blocking.
-* **`--cpu 2 --memory 4Gi`**: 4GB (raised from 2GB) so 500 concurrent in-flight requests per instance have enough headroom to avoid OOM.
+- **`--min-instances 5`**: Keeps 5 instances fully pre-warmed and running continuously. This eliminates container cold starts when 50,000 students try to log in simultaneously.
+- **`--max-instances 100`**: region CPU quota ceiling at cpu=2 per instance — gcloud rejects a higher value with "Max instances must be set to 100 or fewer" without a quota increase (https://cloud.google.com/run/quotas). Capacity instead comes from concurrency below.
+- **`--concurrency 500`**: 100 instances * 500 = 50,000 capacity, compensating for the max-instances ceiling above. Higher per-instance concurrency than typical, relies on Node's async I/O model since Firestore calls are non-blocking.
+- **`--cpu 2 --memory 4Gi`**: 4GB (raised from 2GB) so 500 concurrent in-flight requests per instance have enough headroom to avoid OOM.
 
 ---
 
@@ -96,6 +104,7 @@ To ensure maximum performance during the exam launch peak (e.g., exactly at 9:00
 Because multiple Cloud Run instances run simultaneously (`--min-instances 5`, up to `--max-instances 100`), every instance **must share the same `JWT_SECRET`** — it's what signs/verifies student and staff session tokens. If it isn't set, each instance generates its own random secret at boot, and users will get random 401 errors as their requests land on different instances. This must be set **once** before (or right after) the first deploy — `gcloud run deploy` preserves existing environment variables/secrets across future deploys, so `cloudbuild.yaml` doesn't need to reference it.
 
 **Recommended (Secret Manager):**
+
 ```bash
 openssl rand -hex 48 | gcloud secrets create jwt-secret --data-file=-
 
@@ -105,6 +114,7 @@ gcloud run services update suvenedu-service \
 ```
 
 **Simpler alternative (plain env var, fine for smaller deployments):**
+
 ```bash
 gcloud run services update suvenedu-service \
     --region=us-central1 \
@@ -121,7 +131,7 @@ There is no `firebase-applet-config.json` in the repo anymore. `server.ts`, `mig
 
 **Local dev**: put these in a `.env` file (gitignored) — see `.env.example` for the full list. `npm run dev` and `npm run build` both pick it up automatically.
 
-**Production build (Cloud Build)**: because Vite bakes these into the frontend bundle at *build* time, not runtime, `cloudbuild.yaml` passes them as Docker `--build-arg`s — non-secret values (project ID, database ID, app ID, etc.) come from `substitutions` at the bottom of `cloudbuild.yaml`, and `FIREBASE_API_KEY` comes from Secret Manager via `availableSecrets`/`secretEnv`. One-time setup:
+**Production build (Cloud Build)**: because Vite bakes these into the frontend bundle at _build_ time, not runtime, `cloudbuild.yaml` passes them as Docker `--build-arg`s — non-secret values (project ID, database ID, app ID, etc.) come from `substitutions` at the bottom of `cloudbuild.yaml`, and `FIREBASE_API_KEY` comes from Secret Manager via `availableSecrets`/`secretEnv`. One-time setup:
 
 ```bash
 gcloud secrets create firebase-api-key --data-file=- <<< "YOUR_FIREBASE_WEB_API_KEY"
@@ -141,22 +151,26 @@ gcloud run services update suvenedu-service \
     --update-env-vars FIREBASE_PROJECT_ID=your-project-id,FIRESTORE_DATABASE_ID=your-database-id
 ```
 
-Note: a Firebase *web* API key isn't a traditional secret — it ships to every browser in the frontend bundle regardless, and Firebase's own security model relies on Firestore rules / server-side auth, not on this value being hidden. Using Secret Manager for it here is about having one clean source of truth, not closing an exposure — the real secrets in this app are `JWT_SECRET`, `CLOUDINARY_API_SECRET`, and `REDIS_PASSWORD`, which should always go through Secret Manager.
+Note: a Firebase _web_ API key isn't a traditional secret — it ships to every browser in the frontend bundle regardless, and Firebase's own security model relies on Firestore rules / server-side auth, not on this value being hidden. Using Secret Manager for it here is about having one clean source of truth, not closing an exposure — the real secrets in this app are `JWT_SECRET`, `CLOUDINARY_API_SECRET`, and `REDIS_PASSWORD`, which should always go through Secret Manager.
 
 ---
 
 ## 🧠 Optional: Deploying Google Cloud Memorystore (Redis)
+
 If you configure a Redis cluster to coordinate proctoring state or rate limits, spin up a Cloud Memorystore instance:
 
 1. **Create the Redis Instance**:
+
 ```bash
 gcloud redis instances create suvenedu-redis \
     --size=2 \
     --region=us-central1 \
     --redis-version=redis_7_0
 ```
+
 2. **Link Redis to Cloud Run**:
-Find the IP address of your Redis instance and update the Cloud Run service environment variables:
+   Find the IP address of your Redis instance and update the Cloud Run service environment variables:
+
 ```bash
 gcloud run deploy suvenedu-service \
     --image=gcr.io/ai-studio-8391c2ab-94ef-4c90-9d99-eebfe3329077/suvenedu-service:latest \
@@ -169,8 +183,8 @@ Once linked, the `/health` endpoint will automatically detect the Redis paramete
 
 ## 🎯 Pro-Tips for Google Cloud Deployment
 
-* **Cloud CDN Caching**: Route your Cloud Run service behind a Global External HTTP(S) Load Balancer and enable Cloud CDN. Set cache control headers so that the heavy React compilation assets (`dist/assets/*`) are served directly from Google’s edge caches.
-* **Clean Purging**: During local testing, you can hit the `/api/health` or `/health` diagnostics route to ensure zero latency between the serverless instance and Firestore.
+- **Cloud CDN Caching**: Route your Cloud Run service behind a Global External HTTP(S) Load Balancer and enable Cloud CDN. Set cache control headers so that the heavy React compilation assets (`dist/assets/*`) are served directly from Google’s edge caches.
+- **Clean Purging**: During local testing, you can hit the `/api/health` or `/health` diagnostics route to ensure zero latency between the serverless instance and Firestore.
 
 ---
 
@@ -181,11 +195,13 @@ reporting it. Set this up once (~10 min) so problems surface via email before st
 them.
 
 ### 1. Uptime check on `/api/health`
+
 `/api/health` already returns a non-200 status whenever Firestore is misconfigured or
 unreachable (verified: it caught the `RESOURCE_PROJECT_INVALID` and missing-env-var issues
 during initial deployment).
 
 Console → **Monitoring** → **Uptime checks** → **Create Uptime Check**
+
 - Protocol: HTTPS, Resource type: URL
 - Hostname: your Cloud Run service's hostname (e.g. `suven-examination-<hash>-<region>.a.run.app`)
 - Path: `/api/health`
@@ -193,12 +209,15 @@ Console → **Monitoring** → **Uptime checks** → **Create Uptime Check**
 - On the same screen, add an **Alert** → notification channel → **Email**
 
 ### 2. Alert on repeated 401s (session/auth breakage)
+
 Console → **Logging** → **Logs Explorer**, filter:
+
 ```
 resource.type="cloud_run_revision"
 resource.labels.service_name="suven-examination"
 httpRequest.status=401
 ```
+
 Run once to confirm matches, then **Create Alert** → condition: count > 20 within 5 minutes →
 same email notification channel.
 
@@ -207,13 +226,17 @@ between Cloud Run revisions/instances (this happened during a rapid string of re
 this alert catches that class of issue specifically.
 
 ### 3. Alert on 5xx errors (server/Firestore failures)
+
 Same Logs Explorer, filter:
+
 ```
 resource.type="cloud_run_revision"
 resource.labels.service_name="suven-examination"
 httpRequest.status>=500
 ```
+
 **Create Alert** → condition: count > 10 within 5 minutes → same email notification channel.
 
 ---
-*Created by SuvenEdu Tech Deployment Engineering Team — Last Updated July 2026.*
+
+_Created by SuvenEdu Tech Deployment Engineering Team — Last Updated July 2026._

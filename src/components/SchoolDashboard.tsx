@@ -10,14 +10,46 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { 
-  Building2, Users, ClipboardList, BookOpen, GraduationCap, 
-  TrendingUp, Award, ShieldCheck, Zap, BrainCircuit, Activity, 
-  Filter, CheckCircle2, ChevronRight, RefreshCw, BarChart4, ArrowUpRight, Sparkles, Inbox, UserCheck2,
-Loader2, Crown, Medal } from 'lucide-react';
-import { 
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, 
-  CartesianGrid, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, Cell
+import {
+  Building2,
+  Users,
+  ClipboardList,
+  BookOpen,
+  GraduationCap,
+  TrendingUp,
+  Award,
+  ShieldCheck,
+  Zap,
+  BrainCircuit,
+  Activity,
+  Filter,
+  CheckCircle2,
+  ChevronRight,
+  RefreshCw,
+  BarChart4,
+  ArrowUpRight,
+  Sparkles,
+  Inbox,
+  UserCheck2,
+  Loader2,
+  Crown,
+  Medal
+} from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+  Legend,
+  Cell
 } from 'recharts';
 
 interface SchoolProfile {
@@ -76,25 +108,15 @@ export const SchoolDashboard: React.FC = () => {
         }
 
         // 2. Fetch server-side counts
-        const studentsCountQuery = query(
-          collection(db, 'users'),
-          where('schoolId', '==', schoolId),
-          where('role', '==', 'student')
-        );
+        const studentsCountQuery = query(collection(db, 'users'), where('schoolId', '==', schoolId), where('role', '==', 'student'));
         const studentCountSnap = await getCountFromServer(studentsCountQuery);
         setStudentsCount(studentCountSnap.data().count);
 
-        const invitesCountQuery = query(
-          collection(db, 'invitations'),
-          where('schoolId', '==', schoolId)
-        );
+        const invitesCountQuery = query(collection(db, 'invitations'), where('schoolId', '==', schoolId));
         const invitesCountSnap = await getCountFromServer(invitesCountQuery);
         setInvitationsCount(invitesCountSnap.data().count);
 
-        const attemptsCountQuery = query(
-          collection(db, 'attempts'),
-          where('schoolId', '==', schoolId)
-        );
+        const attemptsCountQuery = query(collection(db, 'attempts'), where('schoolId', '==', schoolId));
         const attemptsCountSnap = await getCountFromServer(attemptsCountQuery);
         setAttemptsCount(attemptsCountSnap.data().count);
 
@@ -106,31 +128,22 @@ export const SchoolDashboard: React.FC = () => {
           limit(200)
         );
         const studentsSnap = await getDocs(studentsSampleQuery);
-        setStudents(studentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setStudents(studentsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
 
-        const invitesSampleQuery = query(
-          collection(db, 'invitations'),
-          where('schoolId', '==', schoolId),
-          limit(200)
-        );
+        const invitesSampleQuery = query(collection(db, 'invitations'), where('schoolId', '==', schoolId), limit(200));
         const invitesSnap = await getDocs(invitesSampleQuery);
-        setInvitations(invitesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setInvitations(invitesSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
 
-        const attemptsSampleQuery = query(
-          collection(db, 'attempts'),
-          where('schoolId', '==', schoolId),
-          limit(200)
-        );
+        const attemptsSampleQuery = query(collection(db, 'attempts'), where('schoolId', '==', schoolId), limit(200));
         const attemptsSnap = await getDocs(attemptsSampleQuery);
-        setAttempts(attemptsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setAttempts(attemptsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
 
         const examsQuery = query(collection(db, 'exams'), limit(150));
         const examsSnap = await getDocs(examsQuery);
-        setExams(examsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-
+        setExams(examsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
       } catch (error) {
-        console.error("Error loading school dashboard stats:", error);
-        toast.error("Failed to compile institutional metrics");
+        console.error('Error loading school dashboard stats:', error);
+        toast.error('Failed to compile institutional metrics');
       } finally {
         setLoading(false);
       }
@@ -142,22 +155,20 @@ export const SchoolDashboard: React.FC = () => {
   // Dynamic calculations for school intelligence base
   const intelligenceMetrics = useMemo(() => {
     const totalStudentsCount = studentsCount;
-    const completedAttempts = attempts.filter(a => a.status === 'completed');
+    const completedAttempts = attempts.filter((attempt) => attempt.status === 'completed');
     const totalAttemptsCount = attemptsCount;
-    const pendingInvitesCount = invitations.filter(i => i.status === 'sent').length;
-    const usedInvitesCount = invitations.filter(i => i.status === 'used').length;
+    const pendingInvitesCount = invitations.filter((invitation) => invitation.status === 'sent').length;
+    const usedInvitesCount = invitations.filter((invitation) => invitation.status === 'used').length;
 
-    // Invitation redemption rate 
-    const inviteRedemptionRate = invitations.length > 0
-      ? Math.round((usedInvitesCount / invitations.length) * 100)
-      : 0;
+    // Invitation redemption rate
+    const inviteRedemptionRate = invitations.length > 0 ? Math.round((usedInvitesCount / invitations.length) * 100) : 0;
 
     // Overall Average Score Percentage
     let totalScorePercent = 0;
     let validScoreCount = 0;
 
-    completedAttempts.forEach(attempt => {
-      const exam = exams.find(e => e.id === attempt.examId);
+    completedAttempts.forEach((attempt) => {
+      const exam = exams.find((exam) => exam.id === attempt.examId);
       const maxMarks = exam?.totalMarks || 100;
       if (maxMarks > 0) {
         totalScorePercent += (attempt.score / maxMarks) * 100;
@@ -165,115 +176,123 @@ export const SchoolDashboard: React.FC = () => {
       }
     });
 
-    const averagePerformancePercent = validScoreCount > 0
-      ? Math.round(totalScorePercent / validScoreCount)
-      : 84; // Pristine premium standard fallback if brand new
+    const averagePerformancePercent = validScoreCount > 0 ? Math.round(totalScorePercent / validScoreCount) : 84; // Pristine premium standard fallback if brand new
 
     // Compliance & Proctoring Health Rate (Integrity score)
     let totalOffenses = 0;
-    attempts.forEach(a => {
-      totalOffenses += (a.violationsCount || 0) + (a.tabSwitches || 0);
+    attempts.forEach((attempt) => {
+      totalOffenses += (attempt.violationsCount || 0) + (attempt.tabSwitches || 0);
     });
-    
+
     // High integrity percentage (100% - factor scaling tab violations)
-    const integrityScore = totalAttemptsCount > 0 
-      ? Math.max(70, Math.round(100 - (totalOffenses / totalAttemptsCount) * 15))
-      : 98; // Verified starting state
+    const integrityScore = totalAttemptsCount > 0 ? Math.max(70, Math.round(100 - (totalOffenses / totalAttemptsCount) * 15)) : 98; // Verified starting state
 
     // Cognitive Subject Breakdown Computation
     const subjectScoresMap: Record<string, { total: number; count: number }> = {};
-    completedAttempts.forEach(a => {
-      const exam = exams.find(e => e.id === a.examId);
+    completedAttempts.forEach((attempt) => {
+      const exam = exams.find((exam) => exam.id === attempt.examId);
       const subject = exam?.subject || 'Aptitude';
       const maxMarks = exam?.totalMarks || 100;
-      const pct = (a.score / maxMarks) * 100;
-      
+      const scorePercent = (attempt.score / maxMarks) * 100;
+
       if (!subjectScoresMap[subject]) {
         subjectScoresMap[subject] = { total: 0, count: 0 };
       }
-      subjectScoresMap[subject].total += pct;
+      subjectScoresMap[subject].total += scorePercent;
       subjectScoresMap[subject].count++;
     });
 
-    const subjectAnalyticsList = Object.entries(subjectScoresMap).map(([subject, data]) => ({
+    const subjectAnalyticsList = Object.entries(subjectScoresMap).map(([subject, subjectStats]) => ({
       subject: subject.length > 15 ? subject.substring(0, 12) + '...' : subject,
-      value: Math.round(data.total / data.count),
+      value: Math.round(subjectStats.total / subjectStats.count)
     }));
 
     // Fallback beautiful presets for preview fidelity if no attempts recorded
-    const displaySubjectAnalytics = subjectAnalyticsList.length >= 3 
-      ? subjectAnalyticsList 
-      : [
-          { subject: 'Computer Sci', value: averagePerformancePercent + 3 },
-          { subject: 'Mathematics', value: averagePerformancePercent - 2 },
-          { subject: 'Natural Sciences', value: averagePerformancePercent + 6 },
-          { subject: 'English', value: averagePerformancePercent - 5 },
-          { subject: 'Social Studies', value: averagePerformancePercent }
-        ];
+    const displaySubjectAnalytics =
+      subjectAnalyticsList.length >= 3
+        ? subjectAnalyticsList
+        : [
+            { subject: 'Computer Sci', value: averagePerformancePercent + 3 },
+            { subject: 'Mathematics', value: averagePerformancePercent - 2 },
+            { subject: 'Natural Sciences', value: averagePerformancePercent + 6 },
+            { subject: 'English', value: averagePerformancePercent - 5 },
+            { subject: 'Social Studies', value: averagePerformancePercent }
+          ];
 
     // Class Performance Progression Distribution
     const classGroups: Record<string, { total: number; count: number; countAll: number }> = {};
-    
+
     // Group student directory averages
-    students.forEach(s => {
-      const clsName = s.class || 'Unassigned';
+    students.forEach((student) => {
+      const clsName = student.class || 'Unassigned';
       if (!classGroups[clsName]) {
         classGroups[clsName] = { total: 0, count: 0, countAll: 0 };
       }
       classGroups[clsName].countAll++;
     });
 
-    completedAttempts.forEach(a => {
-      const student = students.find(s => s.uid === a.studentId);
+    completedAttempts.forEach((attempt) => {
+      const student = students.find((student) => student.uid === attempt.studentId);
       const clsName = student?.class || 'Intermediate';
-      const exam = exams.find(e => e.id === a.examId);
+      const exam = exams.find((exam) => exam.id === attempt.examId);
       const maxMarks = exam?.totalMarks || 100;
-      const pct = (a.score / maxMarks) * 100;
+      const scorePercent = (attempt.score / maxMarks) * 100;
 
       if (!classGroups[clsName]) {
         classGroups[clsName] = { total: 0, count: 0, countAll: 0 };
       }
-      classGroups[clsName].total += pct;
+      classGroups[clsName].total += scorePercent;
       classGroups[clsName].count++;
     });
 
     const displayClassAnalytics = Object.entries(classGroups)
-      .map(([className, data]) => ({
+      .map(([className, classStats]) => ({
         class: className,
-        avgScore: data.count > 0 ? Math.round(data.total / data.count) : 80,
-        enrolled: data.countAll || 1
+        avgScore: classStats.count > 0 ? Math.round(classStats.total / classStats.count) : 80,
+        enrolled: classStats.countAll || 1
       }))
-      .sort((a,b) => b.avgScore - a.avgScore);
+      .sort((a, b) => b.avgScore - a.avgScore);
 
-    const fallbackClassAnalytics = displayClassAnalytics.length > 0 
-      ? displayClassAnalytics 
-      : [
-          { class: '10th Grade', avgScore: 88, enrolled: 48 },
-          { class: '9th Grade', avgScore: 84, enrolled: 52 },
-          { class: '12th Grade', avgScore: 92, enrolled: 35 },
-          { class: 'Intermediate', avgScore: 78, enrolled: 44 }
-        ];
+    const fallbackClassAnalytics =
+      displayClassAnalytics.length > 0
+        ? displayClassAnalytics
+        : [
+            { class: '10th Grade', avgScore: 88, enrolled: 48 },
+            { class: '9th Grade', avgScore: 84, enrolled: 52 },
+            { class: '12th Grade', avgScore: 92, enrolled: 35 },
+            { class: 'Intermediate', avgScore: 78, enrolled: 44 }
+          ];
 
     // Build intelligent, human-like insight feed tips based on real state
     const generatedInsights: string[] = [];
     if (integrityScore > 92) {
-      generatedInsights.push("High Integrity Zone: Excellent proctoring metrics. Tab swappings and viewport escalations reside below 4%.");
+      generatedInsights.push('High Integrity Zone: Excellent proctoring metrics. Tab swappings and viewport escalations reside below 4%.');
     } else {
-      generatedInsights.push("Integrity Review Advised: Minor browser tab jumps tracked. Confirm strict proctoring lock options on next exam launch.");
+      generatedInsights.push(
+        'Integrity Review Advised: Minor browser tab jumps tracked. Confirm strict proctoring lock options on next exam launch.'
+      );
     }
 
     if (inviteRedemptionRate > 0 && inviteRedemptionRate < 50) {
-      generatedInsights.push(`Roster Clearance Action: ${invitations.length - usedInvitesCount} candidates have outstanding single-use invitation links. Issue reminders to kickstart sessions.`);
+      generatedInsights.push(
+        `Roster Clearance Action: ${invitations.length - usedInvitesCount} candidates have outstanding single-use invitation links. Issue reminders to kickstart sessions.`
+      );
     } else if (totalStudentsCount > 0 && invitations.length === 0) {
-      generatedInsights.push("Action Required: You have loaded scholars but haven't triggered any secure assessment gateway passes in this directory.");
+      generatedInsights.push(
+        "Action Required: You have loaded scholars but haven't triggered any secure assessment gateway passes in this directory."
+      );
     } else {
-      generatedInsights.push("Assessment Momentum: High participation activity tracked. invitation keys are successfully redeemed upon single click.");
+      generatedInsights.push(
+        'Assessment Momentum: High participation activity tracked. invitation keys are successfully redeemed upon single click.'
+      );
     }
 
     // Top scholar group detection
     if (fallbackClassAnalytics.length > 0) {
       const topGrade = fallbackClassAnalytics[0];
-      generatedInsights.push(`Stellar Cohort: ${topGrade.class} leads academic progression indexes with a premium score level of ${topGrade.avgScore}%.`);
+      generatedInsights.push(
+        `Stellar Cohort: ${topGrade.class} leads academic progression indexes with a premium score level of ${topGrade.avgScore}%.`
+      );
     }
 
     return {
@@ -296,30 +315,29 @@ export const SchoolDashboard: React.FC = () => {
   // to this school's own students so a school admin can spot their top performers directly.
   const topPerformers = useMemo(() => {
     return attempts
-      .filter(a => a.status === 'completed')
+      .filter((attempt) => attempt.status === 'completed')
       .sort((a, b) => (b.accuracy ?? 0) - (a.accuracy ?? 0))
       .slice(0, 5)
-      .map(a => {
-        const student = students.find(s => s.uid === a.studentId || s.id === a.studentId);
-        return { ...a, className: student?.class || 'Unassigned', rollNumber: student?.rollNumber || '' };
+      .map((attempt) => {
+        const student = students.find((student) => student.uid === attempt.studentId || student.id === attempt.studentId);
+        return { ...attempt, className: student?.class || 'Unassigned', rollNumber: student?.rollNumber || '' };
       });
   }, [attempts, students]);
 
-
-  if (loading) return (
-     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-       <Loader2 className="h-10 w-10 text-indigo-600 animate-spin" />
-       <p className="text-slate-500 font-bold animate-pulse uppercase tracking-widest text-sm">Synchronizing Intelligence Base...</p>
-     </div>
-  );
+  if (loading)
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+        <Loader2 className="h-10 w-10 text-indigo-600 animate-spin" />
+        <p className="text-slate-500 font-bold animate-pulse uppercase tracking-widest text-sm">Synchronizing Intelligence Base...</p>
+      </div>
+    );
   return (
     <div className="school-section">
-      
       {/* Premium Hub Hero Segment */}
       <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-950 text-white rounded-[32px] p-8 md:p-10 shadow-2xl border border-white/5">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_120%,rgba(99,102,241,0.15),transparent)] pointer-events-none" />
         <div className="absolute right-0 top-0 w-80 h-80 bg-indigo-5050 bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none" />
-        
+
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="space-y-3">
             <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-400/20 px-3.5 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider text-indigo-300">
@@ -330,7 +348,8 @@ export const SchoolDashboard: React.FC = () => {
               {schoolInfo?.name || 'Academic Command Tower'}
             </h1>
             <p className="text-slate-300 max-w-[550px] text-xs md:text-sm font-medium leading-relaxed">
-              Supervision and cognitive intelligence feed for authorized centers. Securely dispatch single-use test tokens, manage directories, and track high-integrity benchmarks.
+              Supervision and cognitive intelligence feed for authorized centers. Securely dispatch single-use test tokens, manage
+              directories, and track high-integrity benchmarks.
             </p>
           </div>
 
@@ -340,7 +359,9 @@ export const SchoolDashboard: React.FC = () => {
             </div>
             <div>
               <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Hub ID Code</p>
-              <p className="text-sm font-mono font-bold text-white uppercase mt-0.5">{schoolInfo?.code || profile?.schoolId?.substring(0, 8) || 'CORE_1'}</p>
+              <p className="text-sm font-mono font-bold text-white uppercase mt-0.5">
+                {schoolInfo?.code || profile?.schoolId?.substring(0, 8) || 'CORE_1'}
+              </p>
             </div>
             <Badge className="bg-emerald-500/10 text-emerald-400 border-0 font-bold text-[10px] uppercase px-3 py-1 rounded-md self-center ml-2">
               Verified Center
@@ -350,19 +371,20 @@ export const SchoolDashboard: React.FC = () => {
       </div>
 
       <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
- 
         {/* TAB 1: REDESIGNED PREMIUM INTELLIGENCE BASE PORTAL */}
         <TabsContent value="management" className="space-y-8 outline-none focus-visible:ring-0">
-          
           {/* Key Analytics KPI Roster */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            
             <Card className="border-slate-200/70 border-l-[6px] border-l-indigo-600 shadow-xl shadow-slate-100/40 rounded-3xl overflow-hidden hover:border-slate-300 hover:shadow-2xl transition-all duration-300 relative group">
               <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-indigo-600 transition-colors">Candidate Density</p>
-                    <h3 className="text-3xl font-black text-slate-900 tracking-tight mt-1">{loading ? "..." : intelligenceMetrics.totalStudentsCount}</h3>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-indigo-600 transition-colors">
+                      Candidate Density
+                    </p>
+                    <h3 className="text-3xl font-black text-slate-900 tracking-tight mt-1">
+                      {loading ? '...' : intelligenceMetrics.totalStudentsCount}
+                    </h3>
                     <p className="text-[10px] text-slate-400 font-semibold mt-1">Enrolled directory records</p>
                   </div>
                   <div className="h-10 w-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
@@ -371,12 +393,14 @@ export const SchoolDashboard: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
- 
+
             <Card className="border-slate-200/70 border-l-[6px] border-l-emerald-500 shadow-xl shadow-slate-100/40 rounded-3xl overflow-hidden hover:border-slate-300 hover:shadow-2xl transition-all duration-300 relative group">
               <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-emerald-500 transition-colors">Academy Average</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-emerald-500 transition-colors">
+                      Academy Average
+                    </p>
                     <h3 className="text-3xl font-black text-slate-900 tracking-tight mt-1">
                       {intelligenceMetrics.averagePerformancePercent}%
                     </h3>
@@ -391,12 +415,14 @@ export const SchoolDashboard: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
- 
+
             <Card className="border-slate-200/70 border-l-[6px] border-l-amber-500 shadow-xl shadow-slate-100/40 rounded-3xl overflow-hidden hover:border-slate-300 hover:shadow-2xl transition-all duration-300 relative group">
               <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-amber-500 transition-colors">Access Redemptions</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-amber-500 transition-colors">
+                      Access Redemptions
+                    </p>
                     <h3 className="text-3xl font-black text-slate-900 tracking-tight mt-1">{intelligenceMetrics.inviteRedemptionRate}%</h3>
                     <p className="text-[10px] text-amber-600 font-bold mt-1">
                       {intelligenceMetrics.usedInvitesCount} used / {intelligenceMetrics.pendingInvitesCount} unused keys
@@ -408,12 +434,14 @@ export const SchoolDashboard: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
- 
+
             <Card className="border-slate-200/70 border-l-[6px] border-l-sky-500 shadow-xl shadow-slate-100/40 rounded-3xl overflow-hidden hover:border-slate-300 hover:shadow-2xl transition-all duration-300 relative group">
               <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-sky-500 transition-colors">Integrity Rating</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-sky-500 transition-colors">
+                      Integrity Rating
+                    </p>
                     <h3 className="text-3xl font-black text-slate-900 tracking-tight mt-1">{intelligenceMetrics.integrityScore}%</h3>
                     <p className="text-[10px] text-sky-600 font-bold mt-1 flex items-center gap-1">
                       <ShieldCheck className="h-3 w-3" />
@@ -430,12 +458,13 @@ export const SchoolDashboard: React.FC = () => {
 
           {/* Core Strategic Grid of Intelligence Diagrams */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
             {/* Visualizer 1: Performance Radar / Subject cognitive map */}
             <Card className="lg:col-span-1 border-slate-200 shadow-xl shadow-slate-100/30 rounded-[35px] overflow-hidden">
               <CardHeader className="p-6 border-b border-slate-100 bg-slate-50/50">
                 <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-400">Cognitive Breakdown</CardTitle>
-                <CardDescription className="text-xs font-semibold text-slate-500 mt-1">Average academic indexes across technical domains.</CardDescription>
+                <CardDescription className="text-xs font-semibold text-slate-500 mt-1">
+                  Average academic indexes across technical domains.
+                </CardDescription>
               </CardHeader>
               <CardContent className="p-4 flex items-center justify-center h-[300px]">
                 {loading ? (
@@ -450,15 +479,15 @@ export const SchoolDashboard: React.FC = () => {
                       <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 10, fontWeight: '700' }} />
                       <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 8 }} />
                       <Radar name="Institutes Index" dataKey="value" stroke="#4f46e5" fill="#818cf8" fillOpacity={0.3} />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#0f172a', 
-                          border: 'none', 
-                          borderRadius: '12px', 
-                          color: '#fff', 
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#0f172a',
+                          border: 'none',
+                          borderRadius: '12px',
+                          color: '#fff',
                           fontSize: '11px',
                           fontFamily: 'monospace'
-                        }} 
+                        }}
                       />
                     </RadarChart>
                   </ResponsiveContainer>
@@ -471,7 +500,9 @@ export const SchoolDashboard: React.FC = () => {
               <CardHeader className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                 <div>
                   <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-400">Class Progress Index</CardTitle>
-                  <CardDescription className="text-xs font-semibold text-slate-500 mt-1">Comparing academic averages and student density indices across grades.</CardDescription>
+                  <CardDescription className="text-xs font-semibold text-slate-500 mt-1">
+                    Comparing academic averages and student density indices across grades.
+                  </CardDescription>
                 </div>
                 <Badge className="bg-indigo-50 border border-indigo-100 text-indigo-600 font-bold text-[9px] uppercase px-2.5 py-0.5 rounded-md">
                   Active Sectors
@@ -479,22 +510,26 @@ export const SchoolDashboard: React.FC = () => {
               </CardHeader>
               <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-                  
                   {/* Recharts Column score bar graph */}
                   <div className="md:col-span-3 h-[250px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={intelligenceMetrics.displayClassAnalytics} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="class" tick={{ fill: '#64748b', fontSize: 9, fontWeight: 'bold' }} axisLine={false} tickLine={false} />
+                        <XAxis
+                          dataKey="class"
+                          tick={{ fill: '#64748b', fontSize: 9, fontWeight: 'bold' }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
                         <YAxis domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 9 }} axisLine={false} tickLine={false} />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#0f172a', 
-                            border: 'none', 
-                            borderRadius: '12px', 
-                            color: '#fff', 
-                            fontSize: '11px' 
-                          }} 
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#0f172a',
+                            border: 'none',
+                            borderRadius: '12px',
+                            color: '#fff',
+                            fontSize: '11px'
+                          }}
                         />
                         <Bar dataKey="avgScore" maxBarSize={32} radius={[8, 8, 0, 0]}>
                           {intelligenceMetrics.displayClassAnalytics.map((entry, index) => {
@@ -511,7 +546,10 @@ export const SchoolDashboard: React.FC = () => {
                     <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Academic Density</p>
                     <div className="space-y-3 font-semibold text-slate-800 text-xs">
                       {intelligenceMetrics.displayClassAnalytics.map((g, idx) => (
-                        <div key={idx} className="flex justify-between items-center p-2.5 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100/50 transition-colors">
+                        <div
+                          key={idx}
+                          className="flex justify-between items-center p-2.5 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100/50 transition-colors"
+                        >
                           <span className="font-bold text-slate-700">{g.class}</span>
                           <div className="flex items-center gap-2">
                             <span className="text-slate-400 font-medium">({g.enrolled} Enrolled)</span>
@@ -524,29 +562,34 @@ export const SchoolDashboard: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
-
           </div>
 
           {/* Merit Board: top 5 performers within this school only */}
           <div className="grid grid-cols-1 gap-8">
             <Card className="border-slate-200 shadow-xl shadow-slate-100/30 rounded-[35px] overflow-hidden bg-gradient-to-br from-slate-900 to-indigo-950 text-white">
-              <CardHeader className="p-8 border-b border-white/5">
+              <CardHeader className="p-5 md:p-8 border-b border-white/5">
                 <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-300">Merit Board · Top 5</CardTitle>
-                <CardDescription className="text-xs font-semibold text-indigo-200 mt-1">This school's highest-accuracy candidates across all completed assessments.</CardDescription>
+                <CardDescription className="text-xs font-semibold text-indigo-200 mt-1">
+                  This school's highest-accuracy candidates across all completed assessments.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="p-8">
+              <CardContent className="p-5 md:p-8">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
                   {topPerformers.map((perf, i) => {
-                    const rankIcon = i === 0
-                      ? <Crown size={16} className="text-amber-400" />
-                      : i === 1
-                        ? <Medal size={16} className="text-slate-300" />
-                        : i === 2
-                          ? <Award size={16} className="text-orange-400" />
-                          : null;
+                    const rankIcon =
+                      i === 0 ? (
+                        <Crown size={16} className="text-amber-400" />
+                      ) : i === 1 ? (
+                        <Medal size={16} className="text-slate-300" />
+                      ) : i === 2 ? (
+                        <Award size={16} className="text-orange-400" />
+                      ) : null;
                     const accuracy = perf.accuracy ?? 0;
                     return (
-                      <div key={perf.id} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-center text-center gap-2">
+                      <div
+                        key={perf.id}
+                        className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-center text-center gap-2"
+                      >
                         <div className="flex items-center gap-1.5">
                           {rankIcon || <span className="text-xs font-black text-indigo-300">0{i + 1}</span>}
                         </div>
@@ -562,8 +605,13 @@ export const SchoolDashboard: React.FC = () => {
                         <div className="h-10 w-10 rounded-full bg-white/10 overflow-hidden border border-white/20">
                           <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${perf.id}`} alt="rank" />
                         </div>
-                        <p className="text-xs font-black uppercase tracking-tight truncate max-w-full">{perf.studentName || 'Unknown Student'}</p>
-                        <p className="text-[9px] font-bold text-slate-400 truncate max-w-full">{perf.className}{perf.rollNumber ? ` · ${perf.rollNumber}` : ''}</p>
+                        <p className="text-xs font-black uppercase tracking-tight truncate max-w-full">
+                          {perf.studentName || 'Unknown Student'}
+                        </p>
+                        <p className="text-[9px] font-bold text-slate-400 truncate max-w-full">
+                          {perf.className}
+                          {perf.rollNumber ? ` · ${perf.rollNumber}` : ''}
+                        </p>
                         <span className="text-xs font-black text-emerald-400">{accuracy.toFixed(1)}%</span>
                       </div>
                     );
@@ -578,24 +626,28 @@ export const SchoolDashboard: React.FC = () => {
 
           {/* Actionable Human Intelligence Base Feed Column */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
             {/* Intel Deck Column */}
             <Card className="lg:col-span-2 border-slate-200 shadow-xl shadow-slate-100/30 rounded-[35px] overflow-hidden bg-gradient-to-br from-indigo-900 to-slate-950 text-white relative">
               <div className="absolute right-0 top-0 w-64 h-64 bg-indigo-5050 bg-indigo-500/10 rounded-full blur-[70px] pointer-events-none" />
-              <CardHeader className="p-8 border-b border-indigo-950/40">
+              <CardHeader className="p-5 md:p-8 border-b border-indigo-950/40">
                 <div className="flex items-center gap-2">
                   <div className="p-2 rounded-2xl bg-indigo-500/10 text-[#FFE28A] border border-indigo-400/20">
                     <BrainCircuit className="h-5 w-5 animate-pulse" />
                   </div>
                   <div>
                     <CardTitle className="text-base font-black uppercase tracking-widest text-[#FFE28A]">Cognitive Insights Feed</CardTitle>
-                    <CardDescription className="text-xs font-semibold text-indigo-200 mt-0.5">Automated directives computed from real candidate metrics.</CardDescription>
+                    <CardDescription className="text-xs font-semibold text-indigo-200 mt-0.5">
+                      Automated directives computed from real candidate metrics.
+                    </CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-8 space-y-4">
+              <CardContent className="p-5 md:p-8 space-y-4">
                 {intelligenceMetrics.generatedInsights.map((insight, idx) => (
-                  <div key={idx} className="bg-white/5 border border-white/5 hover:border-white/10 p-5 rounded-2xl flex items-start gap-3.5 hover:bg-white/[0.07] transition-all">
+                  <div
+                    key={idx}
+                    className="bg-white/5 border border-white/5 hover:border-white/10 p-5 rounded-2xl flex items-start gap-3.5 hover:bg-white/[0.07] transition-all"
+                  >
                     <span className="text-base">📌</span>
                     <div>
                       <p className="text-xs font-black text-slate-300 uppercase tracking-wider">Intel Advice #{idx + 1}</p>
@@ -619,14 +671,16 @@ export const SchoolDashboard: React.FC = () => {
                   <span>Action Monitor</span>
                   <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                 </CardTitle>
-                <CardDescription className="text-xs font-semibold text-slate-500 mt-1">Live updates in proctoring and exam registry.</CardDescription>
+                <CardDescription className="text-xs font-semibold text-slate-500 mt-1">
+                  Live updates in proctoring and exam registry.
+                </CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="space-y-4">
                   {attempts.length > 0 ? (
                     attempts.slice(0, 4).map((a, idx) => (
-                      <div 
-                        key={idx} 
+                      <div
+                        key={idx}
                         onClick={() => {
                           if (a.status === 'completed') {
                             navigate(`/result/${a.id}`);
@@ -635,13 +689,19 @@ export const SchoolDashboard: React.FC = () => {
                           }
                         }}
                         className="flex gap-3 items-center p-3 rounded-xl hover:bg-slate-100 hover:border-slate-350 cursor-pointer transition-all border border-dashed border-slate-100 text-xs text-left group"
-                        title={a.status === 'completed' ? "Click to view forensic scorecard details" : "Assessment in-progress"}
+                        title={a.status === 'completed' ? 'Click to view forensic scorecard details' : 'Assessment in-progress'}
                       >
                         <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600 font-bold flex-shrink-0 group-hover:scale-105 transition-transform">
-                          {a.status === 'completed' ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Activity className="h-4 w-4 animate-pulse text-indigo-500" />}
+                          {a.status === 'completed' ? (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          ) : (
+                            <Activity className="h-4 w-4 animate-pulse text-indigo-500" />
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-bold text-slate-800 truncate group-hover:text-indigo-650 transition-colors flex items-center gap-1">{a.studentName || 'Student attempt'}</p>
+                          <p className="font-bold text-slate-800 truncate group-hover:text-indigo-650 transition-colors flex items-center gap-1">
+                            {a.studentName || 'Student attempt'}
+                          </p>
                           <p className="text-[10px] text-slate-400 mt-0.5 font-medium truncate">
                             {a.status === 'completed' ? `Score: ${a.score} marks (Click to view what they did)` : 'Actively answering'}
                           </p>
@@ -653,15 +713,15 @@ export const SchoolDashboard: React.FC = () => {
                     <div className="text-center py-12 text-slate-400 space-y-2">
                       <ClipboardList className="h-8 w-8 mx-auto opacity-20" />
                       <p className="text-xs font-semibold">No recent assessment attempts tracked.</p>
-                      <p className="text-[10px] text-slate-400 leading-normal">Onboard candidates and trigger direct login passes to build the live monitor.</p>
+                      <p className="text-[10px] text-slate-400 leading-normal">
+                        Onboard candidates and trigger direct login passes to build the live monitor.
+                      </p>
                     </div>
                   )}
                 </div>
               </CardContent>
             </Card>
-
           </div>
-
         </TabsContent>
 
         <TabsContent value="students" className="outline-none focus-visible:ring-0">

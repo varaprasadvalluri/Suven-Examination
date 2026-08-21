@@ -63,7 +63,7 @@ export const options = {
     { duration: '30s', target: 20 },
     { duration: '1m', target: 100 },
     { duration: '2m', target: 100 },
-    { duration: '30s', target: 0 },
+    { duration: '30s', target: 0 }
   ],
   thresholds: {
     http_req_failed: ['rate<0.05'],
@@ -72,8 +72,8 @@ export const options = {
     // thresholds are deliberately generous starting points; tighten them once you have a
     // real baseline from your own environment/region.
     enroll_duration: ['p(95)<3000'],
-    write_duration: ['p(95)<2000'],
-  },
+    write_duration: ['p(95)<2000']
+  }
 };
 
 function randomAnswers(count = 20) {
@@ -96,7 +96,7 @@ export default function () {
       finalExamId: EXAM_ID,
       examTitle: 'k6 Load Test',
       clientFootprint,
-      username: `K6 LoadTest Student ${__VU}`,
+      username: `K6 LoadTest Student ${__VU}`
     }),
     { headers: { 'Content-Type': 'application/json' } }
   );
@@ -110,7 +110,7 @@ export default function () {
       } catch {
         return false;
       }
-    },
+    }
   });
 
   if (!enrollOk) {
@@ -121,7 +121,7 @@ export default function () {
   const { attemptIdRaw, sessionToken } = JSON.parse(enrollRes.body);
   const authHeaders = {
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${sessionToken}`,
+    Authorization: `Bearer ${sessionToken}`
   };
 
   // Step 2: Periodic answer/heartbeat writes, same shape ExamInterface.tsx's 30s
@@ -136,8 +136,8 @@ export default function () {
         docId: attemptIdRaw,
         data: {
           timePerQuestion: { [i]: Math.floor(Math.random() * 30) },
-          status: 'in-progress',
-        },
+          status: 'in-progress'
+        }
       }),
       { headers: authHeaders }
     );
@@ -159,8 +159,8 @@ export default function () {
         avgTimePerCorrect: Math.floor(Math.random() * 10) + 5,
         status: 'completed',
         answers: randomAnswers(),
-        endTime: new Date().toISOString(),
-      },
+        endTime: new Date().toISOString()
+      }
     }),
     { headers: authHeaders }
   );

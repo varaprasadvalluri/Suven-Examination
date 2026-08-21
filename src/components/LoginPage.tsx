@@ -1,7 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { 
-  Lock, ArrowRight, Loader2, Award, Building2, User2, BookOpen, AlertCircle, ShieldCheck, GraduationCap, Check, Key, Mail, ChevronDown, CheckCircle, Eye, EyeOff, Sparkles, Shield, Trophy, Settings, ClipboardList, Database
+import {
+  Lock,
+  ArrowRight,
+  Loader2,
+  Award,
+  Building2,
+  User2,
+  BookOpen,
+  AlertCircle,
+  ShieldCheck,
+  GraduationCap,
+  Check,
+  Key,
+  Mail,
+  ChevronDown,
+  CheckCircle,
+  Eye,
+  EyeOff,
+  Sparkles,
+  Shield,
+  Trophy,
+  Settings,
+  ClipboardList,
+  Database,
+  Calendar
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { DatabaseMigrator } from './DatabaseMigrator';
@@ -11,12 +34,13 @@ import { db, doc, getDoc, collection, query, where, getDocs, onSnapshot } from '
 import { handleErrorAndLog } from '../lib/customErrors';
 import { setSessionToken } from '../lib/sessionStore';
 import { ExamInstructionsScreen } from './ExamInstructionsScreen';
+import { gatekeeperApi } from '../services/api';
 
 export const LoginPage: React.FC = () => {
-  const { user, profile, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithDemo, signOut, sendPasswordResetEmail } = useAuth();
+  const { user, profile, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, sendPasswordResetEmail } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
-  
+
   // Invitation Verification State
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get('invite');
@@ -46,7 +70,7 @@ export const LoginPage: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<'student' | 'school' | 'admin' | ''>('school');
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
+
   // Sign up inputs & touch states
   const [name, setName] = useState('');
   const [signUpEmail, setSignUpEmail] = useState('');
@@ -54,50 +78,61 @@ export const LoginPage: React.FC = () => {
   const [nameTouched, setNameTouched] = useState(false);
   const [signUpEmailTouched, setSignUpEmailTouched] = useState(false);
   const [signUpPasswordTouched, setSignUpPasswordTouched] = useState(false);
-  
+
   const [rememberMe, setRememberMe] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Direct student login (no exam link/invite): name + roll/register number + date of
+  // birth. DOB is the actual credential — roll number alone is guessable/semi-public.
+  const [studentLoginName, setStudentLoginName] = useState('');
+  const [studentLoginRoll, setStudentLoginRoll] = useState('');
+  const [studentLoginDob, setStudentLoginDob] = useState('');
+  const [isStudentLoggingIn, setIsStudentLoggingIn] = useState(false);
 
   const [onboardedEmails, setOnboardedEmails] = useState<string[]>([]);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'schools'), async (snapshot) => {
-      const emailList = snapshot.docs
-        .map(doc => doc.data()?.adminEmail)
-        .filter((e): e is string => typeof e === 'string' && e.trim().length > 0)
-        .map(e => e.trim().toLowerCase());
-        
-      const domainsList = snapshot.docs
-        .flatMap(doc => {
-          const domains = doc.data()?.allowedDomains;
-          return Array.isArray(domains) ? domains : [];
-        })
-        .filter((d): d is string => typeof d === 'string' && d.trim().length > 0)
-        .map(d => d.trim().toLowerCase());
+    const unsubscribe = onSnapshot(
+      collection(db, 'schools'),
+      async (snapshot) => {
+        const emailList = snapshot.docs
+          .map((doc) => doc.data()?.adminEmail)
+          .filter((email): email is string => typeof email === 'string' && email.trim().length > 0)
+          .map((email) => email.trim().toLowerCase());
 
-      let allowedList: string[] = [];
-      try {
-        const allowedSnap = await getDocs(collection(db, 'allowed_schools'));
-        allowedList = allowedSnap.docs
-          .map(doc => doc.data()?.email)
-          .filter((e): e is string => typeof e === 'string' && e.trim().length > 0)
-          .map(e => e.trim().toLowerCase());
-      } catch (err) {
-        console.warn("Could not query allowed_schools list:", err);
+        const domainsList = snapshot.docs
+          .flatMap((doc) => {
+            const domains = doc.data()?.allowedDomains;
+            return Array.isArray(domains) ? domains : [];
+          })
+          .filter((domain): domain is string => typeof domain === 'string' && domain.trim().length > 0)
+          .map((domain) => domain.trim().toLowerCase());
+
+        let allowedList: string[] = [];
+        try {
+          const allowedSnap = await getDocs(collection(db, 'allowed_schools'));
+          allowedList = allowedSnap.docs
+            .map((doc) => doc.data()?.email)
+            .filter((email): email is string => typeof email === 'string' && email.trim().length > 0)
+            .map((email) => email.trim().toLowerCase());
+        } catch (err) {
+          console.warn('Could not query allowed_schools list:', err);
+        }
+
+        const uniqueEmails = Array.from(new Set([...emailList, ...domainsList, ...allowedList]));
+        setOnboardedEmails(uniqueEmails);
+      },
+      (err) => {
+        console.error('Error listening to schools list:', err);
+        setOnboardedEmails([]);
       }
-        
-      const uniqueEmails = Array.from(new Set([...emailList, ...domainsList, ...allowedList]));
-      setOnboardedEmails(uniqueEmails);
-    }, (err) => {
-      console.error("Error listening to schools list:", err);
-      setOnboardedEmails([]);
-    });
+    );
     return () => unsubscribe();
   }, []);
 
   const FALLBACK_OPTIONS = [
-    { value: 'school', label: "Educator / Registrar", icon: 'BookOpen', desc: "Analyse metrics, control timers, proctor" },
-    { value: 'admin', label: "Institutional Administrator", icon: 'ShieldCheck', desc: "Complete system controls & onboarding" }
+    { value: 'school', label: 'Educator / Registrar', icon: 'BookOpen', desc: 'Analyse metrics, control timers, proctor' },
+    { value: 'admin', label: 'Institutional Administrator', icon: 'ShieldCheck', desc: 'Complete system controls & onboarding' }
   ];
 
   const [roleOptions, setRoleOptions] = useState<any[]>(FALLBACK_OPTIONS);
@@ -130,19 +165,19 @@ export const LoginPage: React.FC = () => {
       try {
         const querySnap = await getDocs(collection(db, 'login_options'));
         if (!querySnap.empty) {
-          const list = querySnap.docs.map(doc => ({
+          const list = querySnap.docs.map((doc) => ({
             id: doc.id,
             ...doc.data()
           })) as any[];
           // Exclude student option explicitly to fulfill dropdown update
-          const filtered = list.filter(item => item.value !== 'student');
+          const filtered = list.filter((item) => item.value !== 'student');
           if (filtered.length > 0) {
             filtered.sort((a, b) => (a.order || 0) - (b.order || 0));
             setRoleOptions(filtered);
           }
         }
       } catch (err) {
-        console.warn("Could not query dynamic login options from Firestore, using robust fallback mode:", err);
+        console.warn('Could not query dynamic login options from Firestore, using robust fallback mode:', err);
       }
     };
     fetchDropdownOptions();
@@ -167,18 +202,18 @@ export const LoginPage: React.FC = () => {
 
     const fetchInviteMetadata = async () => {
       setIsVerifyingInvite(true);
-      const toastId = "meta-toast";
-      toast.loading("De-escalating token credentials securely...", { id: toastId });
+      const toastId = 'meta-toast';
+      toast.loading('De-escalating token credentials securely...', { id: toastId });
       try {
         // Resolved server-side now (invitations/users require a session the student
         // doesn't have yet at this point) — same result shape as the old direct lookup.
-        const res = await fetch('/api/gatekeeper/invite-metadata', {
+        const inviteMetadataResponse = await fetch('/api/gatekeeper/invite-metadata', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ inviteToken })
         });
-        const payload = await res.json();
-        if (!res.ok || !payload.success) {
+        const payload = await inviteMetadataResponse.json();
+        if (!inviteMetadataResponse.ok || !payload.success) {
           throw new Error(payload.error || 'Failed to resolve invitation');
         }
 
@@ -190,13 +225,13 @@ export const LoginPage: React.FC = () => {
 
         toast.success(
           payload.inviteData?.isFallback
-            ? "Secured assessment pass active! Please enter your credentials to unlock."
-            : "Secured assessment pass active! Please enter your credentials to unpack.",
+            ? 'Secured assessment pass active! Please enter your credentials to unlock.'
+            : 'Secured assessment pass active! Please enter your credentials to unpack.',
           { id: toastId }
         );
       } catch (err: any) {
-        console.error("Invitation gateway error:", err);
-        const detailedMessage = err?.message || err?.toString() || "Firestore authentication or metadata restriction";
+        console.error('Invitation gateway error:', err);
+        const detailedMessage = err?.message || err?.toString() || 'Firestore authentication or metadata restriction';
         toast.error(`Technical discrepancy verifying invitation gateway: ${detailedMessage}`, { id: toastId });
       } finally {
         setIsVerifyingInvite(false);
@@ -209,17 +244,17 @@ export const LoginPage: React.FC = () => {
   const handleVerifySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!enteredName.trim() || !enteredRoll.trim()) {
-      toast.error("Please enter both your Full Name and Register / Roll Number");
+      toast.error('Please enter both your Full Name and Register / Roll Number');
       return;
     }
 
     if (!inviteData) {
-      toast.error("Invalid credentials or expired invitation pass");
+      toast.error('Invalid credentials or expired invitation pass');
       return;
     }
 
     setIsVerifyingDetails(true);
-    const toastId = toast.loading("Verifying security parameters...");
+    const toastId = toast.loading('Verifying security parameters...');
 
     try {
       // Identity + target-exam resolution now happens server-side (users/invitations
@@ -236,7 +271,7 @@ export const LoginPage: React.FC = () => {
       });
       const verifyPayload = await verifyRes.json();
       if (!verifyRes.ok || !verifyPayload.success) {
-        toast.error(verifyPayload.error || "Invalid credentials provided", { id: toastId });
+        toast.error(verifyPayload.error || 'Invalid credentials provided', { id: toastId });
         setIsVerifyingDetails(false);
         return;
       }
@@ -253,23 +288,23 @@ export const LoginPage: React.FC = () => {
         if (examSnap.exists()) {
           setInviteExam({ id: examSnap.id, ...examSnap.data() });
           const qsSnap = await getDocs(query(collection(db, 'questions'), where('examId', '==', verifyPayload.finalExamId)));
-          setInviteQuestions(qsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+          setInviteQuestions(qsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
         } else {
           setInviteExam({ title: verifyPayload.examTitle });
           setInviteQuestions([]);
         }
       } catch (examErr) {
-        console.warn("Failed to load exam structure for instructions screen:", examErr);
+        console.warn('Failed to load exam structure for instructions screen:', examErr);
         setInviteExam({ title: verifyPayload.examTitle });
         setInviteQuestions([]);
       }
 
       setInviteStep('agree');
-      toast.success("Identity verified! Please read and agree to the instructions to proceed.", { id: toastId });
+      toast.success('Identity verified! Please read and agree to the instructions to proceed.', { id: toastId });
       setIsVerifyingDetails(false);
     } catch (err) {
       toast.dismiss(toastId);
-      const mapped = handleErrorAndLog(err, "Student Academic Pass Verification");
+      const mapped = handleErrorAndLog(err, 'Student Academic Pass Verification');
       setErrorMessage(mapped.friendlyMessage);
       setIsVerifyingDetails(false);
     }
@@ -278,7 +313,7 @@ export const LoginPage: React.FC = () => {
   const handleConfirmInviteExam = async () => {
     if (!inviteVerifiedPayload) return;
     if (!agreedToInviteTerms) {
-      toast.error("Please read and agree to the instructions by selecting the checkbox.");
+      toast.error('Please read and agree to the instructions by selecting the checkbox.');
       return;
     }
 
@@ -292,7 +327,7 @@ export const LoginPage: React.FC = () => {
     } = inviteVerifiedPayload;
 
     setIsVerifyingDetails(true);
-    const toastId = toast.loading("Initializing secure attempt session...");
+    const toastId = toast.loading('Initializing secure attempt session...');
 
     try {
       const clientFootprint = btoa([navigator.userAgent, screen.width, screen.height, navigator.language].join('|')).substring(0, 32);
@@ -321,7 +356,9 @@ export const LoginPage: React.FC = () => {
       if (!enrollRes.ok || !enrollPayload.success) {
         if (enrollPayload.code === 'EXAM_ALREADY_COMPLETED' && enrollPayload.attemptIdRaw) {
           localStorage.setItem('invite_student_profile', JSON.stringify(matchedStudentData));
-          toast.success(`Welcome back, ${matchedStudentData.name}! This assessment was already submitted. Redirecting to results...`, { id: toastId });
+          toast.success(`Welcome back, ${matchedStudentData.name}! This assessment was already submitted. Redirecting to results...`, {
+            id: toastId
+          });
           setTimeout(() => {
             window.location.href = `/result/${enrollPayload.attemptIdRaw}`;
           }, 800);
@@ -344,12 +381,15 @@ export const LoginPage: React.FC = () => {
         toast.success(`Resuming secure diagnostic session for ${name}...`, { id: toastId });
       }
 
+      // Land on the dashboard rather than auto-launching straight into the exam — the
+      // triggered exam shows there as In Progress, and the student explicitly starts it
+      // from a click, same as every other entry into the dashboard.
       setTimeout(() => {
-        window.location.href = `/exam/${enrollPayload.attemptIdRaw}`;
+        window.location.href = '/student/dashboard';
       }, 800);
     } catch (err) {
       toast.dismiss(toastId);
-      const mapped = handleErrorAndLog(err, "Student Academic Pass Verification");
+      const mapped = handleErrorAndLog(err, 'Student Academic Pass Verification');
       setErrorMessage(mapped.friendlyMessage);
       setIsVerifyingDetails(false);
     }
@@ -371,7 +411,9 @@ export const LoginPage: React.FC = () => {
         <div className="relative">
           <div className="w-16 h-16 border-4 border-slate-800 border-t-indigo-500 rounded-full animate-spin" />
         </div>
-        <p className="text-slate-400 font-sans font-black text-xs uppercase tracking-widest animate-pulse">Decrypting Security Token Hash...</p>
+        <p className="text-slate-400 font-sans font-black text-xs uppercase tracking-widest animate-pulse">
+          Decrypting Security Token Hash...
+        </p>
       </div>
     );
   }
@@ -398,10 +440,10 @@ export const LoginPage: React.FC = () => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      await signInWithGoogle();
-      toast.success("Connecting securely via Google Workspace...");
+      await signInWithGoogle(rememberMe);
+      toast.success('Connecting securely via Google Workspace...');
     } catch (error: any) {
-      const mapped = handleErrorAndLog(error, "Google Workspace Identity Verification");
+      const mapped = handleErrorAndLog(error, 'Google Workspace Identity Verification');
       setErrorMessage(mapped.friendlyMessage);
       setIsLoading(false);
     }
@@ -411,41 +453,64 @@ export const LoginPage: React.FC = () => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr);
   };
 
+  const handleStudentLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!studentLoginName.trim() || !studentLoginRoll.trim()) {
+      toast.error('Please enter both your Full Name and Register / Roll Number');
+      return;
+    }
+
+    setIsStudentLoggingIn(true);
+    const toastId = toast.loading('Verifying student credentials...');
+    try {
+      const payload = await gatekeeperApi.studentLogin(studentLoginName.trim(), studentLoginRoll.trim(), studentLoginDob.trim());
+      setSessionToken(payload.sessionToken);
+      localStorage.setItem('invite_student_profile', JSON.stringify(payload.profileData));
+      toast.success(`Welcome back, ${payload.profileData?.name}!`, { id: toastId });
+      // Full reload (not client-side navigate) so AuthContext re-hydrates `profile` from the
+      // localStorage entry just written above — same pattern the invite/link-entry flows use.
+      window.location.href = '/student/dashboard';
+    } catch (err: any) {
+      toast.error(err?.message || 'Student login failed', { id: toastId });
+      setIsStudentLoggingIn(false);
+    }
+  };
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     if (!email) {
-      setErrorMessage("Please enter your institution email address.");
-      toast.error("Institution email is required.");
+      setErrorMessage('Please enter your institution email address.');
+      toast.error('Institution email is required.');
       return;
     }
     if (!isValidEmail(email)) {
-      setErrorMessage("Please enter a valid institution email address.");
-      toast.error("Invalid email format.");
+      setErrorMessage('Please enter a valid institution email address.');
+      toast.error('Invalid email format.');
       return;
     }
     if (!password) {
-      setErrorMessage("Please enter your password.");
-      toast.error("Password is required.");
+      setErrorMessage('Please enter your password.');
+      toast.error('Password is required.');
       return;
     }
     if (password.length < 6) {
-      setErrorMessage("Password must contain at least 6 characters.");
-      toast.error("Password too short.");
+      setErrorMessage('Password must contain at least 6 characters.');
+      toast.error('Password too short.');
       return;
     }
     if (!selectedRole) {
-      setErrorMessage("Please select your Authorized Role Node.");
-      toast.error("Role selection is mandatory.");
+      setErrorMessage('Please select your Authorized Role Node.');
+      toast.error('Role selection is mandatory.');
       return;
     }
-    
+
     setIsLoading(true);
     try {
-      await signInWithEmail(email, password);
-      toast.success("Welcome back! Launching secure institutional workspace...");
+      await signInWithEmail(email, password, rememberMe);
+      toast.success('Welcome back! Launching secure institutional workspace...');
     } catch (error: any) {
-      const mapped = handleErrorAndLog(error, "Institution Account Credential Sign In");
+      const mapped = handleErrorAndLog(error, 'Institution Account Credential Sign In');
       setErrorMessage(mapped.friendlyMessage);
       setIsLoading(false);
     }
@@ -459,42 +524,43 @@ export const LoginPage: React.FC = () => {
 
     // STRICT RULE: Admin self-registration is strictly disallowed!
     if (selectedRole === 'admin') {
-      const msg = "Admin accounts cannot be self-registered. Admin credentials must be provisioned manually in Firestore by the system administrator.";
+      const msg =
+        'Admin accounts cannot be self-registered. Admin credentials must be provisioned manually in Firestore by the system administrator.';
       setErrorMessage(msg);
-      toast.error("Self-registration for Admin is disabled.");
+      toast.error('Self-registration for Admin is disabled.');
       return;
     }
 
     if (!trimmedName || trimmedName.length < 3) {
-      setErrorMessage("Name must be at least 3 alphabetical characters long.");
-      toast.error("Invalid Name.");
+      setErrorMessage('Name must be at least 3 alphabetical characters long.');
+      toast.error('Invalid Name.');
       return;
     }
     if (!selectedRole || selectedRole !== 'school') {
-      setErrorMessage("Please select Teacher / School Role.");
-      toast.error("Role Selection Required.");
+      setErrorMessage('Please select Teacher / School Role.');
+      toast.error('Role Selection Required.');
       return;
     }
     if (!trimmedEmail) {
-      setErrorMessage("Please enter your pre-registered institution email address.");
-      toast.error("Email is required.");
+      setErrorMessage('Please enter your pre-registered institution email address.');
+      toast.error('Email is required.');
       return;
     }
     if (!isValidEmail(trimmedEmail)) {
-      setErrorMessage("Please enter a valid institution email formatted address.");
-      toast.error("Invalid email format.");
+      setErrorMessage('Please enter a valid institution email formatted address.');
+      toast.error('Invalid email format.');
       return;
     }
-    
+
     const checkEmail = trimmedEmail.toLowerCase();
     if (!signUpPassword) {
-      setErrorMessage("Please enter a password.");
-      toast.error("Password is required.");
+      setErrorMessage('Please enter a password.');
+      toast.error('Password is required.');
       return;
     }
     if (signUpPassword.length < 6) {
-      setErrorMessage("For enterprise protection, password must contain at least 6 characters.");
-      toast.error("Password must be at least 6 characters.");
+      setErrorMessage('For enterprise protection, password must contain at least 6 characters.');
+      toast.error('Password must be at least 6 characters.');
       return;
     }
 
@@ -502,14 +568,14 @@ export const LoginPage: React.FC = () => {
     try {
       let isAuthorized = false;
       let schoolId = '';
-      
+
       if (selectedRole === 'school') {
         const schoolsRef = collection(db, 'schools');
-        
+
         // 1. Try exact adminEmail lookup in schools
         const q = query(schoolsRef, where('adminEmail', '==', checkEmail));
         const snap = await getDocs(q);
-        
+
         if (!snap.empty) {
           isAuthorized = true;
           schoolId = snap.docs[0].id;
@@ -530,25 +596,27 @@ export const LoginPage: React.FC = () => {
               }
             }
           } catch (e) {
-            console.warn("Allowed schools query error:", e);
+            console.warn('Allowed schools query error:', e);
           }
 
           if (!isAuthorized) {
             // 3. Fallback case-insensitive lookup & allowedDomains lookup in schools
             const allSchools = await getDocs(schoolsRef);
-            const foundSchool = allSchools.docs.find(docSnap => {
-              const data = docSnap.data();
-              if (!data) return false;
-              
-              const isEmailMatch = (data.adminEmail || '').trim().toLowerCase() === checkEmail;
-              
+            const foundSchool = allSchools.docs.find((docSnap) => {
+              const schoolData = docSnap.data();
+              if (!schoolData) return false;
+
+              const isEmailMatch = (schoolData.adminEmail || '').trim().toLowerCase() === checkEmail;
+
               const emailDomain = checkEmail.split('@')[1];
-              const isDomainMatch = emailDomain && Array.isArray(data.allowedDomains) && 
-                data.allowedDomains.map((d: string) => d.trim().toLowerCase()).includes(emailDomain.toLowerCase());
-                
+              const isDomainMatch =
+                emailDomain &&
+                Array.isArray(schoolData.allowedDomains) &&
+                schoolData.allowedDomains.map((domain: string) => domain.trim().toLowerCase()).includes(emailDomain.toLowerCase());
+
               return isEmailMatch || isDomainMatch;
             });
-            
+
             if (foundSchool) {
               isAuthorized = true;
               schoolId = foundSchool.id;
@@ -562,20 +630,22 @@ export const LoginPage: React.FC = () => {
       }
 
       if (selectedRole === 'school' && !isAuthorized) {
-        setErrorMessage(`Registration denied: Your email address (${trimmedEmail}) is not onboarded by an Admin. Please contact the administrator to onboard your school before creating an account.`);
-        toast.error("Email not onboarded by Admin.");
+        setErrorMessage(
+          `Registration denied: Your email address (${trimmedEmail}) is not onboarded by an Admin. Please contact the administrator to onboard your school before creating an account.`
+        );
+        toast.error('Email not onboarded by Admin.');
         setIsLoading(false);
         return;
       }
 
       await signUpWithEmail(trimmedEmail, signUpPassword, trimmedName, selectedRole, schoolId || undefined);
-      toast.success("Account created! Access granted to diagnostic portal.");
+      toast.success('Account created! Access granted to diagnostic portal.');
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use' || (error.message && error.message.includes('email-already-in-use'))) {
         try {
           // Attempt to sign in instead if they are already registered
           await signInWithEmail(trimmedEmail, signUpPassword);
-          toast.success("Account already exists. Successfully signed in!");
+          toast.success('Account already exists. Successfully signed in!');
           return;
         } catch (signInErr: any) {
           // The password they just tried didn't match an existing account for this email —
@@ -583,13 +653,16 @@ export const LoginPage: React.FC = () => {
           // one click away, instead of leaving them on a dead-end error on the Signup tab.
           setEmail(trimmedEmail);
           setActiveTab('login');
-          toast.error(`An account already exists for ${trimmedEmail}. Use "Forgot password?" below to set a new one, or sign in with Google if that's how you registered.`, { duration: 8000 });
+          toast.error(
+            `An account already exists for ${trimmedEmail}. Use "Forgot password?" below to set a new one, or sign in with Google if that's how you registered.`,
+            { duration: 8000 }
+          );
           setIsLoading(false);
           return;
         }
       }
-      
-      const mapped = handleErrorAndLog(error, "Authorized Portal Account Registration");
+
+      const mapped = handleErrorAndLog(error, 'Authorized Portal Account Registration');
       setErrorMessage(mapped.friendlyMessage);
       setIsLoading(false);
     }
@@ -597,22 +670,22 @@ export const LoginPage: React.FC = () => {
 
   const handleForgotPassword = async () => {
     if (!email) {
-      toast.error("Please enter your email address in the Sign In form first.");
+      toast.error('Please enter your email address in the Sign In form first.');
       return;
     }
-    
+
     if (!isValidEmail(email)) {
-      toast.error("Please enter a valid email address.");
+      toast.error('Please enter a valid email address.');
       return;
     }
 
     try {
       setIsLoading(true);
       await sendPasswordResetEmail(email.trim());
-      toast.success("Password reset email sent! Please check your inbox.");
-      setErrorMessage("");
+      toast.success('Password reset email sent! Please check your inbox.');
+      setErrorMessage('');
     } catch (error: any) {
-      const mapped = handleErrorAndLog(error, "Password Reset");
+      const mapped = handleErrorAndLog(error, 'Password Reset');
       toast.error(mapped.friendlyMessage);
     } finally {
       setIsLoading(false);
@@ -627,49 +700,46 @@ export const LoginPage: React.FC = () => {
   // Sign up form client-side pre-validations
   const isSignUpNameValid = name.trim().length >= 3;
   const isSignUpEmailValid = isValidEmail(signUpEmail.trim());
-  const isEmailOnboarded = signUpEmail 
-    ? (onboardedEmails.includes(signUpEmail.trim().toLowerCase()) ||
-       onboardedEmails.includes(signUpEmail.trim().toLowerCase().split('@')[1] || ''))
+  const isEmailOnboarded = signUpEmail
+    ? onboardedEmails.includes(signUpEmail.trim().toLowerCase()) ||
+      onboardedEmails.includes(signUpEmail.trim().toLowerCase().split('@')[1] || '')
     : false;
   const isSignUpPasswordValid = signUpPassword.length >= 6;
-  const isSignUpFormValid = isSignUpNameValid && isSignUpEmailValid && isSignUpPasswordValid && selectedRole === 'school' && isEmailOnboarded;
+  const isSignUpFormValid =
+    isSignUpNameValid && isSignUpEmailValid && isSignUpPasswordValid && selectedRole === 'school' && isEmailOnboarded;
 
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#f3f6f9] relative overflow-hidden font-sans text-slate-800">
-      
       {/* LEFT SIDE PANEL: Beautiful Educational Identity (matches Figma layout mockup) */}
       <div className="w-full lg:w-[45%] bg-[#0B1E3F] p-8 md:p-12 lg:p-16 flex flex-col justify-between relative text-white min-h-[450px] lg:min-h-screen overflow-hidden">
         {/* Subtle decorative glowing lights */}
         <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
         <div className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full bg-sky-500/10 blur-3xl pointer-events-none" />
-        
+
         {/* Abstract curve decorations in background (recreating the circles in Figma left design) */}
         <div className="absolute top-0 right-0 w-[450px] h-[450px] rounded-full border border-white/[0.03] translate-x-1/3 -translate-y-1/3 pointer-events-none" />
         <div className="absolute top-0 right-0 w-[550px] h-[550px] rounded-full border border-white/[0.02] translate-x-1/4 -translate-y-1/4 pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-[300px] h-[300px] rounded-full border border-white/[0.03] -translate-x-1/3 translate-y-1/3 pointer-events-none" />
-        
+
         {/* Header branding on left corner */}
         <div className="flex items-center gap-3 relative z-10">
           <div className="h-10 w-10 rounded-xl bg-[#f2a81e] flex items-center justify-center font-black text-white text-lg shadow-md shadow-[#f2a81e]/20">
             S
           </div>
           <div>
-            <span className="font-sans font-extrabold text-sm uppercase tracking-wider text-white block leading-none">
-              SUVEN EDU
-            </span>
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">
-              EXAM PORTAL
-            </span>
+            <span className="font-sans font-extrabold text-sm uppercase tracking-wider text-white block leading-none">SUVEN EDU</span>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">EXAM PORTAL</span>
           </div>
         </div>
 
         {/* Welcoming Messages (Figma matches) */}
         <div className="my-auto py-8 lg:py-0 relative z-10">
-          <span className="text-[#38bdf8] font-extrabold text-[11px] uppercase tracking-[0.2em] block mb-3">
-            WELCOME BACK
-          </span>
+          <span className="text-[#38bdf8] font-extrabold text-[11px] uppercase tracking-[0.2em] block mb-3">WELCOME BACK</span>
           <h1 className="text-3xl md:text-4.5xl font-extrabold text-white tracking-tight leading-[1.15] mb-4">
-            Your academic<br />journey,<br />
+            Your academic
+            <br />
+            journey,
+            <br />
             <span className="text-[#f2a81e]">simplified.</span>
           </h1>
           <p className="text-xs md:text-sm text-slate-300 leading-relaxed max-w-sm font-medium mt-6 opacity-80">
@@ -701,9 +771,7 @@ export const LoginPage: React.FC = () => {
               <div className="w-6 h-6 rounded-full bg-cyan-400 border border-[#0B1E3F]" />
               <div className="w-6 h-6 rounded-full bg-emerald-500 border border-[#0B1E3F]" />
             </div>
-            <span className="text-xs text-slate-300 font-semibold opacity-90">
-              Trusted by 50+ schools nationwide
-            </span>
+            <span className="text-xs text-slate-300 font-semibold opacity-90">Trusted by 50+ schools nationwide</span>
           </div>
         </div>
       </div>
@@ -711,15 +779,14 @@ export const LoginPage: React.FC = () => {
       {/* RIGHT SIDE PANEL: Tabbed Form matching Figma layout mockup */}
       <div className="w-full lg:w-[55%] bg-[#f3f6f9] p-6 md:p-12 lg:p-16 flex flex-col justify-center items-center min-h-[500px] lg:min-h-screen relative">
         <div className="max-w-md w-full mx-auto bg-white rounded-3xl p-8 md:p-10 shadow-[0_10px_35px_-5px_rgba(15,23,42,0.05)] border border-slate-100">
-          
           {/* Header with Custom Welcome */}
           <div className="mb-6 text-center lg:text-left">
             <h2 className="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight leading-tight">
-              {inviteToken ? 'Verify Academic Pass' : (activeTab === 'login' ? 'Sign in to your account' : 'Create an Account')}
+              {inviteToken ? 'Verify Academic Pass' : activeTab === 'login' ? 'Sign in to your account' : 'Create an Account'}
             </h2>
             <p className="text-slate-500 font-semibold text-xs mt-2 block leading-relaxed">
-              {inviteToken 
-                ? 'Input student credentials to decrypt secure assessment lobby.' 
+              {inviteToken
+                ? 'Input student credentials to decrypt secure assessment lobby.'
                 : 'Choose your role and enter your credentials.'}
             </p>
           </div>
@@ -734,11 +801,11 @@ export const LoginPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-slate-150/60">
                 <div>
                   <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold">School Unit</span>
-                  <p className="font-extrabold text-slate-800 text-xs mt-0.5 truncate">{inviteSchool?.name || "Academic Partner Entity"}</p>
+                  <p className="font-extrabold text-slate-800 text-xs mt-0.5 truncate">{inviteSchool?.name || 'Academic Partner Entity'}</p>
                 </div>
                 <div>
                   <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold">Active Assessment</span>
-                  <p className="font-extrabold text-slate-800 text-xs mt-0.5 truncate">{inviteData.examTitle || "General Diagnosis"}</p>
+                  <p className="font-extrabold text-slate-800 text-xs mt-0.5 truncate">{inviteData.examTitle || 'General Diagnosis'}</p>
                 </div>
               </div>
             </div>
@@ -747,7 +814,7 @@ export const LoginPage: React.FC = () => {
           {/* Error Message Box */}
           <AnimatePresence>
             {errorMessage && !inviteToken && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
@@ -765,16 +832,13 @@ export const LoginPage: React.FC = () => {
           {/* Conditional Rendering: Invite Verification VS Classic Login/Signup */}
           {inviteToken ? (
             <form onSubmit={handleVerifySubmit} className="space-y-4">
-              
               {/* Field 1: Enter Name */}
               <div className="space-y-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                  Student Full Name
-                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Student Full Name</span>
                 <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                   <User2 className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="e.g. Leo Skywalker"
                     value={enteredName}
                     onChange={(e) => setEnteredName(e.target.value)}
@@ -788,13 +852,11 @@ export const LoginPage: React.FC = () => {
 
               {/* Field 2: Enter Student Number (ID) */}
               <div className="space-y-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                  Student Register ID
-                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Student Register ID</span>
                 <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                   <Key className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="e.g. REG-78401"
                     value={enteredRoll}
                     onChange={(e) => setEnteredRoll(e.target.value)}
@@ -817,8 +879,8 @@ export const LoginPage: React.FC = () => {
 
               {/* Submit Block */}
               <div className="pt-3 space-y-2.5">
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-600/10 border-none hover:scale-[1.01] active:scale-[0.99]"
                   disabled={isVerifyingDetails}
                 >
@@ -831,13 +893,13 @@ export const LoginPage: React.FC = () => {
                   )}
                 </button>
 
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={async () => {
                     try {
                       await signOut();
                     } catch (err) {
-                      console.warn("Failed to clear credentials during restricted logout direct", err);
+                      console.warn('Failed to clear credentials during restricted logout direct', err);
                     }
                     window.location.href = '/login';
                   }}
@@ -851,24 +913,46 @@ export const LoginPage: React.FC = () => {
             <>
               {activeTab === 'login' ? (
                 <>
-                  {/* Role Selection Grid (Matches Figma with removed student option) */}
-                  <div className="grid grid-cols-2 gap-4 mb-5">
+                  {/* Role Selection Grid */}
+                  <div className="grid grid-cols-3 gap-2.5 sm:gap-4 mb-5">
                     <button
                       type="button"
                       onClick={() => {
                         setSelectedRole('school');
                         setErrorMessage(null);
                       }}
-                      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                      className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl border-2 transition-all cursor-pointer ${
                         selectedRole === 'school'
                           ? 'bg-[#ebf3fe] border-[#1a56db] text-[#1a56db]'
                           : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
                     >
-                      <div className={`p-2 rounded-lg mb-1 transition-colors ${selectedRole === 'school' ? 'text-[#1a56db]' : 'text-slate-400'}`}>
+                      <div
+                        className={`p-2 rounded-lg mb-1 transition-colors ${selectedRole === 'school' ? 'text-[#1a56db]' : 'text-slate-400'}`}
+                      >
                         <ClipboardList className="h-5 w-5" />
                       </div>
-                      <span className="text-xs font-bold leading-none">School</span>
+                      <span className="text-[11px] sm:text-xs font-bold leading-none">School</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRole('student');
+                        setErrorMessage(null);
+                      }}
+                      className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                        selectedRole === 'student'
+                          ? 'bg-[#ebf3fe] border-[#1a56db] text-[#1a56db]'
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      <div
+                        className={`p-2 rounded-lg mb-1 transition-colors ${selectedRole === 'student' ? 'text-[#1a56db]' : 'text-slate-400'}`}
+                      >
+                        <GraduationCap className="h-5 w-5" />
+                      </div>
+                      <span className="text-[11px] sm:text-xs font-bold leading-none">Student</span>
                     </button>
 
                     <button
@@ -877,126 +961,217 @@ export const LoginPage: React.FC = () => {
                         setSelectedRole('admin');
                         setErrorMessage(null);
                       }}
-                      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                      className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl border-2 transition-all cursor-pointer ${
                         selectedRole === 'admin'
                           ? 'bg-[#ebf3fe] border-[#1a56db] text-[#1a56db]'
                           : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
                     >
-                      <div className={`p-2 rounded-lg mb-1 transition-colors ${selectedRole === 'admin' ? 'text-[#1a56db]' : 'text-slate-400'}`}>
+                      <div
+                        className={`p-2 rounded-lg mb-1 transition-colors ${selectedRole === 'admin' ? 'text-[#1a56db]' : 'text-slate-400'}`}
+                      >
                         <Settings className="h-5 w-5" />
                       </div>
-                      <span className="text-xs font-bold leading-none">Admin</span>
+                      <span className="text-[11px] sm:text-xs font-bold leading-none">Admin</span>
                     </button>
                   </div>
 
-                  <form onSubmit={handleEmailLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    
-                    {/* Email Input */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center">
-                        <label className="text-xs font-semibold text-slate-700 block">Roll Number / Email</label>
-                        {emailTouched && !isEmailValid && (
-                          <span className="text-[10px] font-semibold text-rose-600 block animate-fadeIn">Invalid email</span>
-                        )}
+                  {selectedRole === 'student' ? (
+                    <form onSubmit={handleStudentLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-700 block">Full Name</label>
+                        <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
+                          <User2 className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
+                          <input
+                            type="text"
+                            placeholder="e.g. Leo Skywalker"
+                            value={studentLoginName}
+                            onChange={(e) => setStudentLoginName(e.target.value)}
+                            className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-400 text-xs font-medium focus:ring-0"
+                            required
+                            disabled={isStudentLoggingIn}
+                            autoComplete="off"
+                          />
+                        </div>
                       </div>
-                      <div className={`relative flex items-center h-12 rounded-xl bg-slate-50 border px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200 ${
-                        emailTouched && !isEmailValid ? 'border-rose-400 bg-rose-50/10' : 'border-slate-200 hover:border-slate-300'
-                      }`}>
-                        <Mail className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
-                        <input 
-                          type="email" 
-                          placeholder="e.g. 2026-CS-101"
-                          value={email}
-                          onBlur={() => setEmailTouched(true)}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-450 text-xs font-medium focus:ring-0"
-                          required
-                          autoComplete="off"
-                        />
-                      </div>
-                    </div>
 
-                    {/* Password Input */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center">
-                        <label className="text-xs font-semibold text-slate-700 block">Password</label>
-                        <button 
-                          type="button"
-                          onClick={handleForgotPassword}
-                          className="text-xs font-semibold text-[#1a56db] hover:underline"
-                        >
-                          Forgot password?
-                        </button>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-700 block">Register / Roll Number</label>
+                        <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
+                          <Key className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
+                          <input
+                            type="text"
+                            placeholder="e.g. REG-78401"
+                            value={studentLoginRoll}
+                            onChange={(e) => setStudentLoginRoll(e.target.value)}
+                            className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-400 text-xs font-semibold focus:ring-0 font-mono"
+                            required
+                            disabled={isStudentLoggingIn}
+                            autoComplete="off"
+                          />
+                        </div>
                       </div>
-                      <div className={`relative flex items-center h-12 rounded-xl bg-slate-50 border px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200 ${
-                        passwordTouched && !isPasswordValid ? 'border-rose-400 bg-rose-50/10' : 'border-slate-200 hover:border-slate-300'
-                      }`}>
-                        <Lock className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
-                        <input 
-                          type={showPassword ? "text" : "password"} 
-                          placeholder="Enter your password"
-                          value={password}
-                          onBlur={() => setPasswordTouched(true)}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-450 text-xs font-medium focus:ring-0"
-                          required
-                          autoComplete="current-password"
-                        />
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-700 block">
+                          Date of Birth <span className="font-normal text-slate-400 normal-case">(optional)</span>
+                        </label>
+                        <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
+                          <Calendar className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
+                          <input
+                            type="date"
+                            value={studentLoginDob}
+                            onChange={(e) => setStudentLoginDob(e.target.value)}
+                            className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-400 text-xs font-medium focus:ring-0"
+                            disabled={isStudentLoggingIn}
+                            autoComplete="off"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isStudentLoggingIn}
+                        className="w-full h-12 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/10 border-none bg-gradient-to-r from-indigo-950 to-indigo-900 hover:from-slate-950 hover:to-slate-900 text-white hover:scale-[1.01] active:scale-[0.99]"
+                      >
+                        {isStudentLoggingIn ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-white mx-auto" />
+                        ) : (
+                          <>
+                            <Lock className="h-3.5 w-3.5 opacity-80" />
+                            <span>Sign in as Student</span>
+                          </>
+                        )}
+                      </button>
+
+                      <p className="text-center text-[10px] text-slate-400 font-semibold leading-relaxed">
+                        No account yet? Your school onboards you first — ask them for your Roll Number, or use the exam link they send you.
+                      </p>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleEmailLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      {/* Email Input */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <label className="text-xs font-semibold text-slate-700 block">Roll Number / Email</label>
+                          {emailTouched && !isEmailValid && (
+                            <span className="text-[10px] font-semibold text-rose-600 block animate-fadeIn">Invalid email</span>
+                          )}
+                        </div>
+                        <div
+                          className={`relative flex items-center h-12 rounded-xl bg-slate-50 border px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200 ${
+                            emailTouched && !isEmailValid ? 'border-rose-400 bg-rose-50/10' : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <Mail className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
+                          <input
+                            type="email"
+                            placeholder="e.g. 2026-CS-101"
+                            value={email}
+                            onBlur={() => setEmailTouched(true)}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-450 text-xs font-medium focus:ring-0"
+                            required
+                            autoComplete="off"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Password Input */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <label className="text-xs font-semibold text-slate-700 block">Password</label>
+                          <button
+                            type="button"
+                            onClick={handleForgotPassword}
+                            className="text-xs font-semibold text-[#1a56db] hover:underline"
+                          >
+                            Forgot password?
+                          </button>
+                        </div>
+                        <div
+                          className={`relative flex items-center h-12 rounded-xl bg-slate-50 border px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200 ${
+                            passwordTouched && !isPasswordValid
+                              ? 'border-rose-400 bg-rose-50/10'
+                              : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <Lock className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="Enter your password"
+                            value={password}
+                            onBlur={() => setPasswordTouched(true)}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-450 text-xs font-medium focus:ring-0"
+                            required
+                            autoComplete="current-password"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Remember Option */}
+                      <div className="flex justify-between items-center pt-1 px-1">
                         <button
                           type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                          onClick={() => setRememberMe(!rememberMe)}
+                          className="flex items-center gap-2 group cursor-pointer text-slate-500 hover:text-slate-800 transition-colors text-xs font-semibold"
                         >
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          <span
+                            className={`h-4.5 w-4.5 rounded-md border flex items-center justify-center transition-all ${
+                              rememberMe
+                                ? 'bg-[#1a56db] border-[#1a56db] text-white'
+                                : 'border-slate-200 bg-slate-50/50 group-hover:border-slate-300'
+                            }`}
+                          >
+                            {rememberMe && <Check className="h-3 w-3 stroke-[3px]" />}
+                          </span>
+                          Keep me signed in
                         </button>
                       </div>
-                    </div>
 
-                    {/* Remember Option */}
-                    <div className="flex justify-between items-center pt-1 px-1">
-                      <button 
-                        type="button"
-                        onClick={() => setRememberMe(!rememberMe)}
-                        className="flex items-center gap-2 group cursor-pointer text-slate-500 hover:text-slate-800 transition-colors text-xs font-semibold"
+                      {/* Login Button with Dynamic Text */}
+                      <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full h-12 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/10 border-none bg-gradient-to-r from-indigo-950 to-indigo-900 hover:from-slate-950 hover:to-slate-900 text-white hover:scale-[1.01] active:scale-[0.99] block opacity-100"
                       >
-                        <span className={`h-4.5 w-4.5 rounded-md border flex items-center justify-center transition-all ${
-                          rememberMe ? 'bg-[#1a56db] border-[#1a56db] text-white' : 'border-slate-200 bg-slate-50/50 group-hover:border-slate-300'
-                        }`}>
-                          {rememberMe && <Check className="h-3 w-3 stroke-[3px]" />}
-                        </span>
-                        Keep me signed in
+                        {isLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-white mx-auto" />
+                        ) : (
+                          <>
+                            <Lock className="h-3.5 w-3.5 opacity-80" />
+                            <span>
+                              {selectedRole === 'school'
+                                ? 'Sign in as Teacher'
+                                : selectedRole === 'admin'
+                                  ? 'Sign in as Admin'
+                                  : 'Sign in to account'}
+                            </span>
+                          </>
+                        )}
                       </button>
-                    </div>
 
-                    {/* Login Button with Dynamic Text */}
-                    <button 
-                      type="submit" 
-                      disabled={isLoading}
-                      className="w-full h-12 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/10 border-none bg-gradient-to-r from-indigo-950 to-indigo-900 hover:from-slate-950 hover:to-slate-900 text-white hover:scale-[1.01] active:scale-[0.99] block opacity-100"
-                    >
-                      {isLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-white mx-auto" />
-                      ) : (
-                        <>
-                          <Lock className="h-3.5 w-3.5 opacity-80" /> 
-                          <span>
-                            {selectedRole === 'school' ? 'Sign in as Teacher' : (selectedRole === 'admin' ? 'Sign in as Admin' : 'Sign in to account')}
-                          </span>
-                        </>
-                      )}
-                    </button>
-
-                    <div className="text-center text-xs text-slate-500 mt-6">
-                      <p>
-                        New Account : <button type="button" onClick={() => setActiveTab('signup')} className="text-[#1a56db] font-bold hover:underline">Request account access</button>
-                      </p>
-                    </div>
-                  </form>
+                      <div className="text-center text-xs text-slate-500 mt-6">
+                        <p>
+                          New Account :{' '}
+                          <button type="button" onClick={() => setActiveTab('signup')} className="text-[#1a56db] font-bold hover:underline">
+                            Request account access
+                          </button>
+                        </p>
+                      </div>
+                    </form>
+                  )}
                 </>
               ) : (
                 <form onSubmit={handleEmailSignUp} className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  
                   {/* Registration Role Selection */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-700 block">Registration Designation Role</label>
@@ -1021,7 +1196,9 @@ export const LoginPage: React.FC = () => {
                         type="button"
                         onClick={() => {
                           setSelectedRole('admin');
-                          setErrorMessage("Admin accounts cannot be self-registered. They must be added manually in Firestore by the system administrator.");
+                          setErrorMessage(
+                            'Admin accounts cannot be self-registered. They must be added manually in Firestore by the system administrator.'
+                          );
                         }}
                         className={`flex items-center justify-center gap-2 h-11 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer opacity-70 ${
                           selectedRole === 'admin'
@@ -1039,7 +1216,8 @@ export const LoginPage: React.FC = () => {
                         <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                         <div>
                           <strong className="font-extrabold block">Admin Access Restricted</strong>
-                          Admin accounts cannot be self-registered publicly. They must be provisioned manually in Firestore. Please select <b>Teacher / School</b> or contact your administrator.
+                          Admin accounts cannot be self-registered publicly. They must be provisioned manually in Firestore. Please select{' '}
+                          <b>Teacher / School</b> or contact your administrator.
                         </div>
                       </div>
                     )}
@@ -1050,8 +1228,8 @@ export const LoginPage: React.FC = () => {
                     <label className="text-xs font-semibold text-slate-700 block">Your Name / Title</label>
                     <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                       <User2 className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         placeholder="Enter your name"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
@@ -1067,8 +1245,8 @@ export const LoginPage: React.FC = () => {
                     <label className="text-xs font-semibold text-slate-700 block">Email Address</label>
                     <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                       <Mail className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
-                      <input 
-                        type="email" 
+                      <input
+                        type="email"
                         placeholder="Enter your email"
                         value={signUpEmail}
                         onChange={(e) => setSignUpEmail(e.target.value)}
@@ -1086,7 +1264,8 @@ export const LoginPage: React.FC = () => {
                             <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                             <div>
                               <strong className="font-extrabold text-emerald-900 block">Pre-Authorized School Email</strong>
-                              Your email address or institutional domain is pre-authorized on our registry. You can proceed to create your account!
+                              Your email address or institutional domain is pre-authorized on our registry. You can proceed to create your
+                              account!
                             </div>
                           </div>
                         ) : (
@@ -1096,7 +1275,9 @@ export const LoginPage: React.FC = () => {
                               <div>
                                 <strong className="font-extrabold text-amber-900 block">Institutional Authorization Required</strong>
                                 <p className="font-medium text-amber-800 mt-0.5">
-                                  Your email address (<span className="font-bold underline text-amber-950">{signUpEmail.trim().toLowerCase()}</span>) is not yet pre-authorized. Please contact the administrator.
+                                  Your email address (
+                                  <span className="font-bold underline text-amber-950">{signUpEmail.trim().toLowerCase()}</span>) is not yet
+                                  pre-authorized. Please contact the administrator.
                                 </p>
                               </div>
                             </div>
@@ -1111,8 +1292,8 @@ export const LoginPage: React.FC = () => {
                     <label className="text-xs font-semibold text-slate-700 block">Password</label>
                     <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                       <Lock className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
-                      <input 
-                        type={showPassword ? "text" : "password"} 
+                      <input
+                        type={showPassword ? 'text' : 'password'}
                         placeholder="Enter password"
                         value={signUpPassword}
                         onChange={(e) => setSignUpPassword(e.target.value)}
@@ -1131,8 +1312,8 @@ export const LoginPage: React.FC = () => {
                   </div>
 
                   {/* Sign Up button */}
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     disabled={isLoading || !isSignUpFormValid}
                     className={`w-full h-12 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg border-none text-white block ${
                       isLoading || !isSignUpFormValid
@@ -1150,17 +1331,17 @@ export const LoginPage: React.FC = () => {
                   </button>
 
                   <p className="text-center text-xs text-slate-500 mt-6">
-                    Already have an account? <button type="button" onClick={() => setActiveTab('login')} className="text-[#1a56db] font-bold hover:underline">Sign in instead</button>
+                    Already have an account?{' '}
+                    <button type="button" onClick={() => setActiveTab('login')} className="text-[#1a56db] font-bold hover:underline">
+                      Sign in instead
+                    </button>
                   </p>
                 </form>
               )}
             </>
           )}
-
         </div>
       </div>
-
     </div>
   );
 };
-

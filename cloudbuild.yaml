@@ -54,21 +54,33 @@ steps:
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'gcloud'
     args: [
-      'run', 'deploy', 'suven-examination',
-      '--image', 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:$COMMIT_SHA',
-      '--region', 'asia-south1',
-      '--platform', 'managed',
-      '--allow-unauthenticated',
-      '--port', '3000',
-      '--min-instances', '1',          # Scale to zero-ish idle cost; BUMP before exam window (see above)
-      '--max-instances', '100',        # Region CPU quota ceiling at cpu=2 (see comment above)
-      '--cpu', '2',                    # Dedicate 2 vCPUs per container instance
-      '--memory', '4Gi',               # Raised from 2Gi: 500 concurrent in-flight requests per
-                                        # instance (vs the original 100) needs more headroom to
-                                        # avoid OOM under real load
-      '--concurrency', '500',          # 100 * 500 = 50,000 capacity, makes up for the max-instances ceiling
-      '--timeout', '60s'
-    ]
+        'run',
+        'deploy',
+        'suven-examination',
+        '--image',
+        'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:$COMMIT_SHA',
+        '--region',
+        'asia-south1',
+        '--platform',
+        'managed',
+        '--allow-unauthenticated',
+        '--port',
+        '3000',
+        '--min-instances',
+        '1', # Scale to zero-ish idle cost; BUMP before exam window (see above)
+        '--max-instances',
+        '100', # Region CPU quota ceiling at cpu=2 (see comment above)
+        '--cpu',
+        '2', # Dedicate 2 vCPUs per container instance
+        '--memory',
+        '4Gi', # Raised from 2Gi: 500 concurrent in-flight requests per
+        # instance (vs the original 100) needs more headroom to
+        # avoid OOM under real load
+        '--concurrency',
+        '500', # 100 * 500 = 50,000 capacity, makes up for the max-instances ceiling
+        '--timeout',
+        '60s'
+      ]
 
 images:
   - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/suven-examination:latest'

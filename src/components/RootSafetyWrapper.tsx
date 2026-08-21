@@ -1,12 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { 
-  ShieldAlert, 
-  WifiOff, 
-  FileQuestion, 
-  ServerCrash, 
-  RefreshCw, 
-  LogIn 
-} from 'lucide-react';
+import { ShieldAlert, WifiOff, FileQuestion, ServerCrash, RefreshCw, LogIn } from 'lucide-react';
 
 // Custom event interface for global HTTP interceptor
 interface HttpErrorDetail {
@@ -99,8 +92,7 @@ export class RootSafetyWrapper extends Component<Props, State> {
     if (!navigator.onLine) {
       this.handleOfflineEvent();
     }
-
-      }
+  }
 
   componentWillUnmount(): void {
     // Clean up event listeners and restore standard fetch
@@ -189,19 +181,19 @@ export class RootSafetyWrapper extends Component<Props, State> {
 
       return (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 overflow-y-auto animate-in fade-in duration-300">
-          <div 
+          <div
             id="safety-error-card"
             className="w-full max-w-md bg-white border-2 border-b-[8px] border-slate-200 rounded-[32px] p-8 md:p-10 text-center space-y-6 shadow-2xl relative overflow-hidden"
           >
             {/* Ambient Background Decorative Glow */}
             <div className="absolute -top-16 -right-16 w-32 h-32 bg-slate-100 rounded-full blur-2xl pointer-events-none" />
-            
+
             {/* Visual Icon Header */}
             <div className="flex flex-col items-center justify-center space-y-3.5 relative z-10">
               <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border-2 border-b-[4px] ${themeColorClass}`}>
                 <IconComponent className="h-8 w-8" />
               </div>
-              
+
               <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
                 {errorType === 'http' ? `HTTP STATUS NODE ${httpStatus}` : 'PORTAL DIAGNOSTIC'}
               </span>
@@ -209,12 +201,8 @@ export class RootSafetyWrapper extends Component<Props, State> {
 
             {/* Content Text Fields */}
             <div className="space-y-2.5">
-              <h2 className="text-2xl font-black font-display text-slate-950 uppercase tracking-tight">
-                {title}
-              </h2>
-              <p className="text-slate-600 font-semibold text-xs leading-relaxed max-w-sm mx-auto">
-                {description}
-              </p>
+              <h2 className="text-2xl font-black font-display text-slate-950 uppercase tracking-tight">{title}</h2>
+              <p className="text-slate-600 font-semibold text-xs leading-relaxed max-w-sm mx-auto">{description}</p>
             </div>
 
             {/* Interactive Recovery Action Button */}
@@ -224,11 +212,7 @@ export class RootSafetyWrapper extends Component<Props, State> {
                 onClick={this.handleRecoveryAction}
                 className={`w-full h-12 text-white font-extrabold rounded-xl border-b-[5px] hover:scale-[1.01] active:scale-[0.99] transition-transform duration-100 flex items-center justify-center gap-2 ${btnColorClass}`}
               >
-                {httpStatus === 401 || httpStatus === 403 ? (
-                  <LogIn className="h-4 w-4" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
+                {httpStatus === 401 || httpStatus === 403 ? <LogIn className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
                 {actionLabel}
               </button>
 
@@ -242,9 +226,7 @@ export class RootSafetyWrapper extends Component<Props, State> {
             </div>
 
             {/* Safe Humble Identifier Disclaimer */}
-            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-              SuvenEdu Safety Node • Active Guard Rails Active
-            </p>
+            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">SuvenEdu Safety Node • Active Guard Rails Active</p>
           </div>
         </div>
       );

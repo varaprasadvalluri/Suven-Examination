@@ -14,11 +14,15 @@ import { firebaseConfig, JWT_SECRET, JWT_SESSION_TTL_SECONDS } from '../config';
 // must exactly match the project an admin app was initialized for, so we lazily create
 // one admin app per project actually seen — but only for projects on this allowlist, so
 // we never silently accept a validly-signed token from some unrelated Firebase project.
-export const ALLOWED_AUTH_PROJECT_IDS = Array.from(new Set([
-  firebaseConfig.projectId,
-  'gen-lang-client-0086284509',
-  ...(process.env.FIREBASE_AUTH_PROJECT_ID ? [process.env.FIREBASE_AUTH_PROJECT_ID] : [])
-].filter(Boolean)));
+export const ALLOWED_AUTH_PROJECT_IDS = Array.from(
+  new Set(
+    [
+      firebaseConfig.projectId,
+      'gen-lang-client-0086284509',
+      ...(process.env.FIREBASE_AUTH_PROJECT_ID ? [process.env.FIREBASE_AUTH_PROJECT_ID] : [])
+    ].filter(Boolean)
+  )
+);
 
 const adminAppsByProject = new Map<string, ReturnType<typeof initializeAdminApp>>();
 
@@ -26,7 +30,7 @@ export function getAdminAppForProject(projectId: string) {
   let app = adminAppsByProject.get(projectId);
   if (app) return app;
   const appName = `verify-${projectId}`;
-  app = getAdminApps().find(a => a.name === appName) || initializeAdminApp({ projectId }, appName);
+  app = getAdminApps().find((existingApp) => existingApp.name === appName) || initializeAdminApp({ projectId }, appName);
   adminAppsByProject.set(projectId, app);
   return app;
 }

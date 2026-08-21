@@ -20,7 +20,7 @@ export const EmbeddedCodeEditor: React.FC<CodeEditorProps> = ({ value, onChange,
   const [language, setLanguage] = useState('python');
   const [lines, setLines] = useState<number[]>([1]);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  
+
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lineNumbersRef = useRef<HTMLDivElement | null>(null);
 
@@ -118,7 +118,7 @@ export const EmbeddedCodeEditor: React.FC<CodeEditorProps> = ({ value, onChange,
 
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 border border-[#444] rounded-lg p-0.5 bg-[#1e1e1e]">
-            {['python', 'javascript', 'cpp', 'java'].map(lang => (
+            {['python', 'javascript', 'cpp', 'java'].map((lang) => (
               <button
                 key={lang}
                 onClick={() => handleLanguageChange(lang)}
@@ -141,7 +141,9 @@ export const EmbeddedCodeEditor: React.FC<CodeEditorProps> = ({ value, onChange,
 
           {/* Connected Autosave badge */}
           {saveStatus !== 'idle' && (
-            <div className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8.5px] font-bold ${saveStatus === 'saved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25' : 'bg-amber-500/10 text-amber-400 animate-pulse border border-amber-500/25'}`}>
+            <div
+              className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8.5px] font-bold ${saveStatus === 'saved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25' : 'bg-amber-500/10 text-amber-400 animate-pulse border border-amber-500/25'}`}
+            >
               <CheckCircle className="h-2.5 w-2.5" />
               <span>{saveStatus === 'saved' ? 'INDEXEDDB SYNCHRONIZED' : 'SAVING BUFFER...'}</span>
             </div>
@@ -152,11 +154,11 @@ export const EmbeddedCodeEditor: React.FC<CodeEditorProps> = ({ value, onChange,
       {/* Editor Body */}
       <div className="flex flex-1 overflow-hidden relative font-mono text-sm">
         {/* Line Numbers column */}
-        <div 
+        <div
           ref={lineNumbersRef}
           className="w-10 bg-[#1e1e1e] py-4 border-r border-[#3c3c3c] text-right select-none pr-2.5 text-slate-500 overflow-hidden text-xs flex flex-col scrollbar-none"
         >
-          {lines.map(num => (
+          {lines.map((num) => (
             <span key={num} className="leading-6 block min-h-[24px]">
               {num}
             </span>
@@ -167,7 +169,7 @@ export const EmbeddedCodeEditor: React.FC<CodeEditorProps> = ({ value, onChange,
         <textarea
           ref={textareaRef}
           value={value}
-          onChange={e => onChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onScroll={handleTextareaScroll}
           spellCheck={false}
@@ -177,7 +179,7 @@ export const EmbeddedCodeEditor: React.FC<CodeEditorProps> = ({ value, onChange,
       </div>
 
       {/* Footer bar */}
-      <div className="bg-[#1e1e1e] border-t border-[#2d2d2d] px-4 py-1.5 flex items-center justify-between text-[10px] text-slate-500 shrink-0 font-mono">
+      <div className="bg-[#1e1e1e] border-t border-[#2d2d2d] px-4 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] text-slate-500 shrink-0 font-mono">
         <div className="flex items-center gap-3">
           <span>Language: {language === 'cpp' ? 'C++' : language.toUpperCase()}</span>
           <span>Tab: 4 Spaces</span>

@@ -15,6 +15,35 @@ import {
 
 const router = express.Router();
 
+/**
+ * @openapi
+ * /api/auth/validate:
+ *   post:
+ *     summary: Validate a Firebase ID token and resolve/create the caller's app session
+ *     description: >
+ *       Takes a Firebase ID token (Authorization Bearer header or body.idToken), verifies it
+ *       server-side, and mints this app's own session token. Auto-detects admin/school role
+ *       by cross-checking the schools/admins/super_admins collections, creating the users doc
+ *       on first login if none exists. Public — this route's whole purpose is to bootstrap a
+ *       session from a Firebase token, so no app session is required yet.
+ *     tags: [Auth]
+ *     security: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               idToken: { type: string, description: "Only used if not sent as Authorization: Bearer <idToken>" }
+ *               displayName: { type: string }
+ *     responses:
+ *       200:
+ *         description: Session token + resolved/created profile
+ *       401:
+ *         description: Missing, invalid, or expired Firebase ID token
+ *       500:
+ *         description: Server/Firestore error
+ */
 // SECURE SERVER-SIDE AUTHENTICATION ENDPOINTS
 router.post('/api/auth/validate', async (req, res) => {
   // uid/email must come from a verified Firebase ID token, never trusted from the request
@@ -32,7 +61,7 @@ router.post('/api/auth/validate', async (req, res) => {
     email = decoded.email;
     displayName = decoded.name || req.body.displayName || null;
   } catch (err: any) {
-    console.error("[Auth] Firebase ID token verification failed:", err?.message || err);
+    console.error('[Auth] Firebase ID token verification failed:', err?.message || err);
     return res.status(401).json({ error: 'Invalid or expired authentication token' });
   }
 
@@ -41,10 +70,6 @@ router.post('/api/auth/validate', async (req, res) => {
 
   try {
     const docSnap = await clientGetDoc(userRef);
-
-    const isDemoAdmin = emailLower === 'admin@suvenedu.demo';
-    const isDemoSchool = emailLower === 'school@suvenedu.demo';
-    const isDemoStudent = emailLower === 'student@suvenedu.demo';
 
     // 1. Check if there is an existing profile in users by querying email
     let matchedProfile: any = null;
@@ -56,27 +81,27 @@ router.post('/api/auth/validate', async (req, res) => {
           matchedProfile = uSnap.docs[0].data();
         }
       } catch (err) {
-        console.error("fetchProfile query existing users error in server:", err);
+        console.error('fetchProfile query existing users error in server:', err);
       }
     }
 
     // 2. Query Firestore schools to see if this user is a school admin
     let realSchoolId = '';
     let isRealSchool = false;
-    if (emailLower && !emailLower.endsWith('@suvenedu.demo')) {
+    if (emailLower) {
       try {
-        const sRef = clientCollection(clientDb, 'schools');
-        const q = clientQuery(sRef, clientWhere('adminEmail', '==', emailLower));
-        const snap = await clientGetDocs(q);
+        const schoolsRef = clientCollection(clientDb, 'schools');
+        const schoolByAdminEmailQuery = clientQuery(schoolsRef, clientWhere('adminEmail', '==', emailLower));
+        const snap = await clientGetDocs(schoolByAdminEmailQuery);
         if (!snap.empty) {
           isRealSchool = true;
           realSchoolId = snap.docs[0].id;
         } else {
           // Case-insensitive fallback lookup
-          const allSchools = await clientGetDocs(sRef);
-          const foundSchool = allSchools.docs.find(doc => {
-            const data = doc.data();
-            return (data.adminEmail || '').trim().toLowerCase() === emailLower;
+          const allSchools = await clientGetDocs(schoolsRef);
+          const foundSchool = allSchools.docs.find((doc) => {
+            const schoolData = doc.data();
+            return (schoolData.adminEmail || '').trim().toLowerCase() === emailLower;
           });
           if (foundSchool) {
             isRealSchool = true;
@@ -84,7 +109,7 @@ router.post('/api/auth/validate', async (req, res) => {
           }
         }
       } catch (e) {
-        console.error("fetchProfile school verification error in server:", e);
+        console.error('fetchProfile school verification error in server:', e);
       }
     }
 
@@ -123,11 +148,13 @@ router.post('/api/auth/validate', async (req, res) => {
         isAdminInFirestore = !snapAdmin.empty;
       }
     } catch (err) {
-      console.error("admins/super_admins verification error in server:", err);
+      console.error('admins/super_admins verification error in server:', err);
     }
 
-    const isSchoolAdmin = isDemoSchool || isRealSchool || (matchedProfile?.role === 'school') || (docSnap.exists() && (docSnap.data() as any).role === 'school');
-    const isSystemAdmin = isDemoAdmin || isAdminInFirestore || (matchedProfile?.role === 'admin') || (docSnap.exists() && (docSnap.data() as any).role === 'admin');
+    const isSchoolAdmin =
+      isRealSchool || matchedProfile?.role === 'school' || (docSnap.exists() && (docSnap.data() as any).role === 'school');
+    const isSystemAdmin =
+      isAdminInFirestore || matchedProfile?.role === 'admin' || (docSnap.exists() && (docSnap.data() as any).role === 'admin');
 
     let finalProfile: any = null;
 
@@ -143,15 +170,11 @@ router.post('/api/auth/validate', async (req, res) => {
       } else if (isSchoolAdmin) {
         role = 'school';
         permissions = ['manage_exams', 'view_results', 'manage_students'];
-        schoolId = realSchoolId || 'school-core-node-1';
+        schoolId = realSchoolId || undefined;
       } else if (matchedProfile) {
         role = matchedProfile.role || 'student';
         permissions = matchedProfile.permissions || ['take_exams'];
         schoolId = matchedProfile.schoolId;
-      } else if (isDemoStudent) {
-        role = 'student';
-        permissions = ['take_exams'];
-        schoolId = 'school-core-node-1';
       }
 
       finalProfile = {
@@ -180,9 +203,15 @@ router.post('/api/auth/validate', async (req, res) => {
       } else if (isSchoolAdmin && !isSystemAdmin && currentProfile.role !== 'school') {
         updatedProfile.role = 'school';
         updatedProfile.permissions = ['manage_exams', 'view_results', 'manage_students'];
-        updatedProfile.schoolId = realSchoolId || 'school-core-node-1';
+        updatedProfile.schoolId = realSchoolId || currentProfile.schoolId;
         needsUpdate = true;
-      } else if (isSchoolAdmin && !isSystemAdmin && currentProfile.role === 'school' && realSchoolId && currentProfile.schoolId !== realSchoolId) {
+      } else if (
+        isSchoolAdmin &&
+        !isSystemAdmin &&
+        currentProfile.role === 'school' &&
+        realSchoolId &&
+        currentProfile.schoolId !== realSchoolId
+      ) {
         // Sync school ID if it has changed/updated in schools collection
         updatedProfile.schoolId = realSchoolId;
         needsUpdate = true;
@@ -210,13 +239,48 @@ router.post('/api/auth/validate', async (req, res) => {
       sessionToken,
       profile: finalProfile
     });
-
   } catch (err: any) {
-    console.error("Error validating session in server:", err);
+    console.error('Error validating session in server:', err);
     return res.status(500).json({ error: err.message || String(err) });
   }
 });
 
+/**
+ * @openapi
+ * /api/auth/create-profile:
+ *   post:
+ *     summary: Create a new user profile (school or student self-registration) from a verified Firebase ID token
+ *     description: >
+ *       Public (bootstraps a session, same as /api/auth/validate). Admin self-registration is
+ *       always blocked — admin accounts are provisioned manually in Firestore. A 'school' role
+ *       requires the email to already be pre-authorized (allowed_schools, schools.adminEmail,
+ *       or an allowed domain) or the request is rejected.
+ *     tags: [Auth]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, role]
+ *             properties:
+ *               idToken: { type: string, description: "Only used if not sent as Authorization: Bearer <idToken>" }
+ *               name: { type: string }
+ *               role: { type: string, enum: [school, student] }
+ *               schoolId: { type: string }
+ *     responses:
+ *       200:
+ *         description: Session token + newly created profile
+ *       400:
+ *         description: Verified token is missing uid or email
+ *       401:
+ *         description: Missing, invalid, or expired Firebase ID token
+ *       403:
+ *         description: Admin self-registration attempted, or school role email not pre-authorized
+ *       500:
+ *         description: Server/Firestore error
+ */
 router.post('/api/auth/create-profile', async (req, res) => {
   // uid/email must come from a verified Firebase ID token, never trusted from the request
   // body directly — otherwise any client could create/overwrite a profile for an arbitrary uid.
@@ -232,7 +296,7 @@ router.post('/api/auth/create-profile', async (req, res) => {
     uid = decoded.uid;
     email = decoded.email || '';
   } catch (err: any) {
-    console.error("[Auth] Firebase ID token verification failed:", err?.message || err);
+    console.error('[Auth] Firebase ID token verification failed:', err?.message || err);
     return res.status(401).json({ error: 'Invalid or expired authentication token' });
   }
 
@@ -256,13 +320,13 @@ router.post('/api/auth/create-profile', async (req, res) => {
     let isAuthorized = false;
     try {
       // Check allowed_schools by email
-      const sRef = clientCollection(clientDb, 'allowed_schools');
-      const q = clientQuery(sRef, clientWhere('email', '==', emailLower));
-      const snap = await clientGetDocs(q);
+      const allowedSchoolsRef = clientCollection(clientDb, 'allowed_schools');
+      const allowedSchoolByEmailQuery = clientQuery(allowedSchoolsRef, clientWhere('email', '==', emailLower));
+      const snap = await clientGetDocs(allowedSchoolByEmailQuery);
 
       if (!snap.empty) {
         isAuthorized = true;
-        validSchoolId = snap.docs[0].data()?.schoolId || ('school-' + uid);
+        validSchoolId = snap.docs[0].data()?.schoolId || 'school-' + uid;
       } else {
         // Check schools collection by adminEmail
         const schoolsRef = clientCollection(clientDb, 'schools');
@@ -275,13 +339,15 @@ router.post('/api/auth/create-profile', async (req, res) => {
         } else {
           // Check allowedDomains in schools collection
           const allSchools = await clientGetDocs(schoolsRef);
-          const found = allSchools.docs.find(docSnap => {
-            const data = docSnap.data();
-            if (!data) return false;
-            const isEmailMatch = (data.adminEmail || '').trim().toLowerCase() === emailLower;
+          const found = allSchools.docs.find((docSnap) => {
+            const schoolDoc = docSnap.data();
+            if (!schoolDoc) return false;
+            const isEmailMatch = (schoolDoc.adminEmail || '').trim().toLowerCase() === emailLower;
             const emailDomain = emailLower.split('@')[1];
-            const isDomainMatch = emailDomain && Array.isArray(data.allowedDomains) &&
-              data.allowedDomains.map((d: string) => d.trim().toLowerCase()).includes(emailDomain.toLowerCase());
+            const isDomainMatch =
+              emailDomain &&
+              Array.isArray(schoolDoc.allowedDomains) &&
+              schoolDoc.allowedDomains.map((domain: string) => domain.trim().toLowerCase()).includes(emailDomain.toLowerCase());
             return isEmailMatch || isDomainMatch;
           });
 
@@ -298,16 +364,17 @@ router.post('/api/auth/create-profile', async (req, res) => {
         });
       }
     } catch (err) {
-      console.error("School validation error:", err);
+      console.error('School validation error:', err);
       return res.status(500).json({ error: 'Internal server error during validation' });
     }
   }
 
-  const permissions = role === 'admin'
-    ? ['manage_exams', 'view_results']
-    : role === 'school'
-      ? ['manage_exams', 'view_results', 'manage_students']
-      : ['take_exams'];
+  const permissions =
+    role === 'admin'
+      ? ['manage_exams', 'view_results']
+      : role === 'school'
+        ? ['manage_exams', 'view_results', 'manage_students']
+        : ['take_exams'];
 
   const userRef = clientDoc(clientDb, 'users', uid);
   const newProfile = {
@@ -336,11 +403,30 @@ router.post('/api/auth/create-profile', async (req, res) => {
       profile: newProfile
     });
   } catch (err: any) {
-    console.error("Error creating profile in server:", err);
+    console.error('Error creating profile in server:', err);
     return res.status(500).json({ error: err.message || String(err) });
   }
 });
 
+/**
+ * @openapi
+ * /api/auth/session:
+ *   get:
+ *     summary: Fetch the caller's full current profile
+ *     description: Session tokens only carry uid/role/schoolId, not name/permissions/etc, so this does a deliberate Firestore read for the full profile. Low-frequency call, not part of the hot exam-taking path.
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Caller's full profile document
+ *       401:
+ *         description: Missing, invalid, or expired session
+ *       404:
+ *         description: User profile not found
+ *       500:
+ *         description: Server/Firestore error
+ */
 // Returns the caller's full current profile (session tokens only carry uid/role/schoolId,
 // not name/permissions/etc.) — a deliberate Firestore read, since this is a low-frequency
 // "fetch my full profile" call, not the hot exam-taking path.
@@ -352,7 +438,7 @@ router.get('/api/auth/session', requireSession, async (req: any, res) => {
     }
     return res.status(200).json({ success: true, profile: userSnap.data() });
   } catch (err: any) {
-    console.error("Error validating session token in server:", err);
+    console.error('Error validating session token in server:', err);
     return res.status(500).json({ error: err.message || String(err) });
   }
 });

@@ -1,6 +1,6 @@
 /**
  * Gang of Four (GoF) Observer Pattern Implementation for Enterprise-grade State Sync
- * 
+ *
  * Defines standard:
  * - DbObserver: Interface for entities that react to state changes.
  * - DbSubject: Class for registering, removing, and broadcasting changes to observers.
@@ -43,7 +43,7 @@ export class DbSubject {
    * Notifies all registered observers of a database event
    */
   public notify(event: CrudUpdateEvent): void {
-    this.observers.forEach(observer => {
+    this.observers.forEach((observer) => {
       try {
         observer.onUpdate(event);
       } catch (err) {
@@ -74,10 +74,10 @@ export class GlobalDbSubject extends DbSubject {
 
 /**
  * Custom React Hook: useDbObserver
- * Binds components to the database update stream. When CRUD operations occur on specified 
+ * Binds components to the database update stream. When CRUD operations occur on specified
  * collections, the component automatically executes a callback to refresh state, removing
  * the need for manual state propagation or custom refresh buttons.
- * 
+ *
  * @param collections Array of target collection names to observe. If empty, observes all collections.
  * @param onRefresh Callback function to trigger state reload.
  */

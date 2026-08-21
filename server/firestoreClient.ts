@@ -3,7 +3,8 @@ import { firebaseConfig } from './config';
 import { createBreaker } from './lib/circuitBreaker';
 
 // REST Client configuration
-export const getBaseUrl = () => `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${firebaseConfig.firestoreDatabaseId}/documents`;
+export const getBaseUrl = () =>
+  `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${firebaseConfig.firestoreDatabaseId}/documents`;
 
 // Exported for direct reuse by the GCP billing/IAM routes, which use the same ADC client
 // and auto-detected project ID outside of Firestore REST calls.
@@ -29,9 +30,9 @@ export async function getAuthHeader(): Promise<Record<string, string>> {
   // We also use ADC if the target project matches the auto-detected container project ID and we use the (default) database.
   const isTargetingPlatformProject =
     (firebaseConfig.projectId === 'gen-lang-client-0086284509' ||
-     firebaseConfig.projectId.startsWith('gen-lang-client-') ||
-     firebaseConfig.projectId.startsWith('project-') ||
-     !!(detectedContainerProjectId && firebaseConfig.projectId === detectedContainerProjectId)) &&
+      firebaseConfig.projectId.startsWith('gen-lang-client-') ||
+      firebaseConfig.projectId.startsWith('project-') ||
+      !!(detectedContainerProjectId && firebaseConfig.projectId === detectedContainerProjectId)) &&
     (!firebaseConfig.firestoreDatabaseId || firebaseConfig.firestoreDatabaseId === '(default)');
 
   if (!isTargetingPlatformProject) {
@@ -39,7 +40,7 @@ export async function getAuthHeader(): Promise<Record<string, string>> {
   }
   try {
     if (cachedToken && cachedToken.expiry > Date.now() + 300000) {
-      return { 'Authorization': `Bearer ${cachedToken.token}` };
+      return { Authorization: `Bearer ${cachedToken.token}` };
     }
     const client = await auth.getClient();
     const tokenResponse = await client.getAccessToken();
@@ -48,7 +49,7 @@ export async function getAuthHeader(): Promise<Record<string, string>> {
         token: tokenResponse.token,
         expiry: Date.now() + 3000000 // Cached for 50 minutes
       };
-      return { 'Authorization': `Bearer ${tokenResponse.token}` };
+      return { Authorization: `Bearer ${tokenResponse.token}` };
     }
   } catch (err) {
     console.warn('[Firestore Auth] Failed to get Application Default Credentials token, falling back to apiKey:', err);
@@ -117,7 +118,7 @@ export function toFirestoreValue(val: any): any {
   if (Array.isArray(val)) {
     return {
       arrayValue: {
-        values: val.map(v => toFirestoreValue(v))
+        values: val.map((v) => toFirestoreValue(v))
       }
     };
   }
@@ -145,7 +146,7 @@ export function toFirestoreFields(obj: any): any {
 export function buildUpdateMaskParams(data: any): string {
   if (!data) return '';
   const keys = Object.keys(data);
-  return keys.map(k => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join('&');
+  return keys.map((k) => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join('&');
 }
 
 export function parseCollectionPath(path: string) {
@@ -166,17 +167,28 @@ export function parseCollectionPath(path: string) {
 
 export function mapOp(op: string): string {
   switch (op) {
-    case '<': return 'LESS_THAN';
-    case '<=': return 'LESS_THAN_OR_EQUAL';
-    case '>': return 'GREATER_THAN';
-    case '>=': return 'GREATER_THAN_OR_EQUAL';
-    case '==': return 'EQUAL';
-    case '!=': return 'NOT_EQUAL';
-    case 'array-contains': return 'ARRAY_CONTAINS';
-    case 'in': return 'IN';
-    case 'array-contains-any': return 'ARRAY_CONTAINS_ANY';
-    case 'not-in': return 'NOT_IN';
-    default: return 'EQUAL';
+    case '<':
+      return 'LESS_THAN';
+    case '<=':
+      return 'LESS_THAN_OR_EQUAL';
+    case '>':
+      return 'GREATER_THAN';
+    case '>=':
+      return 'GREATER_THAN_OR_EQUAL';
+    case '==':
+      return 'EQUAL';
+    case '!=':
+      return 'NOT_EQUAL';
+    case 'array-contains':
+      return 'ARRAY_CONTAINS';
+    case 'in':
+      return 'IN';
+    case 'array-contains-any':
+      return 'ARRAY_CONTAINS_ANY';
+    case 'not-in':
+      return 'NOT_IN';
+    default:
+      return 'EQUAL';
   }
 }
 
@@ -217,24 +229,24 @@ async function clientGetDocImpl(docRef: any) {
     const authHeader = await getAuthHeader();
     Object.assign(headers, authHeader);
 
-    const res = await fetch(url, { headers });
-    if (res.status === 404) {
+    const httpResponse = await fetch(url, { headers });
+    if (httpResponse.status === 404) {
       return {
         id: docRef.id,
         exists: () => false,
         data: () => null
       };
     }
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Firestore REST error: ${res.status} ${errText}`);
+    if (!httpResponse.ok) {
+      const errText = await httpResponse.text();
+      throw new Error(`Firestore REST error: ${httpResponse.status} ${errText}`);
     }
-    const payload = await res.json();
-    const data = fromFirestoreFields(payload.fields || {});
+    const payload = await httpResponse.json();
+    const docData = fromFirestoreFields(payload.fields || {});
     return {
       id: docRef.id,
       exists: () => true,
-      data: () => data
+      data: () => docData
     };
   } catch (err: any) {
     console.error(`Error in clientGetDoc for ${docRef.collectionName}/${docRef.id}:`, err);
@@ -254,18 +266,18 @@ async function clientGetDocsImpl(queryRef: any) {
     from: [{ collectionId }]
   };
 
-  const whereConstraints = constraints.filter((c: any) => c.type === 'where');
-  const orderByConstraints = constraints.filter((c: any) => c.type === 'orderBy');
-  const limitConstraints = constraints.filter((c: any) => c.type === 'limit');
-  const startAfterConstraints = constraints.filter((c: any) => c.type === 'startAfter');
+  const whereConstraints = constraints.filter((constraint: any) => constraint.type === 'where');
+  const orderByConstraints = constraints.filter((constraint: any) => constraint.type === 'orderBy');
+  const limitConstraints = constraints.filter((constraint: any) => constraint.type === 'limit');
+  const startAfterConstraints = constraints.filter((constraint: any) => constraint.type === 'startAfter');
 
   if (whereConstraints.length > 0) {
-    const filters = whereConstraints.map((c: any) => {
+    const filters = whereConstraints.map((constraint: any) => {
       return {
         fieldFilter: {
-          field: { fieldPath: c.field },
-          op: mapOp(c.op),
-          value: toFirestoreValue(c.value)
+          field: { fieldPath: constraint.field },
+          op: mapOp(constraint.op),
+          value: toFirestoreValue(constraint.value)
         }
       };
     });
@@ -283,9 +295,9 @@ async function clientGetDocsImpl(queryRef: any) {
   }
 
   if (orderByConstraints.length > 0) {
-    structuredQuery.orderBy = orderByConstraints.map((c: any) => ({
-      field: { fieldPath: c.field },
-      direction: c.direction === 'desc' ? 'DESCENDING' : 'ASCENDING'
+    structuredQuery.orderBy = orderByConstraints.map((constraint: any) => ({
+      field: { fieldPath: constraint.field },
+      direction: constraint.direction === 'desc' ? 'DESCENDING' : 'ASCENDING'
     }));
   }
 
@@ -299,28 +311,28 @@ async function clientGetDocsImpl(queryRef: any) {
     const authHeader = await getAuthHeader();
     Object.assign(headers, authHeader);
 
-    const res = await fetch(url, {
+    const httpResponse = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify({ structuredQuery })
     });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Firestore REST runQuery error: ${res.status} ${errText}`);
+    if (!httpResponse.ok) {
+      const errText = await httpResponse.text();
+      throw new Error(`Firestore REST runQuery error: ${httpResponse.status} ${errText}`);
     }
 
-    const payload = await res.json();
+    const payload = await httpResponse.json();
     let rawDocs = (payload || [])
       .filter((item: any) => item && item.document)
       .map((item: any) => {
         const doc = item.document;
-        const id = doc.name.split('/').pop();
-        const data = fromFirestoreFields(doc.fields || {});
+        const docId = doc.name.split('/').pop();
+        const docData = fromFirestoreFields(doc.fields || {});
         return {
-          id,
+          id: docId,
           exists: () => true,
-          data: () => data
+          data: () => docData
         };
       });
 
@@ -363,7 +375,7 @@ async function clientSetDocImpl(docRef: any, data: any, options?: any) {
   const authHeader = await getAuthHeader();
   Object.assign(headers, authHeader);
 
-  const res = await fetch(url, {
+  const httpResponse = await fetch(url, {
     method: 'PATCH',
     headers,
     body: JSON.stringify({
@@ -371,9 +383,9 @@ async function clientSetDocImpl(docRef: any, data: any, options?: any) {
     })
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Firestore REST setDoc error: ${res.status} ${errText}`);
+  if (!httpResponse.ok) {
+    const errText = await httpResponse.text();
+    throw new Error(`Firestore REST setDoc error: ${httpResponse.status} ${errText}`);
   }
 
   return { success: true };
@@ -390,7 +402,7 @@ async function clientUpdateDocImpl(docRef: any, data: any) {
   const authHeader = await getAuthHeader();
   Object.assign(headers, authHeader);
 
-  const res = await fetch(url, {
+  const httpResponse = await fetch(url, {
     method: 'PATCH',
     headers,
     body: JSON.stringify({
@@ -398,9 +410,9 @@ async function clientUpdateDocImpl(docRef: any, data: any) {
     })
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Firestore REST updateDoc error: ${res.status} ${errText}`);
+  if (!httpResponse.ok) {
+    const errText = await httpResponse.text();
+    throw new Error(`Firestore REST updateDoc error: ${httpResponse.status} ${errText}`);
   }
 
   return { success: true };
@@ -413,14 +425,14 @@ async function clientDeleteDocImpl(docRef: any) {
   const authHeader = await getAuthHeader();
   Object.assign(headers, authHeader);
 
-  const res = await fetch(url, {
+  const httpResponse = await fetch(url, {
     method: 'DELETE',
     headers
   });
 
-  if (!res.ok && res.status !== 404) {
-    const errText = await res.text();
-    throw new Error(`Firestore REST deleteDoc error: ${res.status} ${errText}`);
+  if (!httpResponse.ok && httpResponse.status !== 404) {
+    const errText = await httpResponse.text();
+    throw new Error(`Firestore REST deleteDoc error: ${httpResponse.status} ${errText}`);
   }
 
   return { success: true };
@@ -433,7 +445,7 @@ async function clientAddDocImpl(collectionRef: any, data: any) {
   const authHeader = await getAuthHeader();
   Object.assign(headers, authHeader);
 
-  const res = await fetch(url, {
+  const httpResponse = await fetch(url, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -441,12 +453,12 @@ async function clientAddDocImpl(collectionRef: any, data: any) {
     })
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Firestore REST addDoc error: ${res.status} ${errText}`);
+  if (!httpResponse.ok) {
+    const errText = await httpResponse.text();
+    throw new Error(`Firestore REST addDoc error: ${httpResponse.status} ${errText}`);
   }
 
-  const payload = await res.json();
+  const payload = await httpResponse.json();
   const id = payload.name.split('/').pop();
   return { id };
 }
@@ -492,8 +504,8 @@ export function clientQuery(...args: any[]) {
   const collectionRef = args[0];
   const constraints: any[] = [];
   for (let i = 1; i < args.length; i++) {
-    const c = args[i];
-    if (c) constraints.push(c);
+    const constraint = args[i];
+    if (constraint) constraints.push(constraint);
   }
   return {
     type: 'query',
@@ -554,7 +566,7 @@ export async function clientRunTransaction(dbInstance: any, updateFunction: (tra
     }
   };
 
-  const result = await updateFunction(transactionProxy);
+  const transactionResult = await updateFunction(transactionProxy);
 
   for (const op of operations) {
     if (op.type === 'set') {
@@ -566,5 +578,5 @@ export async function clientRunTransaction(dbInstance: any, updateFunction: (tra
     }
   }
 
-  return result;
+  return transactionResult;
 }

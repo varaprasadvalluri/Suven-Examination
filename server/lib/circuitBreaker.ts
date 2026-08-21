@@ -17,11 +17,7 @@ const DEFAULT_OPTIONS: Required<BreakerOptions> = {
   resetTimeout: 15000
 };
 
-export function createBreaker<T extends (...args: any[]) => Promise<any>>(
-  name: string,
-  fn: T,
-  options?: BreakerOptions
-): T {
+export function createBreaker<T extends (...args: any[]) => Promise<any>>(name: string, fn: T, options?: BreakerOptions): T {
   const breaker = new CircuitBreaker(fn, {
     name,
     ...DEFAULT_OPTIONS,

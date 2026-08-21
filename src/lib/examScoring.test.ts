@@ -87,10 +87,7 @@ describe('scoreExam', () => {
   });
 
   it('computes accuracy as percent of questions answered correctly, and 0 for an empty question set', () => {
-    const questions = [
-      q({ id: 'q1', correctAnswerIndex: 0 }),
-      q({ id: 'q2', correctAnswerIndex: 0 })
-    ];
+    const questions = [q({ id: 'q1', correctAnswerIndex: 0 }), q({ id: 'q2', correctAnswerIndex: 0 })];
     const result = scoreExam(questions, [0, 1], meta);
     expect(result.accuracy).toBe(50);
     expect(scoreExam([], [], meta).accuracy).toBe(0);

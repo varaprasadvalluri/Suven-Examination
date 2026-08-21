@@ -25,6 +25,25 @@ const fetchEnabledServices = createBreaker('gcp.enabledServices', (targetProject
 const router = express.Router();
 
 // CLOUD RESOURCE MANAGER - GCP IAM POLICY SYNC GATEWAY
+/**
+ * @openapi
+ * /api/gcp/sync-iam:
+ *   post:
+ *     summary: Simulated IAM policy sync — scans Firestore for staff users and returns fabricated sync logs/stats
+ *     description: Admin only. IMPORTANT — this does NOT call any real GCP IAM API; the "binding" loop and its timestamps/ETag are simulated with setTimeout delays for a demo-console effect. Only the initial Firestore users scan is real.
+ *     tags: [GCP]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Simulated sync logs and stats (usersScanned, rolesAssigned, bindingsCreated)
+ *       401:
+ *         description: Missing or invalid session
+ *       403:
+ *         description: Caller is not an admin
+ *       500:
+ *         description: Firestore users scan failed
+ */
 router.post('/api/gcp/sync-iam', requireSession, requireRole('admin'), async (req, res) => {
   const logs: string[] = [];
   const stats: Record<string, any> = {
@@ -39,7 +58,7 @@ router.post('/api/gcp/sync-iam', requireSession, requireRole('admin'), async (re
     logs.push(`[${timestamp}] ${msg}`);
   };
 
-  const targetProjectId = "project-02bb6275-51ac-45e7-940";
+  const targetProjectId = 'project-02bb6275-51ac-45e7-940';
   addLog(`Initiating Automated IAM Policy Synchronization pipeline...`);
   addLog(`Target GCP Project: "${targetProjectId}"`);
   addLog(`Connecting to active Firestore database to retrieve authorized personnel...`);
@@ -55,20 +74,20 @@ router.post('/api/gcp/sync-iam', requireSession, requireRole('admin'), async (re
 
     if (!usersSnap.empty) {
       usersSnap.forEach((docSnap) => {
-        const u = docSnap.data();
+        const userDoc = docSnap.data();
         const isStaff =
-          u.role === 'admin' ||
-          u.role === 'super_admin' ||
-          u.role === 'school_admin' ||
-          u.role === 'system_admin' ||
-          u.role === 'coordinator' ||
-          u.isAdmin === true;
+          userDoc.role === 'admin' ||
+          userDoc.role === 'super_admin' ||
+          userDoc.role === 'school_admin' ||
+          userDoc.role === 'system_admin' ||
+          userDoc.role === 'coordinator' ||
+          userDoc.isAdmin === true;
 
-        if (isStaff && u.email) {
+        if (isStaff && userDoc.email) {
           staffMembers.push({
-            email: u.email,
-            role: u.role || 'admin',
-            name: u.name || 'Staff User'
+            email: userDoc.email,
+            role: userDoc.role || 'admin',
+            name: userDoc.name || 'Staff User'
           });
         }
       });
@@ -81,8 +100,8 @@ router.post('/api/gcp/sync-iam', requireSession, requireRole('admin'), async (re
     if (staffMembers.length === 0) {
       addLog(`⚠️ No active staff accounts found in the database. Auto-populating with default organization emails for safety.`);
       const defaultStaff = [
-        { email: process.env.PRIMARY_ADMIN_EMAIL || "admin@suvenedu.demo", role: "super_admin", name: "Primary Admin" },
-        { email: process.env.OPERATIONS_ADMIN_EMAIL || "operations@suvenedu.demo", role: "coordinator", name: "Operations Lead" }
+        { email: process.env.PRIMARY_ADMIN_EMAIL || 'admin@suvenedu.demo', role: 'super_admin', name: 'Primary Admin' },
+        { email: process.env.OPERATIONS_ADMIN_EMAIL || 'operations@suvenedu.demo', role: 'coordinator', name: 'Operations Lead' }
       ];
       staffMembers.push(...defaultStaff);
       stats.usersScanned = staffMembers.length;
@@ -92,14 +111,14 @@ router.post('/api/gcp/sync-iam', requireSession, requireRole('admin'), async (re
 
     // Define roles to be assigned
     const rolesToAssign = [
-      'roles/datastore.owner',       // Necessary for Firestore management
-      'roles/firebase.admin',        // Necessary for Firebase management
+      'roles/datastore.owner', // Necessary for Firestore management
+      'roles/firebase.admin', // Necessary for Firebase management
       'roles/resourcemanager.projectIamAdmin', // Manage other users
-      'roles/viewer'                 // General visibility
+      'roles/viewer' // General visibility
     ];
 
     addLog(`Fetching existing IAM Policy metadata for project "${targetProjectId}"...`);
-    await new Promise(resolve => setTimeout(resolve, 800)); // Simulate API latency
+    await new Promise((resolve) => setTimeout(resolve, 800)); // Simulate API latency
     addLog(`Successfully retrieved policy. ETag: "BwYp7-2Xv9k="`);
 
     // Simulate binding process
@@ -113,7 +132,7 @@ router.post('/api/gcp/sync-iam', requireSession, requireRole('admin'), async (re
 
       for (const role of rolesForUser) {
         addLog(`  -> Granting role "${role}" to member "user:${staff.email}"`);
-        await new Promise(resolve => setTimeout(resolve, 100)); // micro latency
+        await new Promise((resolve) => setTimeout(resolve, 100)); // micro latency
         stats.rolesAssigned++;
         stats.bindingsCreated++;
       }
@@ -121,7 +140,7 @@ router.post('/api/gcp/sync-iam', requireSession, requireRole('admin'), async (re
     }
 
     addLog(`Applying transaction modifications and committing updated IAM Policy to GCP Cloud Resource Manager...`);
-    await new Promise(resolve => setTimeout(resolve, 1200)); // final commit latency
+    await new Promise((resolve) => setTimeout(resolve, 1200)); // final commit latency
 
     addLog(`🎉 IAM Policy deployed successfully. Active bindings updated with zero downtime.`);
     addLog(`All personnel have been granted complete Firestore ("suven-edu") and Firebase Administration privileges.`);
@@ -132,7 +151,6 @@ router.post('/api/gcp/sync-iam', requireSession, requireRole('admin'), async (re
       stats,
       targetProjectId
     });
-
   } catch (err: any) {
     addLog(`❌ Sync error encountered: ${err.message || String(err)}`);
     return res.status(500).json({
@@ -144,11 +162,43 @@ router.post('/api/gcp/sync-iam', requireSession, requireRole('admin'), async (re
 });
 
 // GCP LIVE BILLING & INFRASTRUCTURE MONITORING GATEWAY
+/**
+ * @openapi
+ * /api/gcp/live-billing:
+ *   post:
+ *     summary: Fetch live GCP billing/project/service-usage info plus Firestore collection counts
+ *     description: >
+ *       Admin only. Real GCP API calls (Cloud Billing, Resource Manager, Service Usage) using
+ *       either a caller-supplied userAccessToken or an ADC token fetched server-side; each
+ *       call is independently try/caught so a missing/disabled API degrades that one field
+ *       rather than failing the whole response. dbStats reads full collection counts for
+ *       users/schools/exams/results via unbounded clientGetDocs — fine at current scale, but
+ *       not a per-tenant/bounded read pattern.
+ *     tags: [GCP]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userAccessToken: { type: string, description: Optional caller-supplied OAuth token; falls back to server ADC token if omitted }
+ *               projectIdOverride: { type: string }
+ *               userEmail: { type: string }
+ *     responses:
+ *       200:
+ *         description: Billing/project/service-usage info (each may be null/error if that GCP API is unavailable) plus Firestore dbStats
+ *       401:
+ *         description: Missing or invalid session
+ *       403:
+ *         description: Caller is not an admin
+ */
 router.post('/api/gcp/live-billing', requireSession, requireRole('admin'), async (req, res) => {
   const { userAccessToken, projectIdOverride, userEmail } = req.body || {};
-  const targetProjectId = projectIdOverride || detectedContainerProjectId || "project-02bb6275-51ac-45e7-940";
-  const projectNumber = "489976275182";
-  const userAccount = userEmail || process.env.PRIMARY_ADMIN_EMAIL || "admin@suvenedu.demo";
+  const targetProjectId = projectIdOverride || detectedContainerProjectId || 'project-02bb6275-51ac-45e7-940';
+  const projectNumber = '489976275182';
+  const userAccount = userEmail || process.env.PRIMARY_ADMIN_EMAIL || 'admin@suvenedu.demo';
   const gcpConsoleUrl = `https://console.cloud.google.com/welcome/new?authuser=1&project=${targetProjectId}`;
 
   let token = userAccessToken;
@@ -158,7 +208,7 @@ router.post('/api/gcp/live-billing', requireSession, requireRole('admin'), async
       const tokenRes = await client.getAccessToken();
       token = tokenRes.token;
     } catch (e) {
-      console.warn("Could not retrieve ADC token:", e);
+      console.warn('Could not retrieve ADC token:', e);
     }
   }
 
@@ -190,13 +240,13 @@ router.post('/api/gcp/live-billing', requireSession, requireRole('admin'), async
       if (bRes.ok) {
         result.apiStatus.billingApiEnabled = true;
         result.billingInfo = {
-          billingAccountName: bData.billingAccountName || "Not Connected",
+          billingAccountName: bData.billingAccountName || 'Not Connected',
           billingEnabled: bData.billingEnabled || false,
-          name: bData.name || "",
+          name: bData.name || '',
           projectId: bData.projectId || targetProjectId
         };
       } else {
-        result.billingInfoError = bData.error?.message || "Cloud Billing API restricted or disabled";
+        result.billingInfoError = bData.error?.message || 'Cloud Billing API restricted or disabled';
       }
     } catch (err: any) {
       result.billingInfoError = err.message;

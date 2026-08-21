@@ -9,9 +9,7 @@ import { LOAD_TEST_SECRET } from '../config';
 // server-side secret required. Same trusted-secret pattern already used in gatekeeper.ts/
 // db.ts's isLoadTestRequest checks.
 const skipLoadTest = (req: any) =>
-  !!LOAD_TEST_SECRET &&
-  req.headers['x-load-test'] === 'true' &&
-  req.headers['x-load-test-secret'] === LOAD_TEST_SECRET;
+  !!LOAD_TEST_SECRET && req.headers['x-load-test'] === 'true' && req.headers['x-load-test-secret'] === LOAD_TEST_SECRET;
 
 const commonConfig = {
   windowMs: 15 * 60 * 1000,
@@ -55,4 +53,3 @@ export const storageUploadLimiter = rateLimit({
   limit: 10,
   message: { error: 'Too many upload requests. Please wait a few minutes and try again.' }
 });
-

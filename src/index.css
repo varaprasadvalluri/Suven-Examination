@@ -1,12 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @plugin "tailwindcss-animate";
 
 @theme {
-  --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Fredoka", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Fredoka', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -33,7 +33,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -106,7 +106,12 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-display font-bold tracking-tight;
   }
 }
@@ -115,27 +120,27 @@
   .tech-card {
     @apply bg-white border border-slate-200 shadow-sm transition-all duration-300 hover:shadow-md hover:border-indigo-200/50 hover:bg-slate-50/50;
   }
-  
+
   .stats-grid {
     @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8;
   }
-  
+
   .data-label {
     @apply text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500 mb-1;
   }
-  
+
   .data-value {
     @apply font-mono text-2xl tracking-tighter font-medium text-slate-900;
   }
-  
+
   .sidebar-link {
     @apply flex items-center px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-lg;
   }
-  
+
   .sidebar-link-active {
     @apply bg-indigo-50 text-indigo-700;
   }
-  
+
   .sidebar-link-inactive {
     @apply text-slate-600 hover:bg-slate-100 hover:text-slate-900;
   }

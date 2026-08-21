@@ -4,8 +4,8 @@ import { QuestionDao } from './QuestionDao';
 
 export class FirestoreQuestionDao implements QuestionDao {
   async findByExamId(examId: string): Promise<DocRecord[]> {
-    const q = clientQuery(clientCollection(clientDb, 'questions'), clientWhere('examId', '==', examId));
-    const snap = await clientGetDocs(q);
+    const examQuestionsQuery = clientQuery(clientCollection(clientDb, 'questions'), clientWhere('examId', '==', examId));
+    const snap = await clientGetDocs(examQuestionsQuery);
     return snap.docs.map((doc: any) => ({ id: doc.id, data: doc.data() }));
   }
 }

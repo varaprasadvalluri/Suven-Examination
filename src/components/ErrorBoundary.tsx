@@ -1,15 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { 
-  ShieldAlert, 
-  X, 
-  Copy, 
-  Check, 
-  RefreshCw, 
-  Terminal, 
-  ChevronDown, 
-  ChevronUp,
-  AlertTriangle
-} from 'lucide-react';
+import { ShieldAlert, X, Copy, Check, RefreshCw, Terminal, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import { initializeGlobalErrorMiddleware } from '../lib/customErrors';
 
 interface Props {
@@ -68,7 +58,7 @@ export class ErrorBoundary extends Component<Props, State> {
           action: customEvent.detail.action || 'Portal Operation',
           friendlyMessage: customEvent.detail.friendlyMessage || 'An unexpected error occurred.',
           technicalDetails: customEvent.detail.technicalDetails || 'No technical logs provided.',
-          code: customEvent.detail.code || 'UNKNOWN_CODE',
+          code: customEvent.detail.code || 'UNKNOWN_CODE'
         },
         showTechnicalDetails: false,
         isCopied: false
@@ -94,7 +84,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   handleCopyDetails = async (): Promise<void> => {
     const { activeException, crashError } = this.state;
-    const detailsText = activeException 
+    const detailsText = activeException
       ? `Action: ${activeException.action}\nCode: ${activeException.code}\nError: ${activeException.friendlyMessage}\nTechnical Logs: ${activeException.technicalDetails}`
       : crashError?.stack || crashError?.message || 'Unknown Crash';
 
@@ -126,7 +116,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (hasRuntimeCrash) {
       return (
         <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 font-sans">
-          <div 
+          <div
             id="runtime-crash-boundary-card"
             className="w-full max-w-xl bg-white border-2 border-b-[8px] border-slate-200 rounded-[32px] p-8 md:p-10 shadow-2xl relative overflow-hidden text-center"
           >
@@ -137,17 +127,14 @@ export class ErrorBoundary extends Component<Props, State> {
               <div className="w-16 h-16 rounded-2xl bg-rose-50 border-2 border-b-[4px] border-rose-200 text-rose-600 flex items-center justify-center">
                 <AlertTriangle className="h-8 w-8 animate-bounce" />
               </div>
-              <span className="text-[10px] font-black tracking-widest text-rose-500 uppercase">
-                CRITICAL RENDERING FAULT
-              </span>
+              <span className="text-[10px] font-black tracking-widest text-rose-500 uppercase">CRITICAL RENDERING FAULT</span>
             </div>
 
             <div className="space-y-3 mb-8">
-              <h2 className="text-2xl font-black font-display text-slate-900 uppercase tracking-tight">
-                UI Interface Interrupted
-              </h2>
+              <h2 className="text-2xl font-black font-display text-slate-900 uppercase tracking-tight">UI Interface Interrupted</h2>
               <p className="text-slate-600 font-semibold text-xs leading-relaxed max-w-md mx-auto">
-                A rendering issue prevented the screen from loading correctly. Don't worry, all database connections and authentication sessions remain perfectly safe.
+                A rendering issue prevented the screen from loading correctly. Don't worry, all database connections and authentication
+                sessions remain perfectly safe.
               </p>
             </div>
 
@@ -215,7 +202,7 @@ export class ErrorBoundary extends Component<Props, State> {
         {/* Centralized Mapped Custom Exception Modal Dialog Popup */}
         {activeException && (
           <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 overflow-y-auto animate-in fade-in duration-300">
-            <div 
+            <div
               id="central-custom-exception-popup"
               className="w-full max-w-lg bg-white border-2 border-b-[8px] border-slate-300 rounded-[32px] p-8 md:p-10 shadow-2xl relative overflow-hidden space-y-6 animate-in zoom-in-95 duration-200"
             >
@@ -237,7 +224,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 <div className="w-16 h-16 rounded-2xl bg-amber-50 border-2 border-b-[4px] border-amber-200 text-amber-500 flex items-center justify-center">
                   <ShieldAlert className="h-8 w-8" />
                 </div>
-                
+
                 <div>
                   <span className="text-[10px] font-black tracking-widest text-amber-500 uppercase block mb-1">
                     Custom Operational Exception
@@ -253,12 +240,8 @@ export class ErrorBoundary extends Component<Props, State> {
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                   Failed Attempt: <span className="text-slate-800 font-extrabold">"{activeException.action}"</span>
                 </div>
-                <h3 className="text-xl font-black font-display text-slate-900 leading-tight">
-                  Action Could Not Be Completed
-                </h3>
-                <p className="text-slate-600 font-semibold text-xs leading-relaxed max-w-sm mx-auto">
-                  {activeException.friendlyMessage}
-                </p>
+                <h3 className="text-xl font-black font-display text-slate-900 leading-tight">Action Could Not Be Completed</h3>
+                <p className="text-slate-600 font-semibold text-xs leading-relaxed max-w-sm mx-auto">{activeException.friendlyMessage}</p>
               </div>
 
               {/* Collapsible Advanced / Technical details panel (designed perfectly for developers) */}
@@ -295,7 +278,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </div>
 
               {/* Control Buttons */}
-              <div className="flex gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <button
                   type="button"
                   onClick={this.handleDismissException}

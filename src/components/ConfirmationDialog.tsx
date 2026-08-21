@@ -45,24 +45,25 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-w-md p-6 bg-white border border-slate-200 rounded-3xl shadow-2xl relative overflow-hidden">
         {/* Subtle background safety gradient/accent */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-600" />
-        
+
         <DialogHeader className="space-y-3">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600 shadow-inner">
               <AlertTriangle className="h-5.5 w-5.5 animate-pulse" />
             </div>
-            <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">
-              {title}
-            </DialogTitle>
+            <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">{title}</DialogTitle>
           </div>
-          
-          <DialogDescription className="text-slate-600 text-sm leading-relaxed">
-            {description}
-          </DialogDescription>
+
+          <DialogDescription className="text-slate-600 text-sm leading-relaxed">{description}</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleConfirmSubmit} className="space-y-4 my-4">
@@ -71,7 +72,11 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
               <ShieldAlert className="h-4 w-4" /> Double-Verification Protocol
             </p>
             <p className="text-slate-600 text-xs leading-normal">
-              To permanently delete this, type <strong className="text-red-700 bg-red-50 border border-red-200/60 px-1.5 py-0.5 rounded font-mono select-all font-black">{targetWord}</strong> in the input field below:
+              To permanently delete this, type{' '}
+              <strong className="text-red-700 bg-red-50 border border-red-200/60 px-1.5 py-0.5 rounded font-mono select-all font-black">
+                {targetWord}
+              </strong>{' '}
+              in the input field below:
             </p>
             <Input
               value={inputValue}
@@ -98,8 +103,8 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
               variant="destructive"
               disabled={!isConfirmed || isLoading}
               className={`w-full sm:w-auto h-10 font-bold text-white rounded-xl shadow-lg transition-all ${
-                isConfirmed 
-                  ? 'bg-red-600 hover:bg-red-700 shadow-red-100' 
+                isConfirmed
+                  ? 'bg-red-600 hover:bg-red-700 shadow-red-100'
                   : 'bg-slate-100 text-slate-400 border-none pointer-events-none shadow-none'
               }`}
             >

@@ -1,0 +1,16 @@
+{
+  "name": "Suven Edu Exam Portal",
+  "short_name": "Suven Edu",
+  "description": "Conduct, manage, and analyze examinations with one unified platform built for modern schools.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0B1E3F",
+  "theme_color": "#0B1E3F",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

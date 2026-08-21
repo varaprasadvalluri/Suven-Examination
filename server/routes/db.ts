@@ -1,9 +1,11 @@
 import express from 'express';
 import { requireSession, requireRole, resolveAuth, RequestAuth } from '../auth/middleware';
 import { checkDuplicateSubmission } from '../middleware/duplicateSubmission';
-import { recomputeAttemptScore } from '../lib/scoreVerification';
 import { queryCache, CACHE_TTLS } from '../db/cache';
 import { enqueueWrite } from '../db/writeQueue';
+import { taskQueueService } from '../lib/taskQueue';
+import { logger } from '../lib/logger';
+import crypto from 'crypto';
 import {
   ProxyRole,
   PUBLIC_READ_COLLECTIONS,
@@ -48,6 +50,32 @@ async function cleanupQuestionImage(imagePublicId: string | undefined | null) {
   }
 }
 
+/**
+ * @openapi
+ * /api/questions/{questionId}:
+ *   delete:
+ *     summary: Delete a question, cleaning up its associated image asset (Cloudinary or Firebase Storage)
+ *     description: Admin role only.
+ *     tags: [Database Proxy]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: questionId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Question and associated image deleted
+ *       401:
+ *         description: Missing or invalid session
+ *       403:
+ *         description: Caller is not an admin
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Server/Firestore error
+ */
 // 3. Question deletion with automatic image cleanup (Cloudinary or Firebase Storage)
 router.delete('/api/questions/:questionId', requireSession, requireRole('admin'), async (req, res) => {
   const { questionId } = req.params;
@@ -68,11 +96,37 @@ router.delete('/api/questions/:questionId', requireSession, requireRole('admin')
       message: 'Question and associated image deleted successfully.'
     });
   } catch (err: any) {
-    console.error("Failed to delete question:", err);
+    console.error('Failed to delete question:', err);
     return res.status(500).json({ error: err.message || String(err) });
   }
 });
 
+/**
+ * @openapi
+ * /api/exams/{examId}:
+ *   delete:
+ *     summary: Delete an exam, its questions, and their associated image assets
+ *     description: Admin role only.
+ *     tags: [Database Proxy]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Exam, questions, and image assets deleted
+ *       401:
+ *         description: Missing or invalid session
+ *       403:
+ *         description: Caller is not an admin
+ *       404:
+ *         description: Exam not found
+ *       500:
+ *         description: Server/Firestore error
+ */
 // 4. Exam deletion with automatic image cleanup for all its questions
 router.delete('/api/exams/:examId', requireSession, requireRole('admin'), async (req, res) => {
   const { examId } = req.params;
@@ -104,11 +158,57 @@ router.delete('/api/exams/:examId', requireSession, requireRole('admin'), async 
       message: 'Exam paper, associated questions, and related image assets deleted successfully.'
     });
   } catch (err: any) {
-    console.error("Failed to delete exam:", err);
+    console.error('Failed to delete exam:', err);
     return res.status(500).json({ error: err.message || String(err) });
   }
 });
 
+/**
+ * @openapi
+ * /api/db/query:
+ *   post:
+ *     summary: Generic Firestore read proxy (single doc, filtered/sorted collection query, or count)
+ *     description: >
+ *       The fallback read path for any collection not covered by a dedicated /api/v1/* DAO
+ *       route. Public collections (PUBLIC_READ_COLLECTIONS) need no session; everything else
+ *       requires one and is checked against COLLECTION_ACCESS for the caller's role, then
+ *       automatically scoped (injectReadScope) for non-admin roles so e.g. a school only ever
+ *       reads its own students/exams. A narrow pre-session exception exists for a single
+ *       targeted token lookup on TOKEN_LOOKUP_COLLECTIONS (e.g. a shared exam-invite link
+ *       looking up its own secure_exam_links doc) — never an unscoped dump. The `questions`
+ *       collection additionally has its answer-key fields stripped from the response unless
+ *       the caller is a student with a completed attempt for the exact examId queried.
+ *     tags: [Database Proxy]
+ *     security:
+ *       - bearerAuth: []
+ *       - {}
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [collectionName]
+ *             properties:
+ *               collectionName: { type: string }
+ *               docId: { type: string, description: "If set, fetches this single document instead of running constraints as a query." }
+ *               countOnly: { type: boolean }
+ *               constraints:
+ *                 type: array
+ *                 description: "List of { type: 'where'|'orderBy'|'limit'|'startAfter', field, op, value, direction, id } query-constraint objects."
+ *                 items: { type: object }
+ *     responses:
+ *       200:
+ *         description: "Query result (single doc, doc list, or count), possibly served from cache (fromCache: true)"
+ *       400:
+ *         description: Missing collectionName
+ *       401:
+ *         description: Non-public collection requires a session
+ *       403:
+ *         description: Caller's role cannot read this collection, or query scope doesn't match the caller
+ *       500:
+ *         description: Server/Firestore error
+ */
 // Proxy Route for Standard Reads (Direct Queries, Document GETs, or snapshot requests)
 router.post('/api/db/query', async (req, res) => {
   const { collectionName, constraints = [], docId, countOnly } = req.body;
@@ -120,10 +220,7 @@ router.post('/api/db/query', async (req, res) => {
   // load-test identities resolve from mockLoadTestStore instead of hitting Firestore,
   // so a load test never burns real read quota for docs it wrote itself.
   const isLoadTestRead =
-    !!docId &&
-    (req.headers['x-load-test'] === 'true' ||
-      docId.includes('test-roll-') ||
-      docId.includes('StressTester'));
+    !!docId && (req.headers['x-load-test'] === 'true' || docId.includes('test-roll-') || docId.includes('StressTester'));
 
   if (isLoadTestRead) {
     const key = `${collectionName}_${docId}`;
@@ -142,8 +239,7 @@ router.post('/api/db/query', async (req, res) => {
   // pay for JWT verification on those hot, high-volume reads). Kept entirely separate from
   // `auth` (which must stay null for public reads so the existing scoping/access logic below
   // is unaffected) — used only to decide questions sanitization, per-role, below.
-  const publicQuestionsAuth: RequestAuth | null =
-    isPublic && collectionName === 'questions' ? await resolveAuth(req) : null;
+  const publicQuestionsAuth: RequestAuth | null = isPublic && collectionName === 'questions' ? await resolveAuth(req) : null;
 
   // A bare valid session isn't enough to unlock the answer key for an arbitrary exam — a
   // session is proof of *some* identity, not proof of enrollment in *this* exam. Admin/school
@@ -194,9 +290,12 @@ router.post('/api/db/query', async (req, res) => {
       // Pre-session exception: a visitor following a shared exam-invite link needs to look
       // up the one secure_exam_links doc matching their token before they have a session —
       // but only a targeted lookup by that token, never an unscoped collection dump.
-      const isTokenLookup = TOKEN_LOOKUP_COLLECTIONS.has(collectionName) &&
-        !docId && constraints.length === 1 &&
-        constraints[0]?.type === 'where' && constraints[0]?.op === '==' &&
+      const isTokenLookup =
+        TOKEN_LOOKUP_COLLECTIONS.has(collectionName) &&
+        !docId &&
+        constraints.length === 1 &&
+        constraints[0]?.type === 'where' &&
+        constraints[0]?.op === '==' &&
         (constraints[0]?.field === 'id' || constraints[0]?.field === 'token') &&
         !!constraints[0]?.value;
 
@@ -227,18 +326,18 @@ router.post('/api/db/query', async (req, res) => {
           // Report as not-found rather than 403 to avoid confirming out-of-scope doc existence.
           return res.status(200).json({ success: true, data: { id: docId, exists: false } });
         }
-        const result = { id: snap.id, exists: true, data: docData };
+        const singleDocResult = { id: snap.id, exists: true, data: docData };
         if (!scopeField) {
           const ttl = CACHE_TTLS[collectionName] || 0;
           if (ttl > 0) {
             const cacheKey = JSON.stringify({ collectionName, docId });
-            queryCache.set(cacheKey, { timestamp: Date.now(), data: result });
+            queryCache.set(cacheKey, { timestamp: Date.now(), data: singleDocResult });
           }
         }
-        return res.status(200).json({ success: true, data: await sanitizeQuestionsPayload(result, (docData as any)?.examId) });
+        return res.status(200).json({ success: true, data: await sanitizeQuestionsPayload(singleDocResult, (docData as any)?.examId) });
       } else {
-        const result = { id: docId, exists: false };
-        return res.status(200).json({ success: true, data: result });
+        const notFoundResult = { id: docId, exists: false };
+        return res.status(200).json({ success: true, data: notFoundResult });
       }
     }
 
@@ -255,29 +354,29 @@ router.post('/api/db/query', async (req, res) => {
     // Only meaningful for `questions` (see shouldSanitizeQuestionsForExam) — the exact examId
     // being filtered on, if any, so a student's enrollment can be checked against it.
     const queriedExamId = effectiveConstraints.find(
-      (c: any) => c.type === 'where' && c.field === 'examId' && c.op === '=='
+      (constraint: any) => constraint.type === 'where' && constraint.field === 'examId' && constraint.op === '=='
     )?.value;
 
     const cacheKey = JSON.stringify({ collectionName, constraints: effectiveConstraints, docId, countOnly });
     const cached = queryCache.get(cacheKey);
     const ttl = CACHE_TTLS[collectionName] || 0;
 
-    if (ttl > 0 && cached && (Date.now() - cached.timestamp < ttl)) {
+    if (ttl > 0 && cached && Date.now() - cached.timestamp < ttl) {
       return res.status(200).json({ success: true, data: await sanitizeQuestionsPayload(cached.data, queriedExamId), fromCache: true });
     }
 
     const colRef = clientCollection(clientDb, collectionName);
     const queryArgs: any[] = [colRef];
 
-    for (const c of effectiveConstraints) {
-      if (c.type === 'where') {
-        queryArgs.push(clientWhere(c.field, c.op, c.value));
-      } else if (c.type === 'orderBy') {
-        queryArgs.push(clientOrderBy(c.field, c.direction || 'asc'));
-      } else if (c.type === 'limit') {
-        queryArgs.push(clientLimit(c.value));
-      } else if (c.type === 'startAfter' && c.id) {
-        const cursorRef = clientDoc(clientDb, collectionName, c.id);
+    for (const constraint of effectiveConstraints) {
+      if (constraint.type === 'where') {
+        queryArgs.push(clientWhere(constraint.field, constraint.op, constraint.value));
+      } else if (constraint.type === 'orderBy') {
+        queryArgs.push(clientOrderBy(constraint.field, constraint.direction || 'asc'));
+      } else if (constraint.type === 'limit') {
+        queryArgs.push(clientLimit(constraint.value));
+      } else if (constraint.type === 'startAfter' && constraint.id) {
+        const cursorRef = clientDoc(clientDb, collectionName, constraint.id);
         const cursorSnap = await clientGetDoc(cursorRef);
         if (cursorSnap.exists()) {
           queryArgs.push(clientStartAfter(cursorSnap));
@@ -285,10 +384,10 @@ router.post('/api/db/query', async (req, res) => {
       }
     }
 
-    const q = clientQuery.apply(null, queryArgs as any);
+    const builtQuery = clientQuery(...(queryArgs as any));
 
     if (countOnly) {
-      const countSnap = await clientGetCountFromServer(q);
+      const countSnap = await clientGetCountFromServer(builtQuery);
       const countData = { count: countSnap.data().count };
       if (ttl > 0) {
         queryCache.set(cacheKey, { timestamp: Date.now(), data: countData });
@@ -296,9 +395,9 @@ router.post('/api/db/query', async (req, res) => {
       return res.status(200).json({ success: true, data: countData });
     }
 
-    const snap = await clientGetDocs(q);
+    const snap = await clientGetDocs(builtQuery);
 
-    const docList = snap.docs.map(doc => ({
+    const docList = snap.docs.map((doc) => ({
       id: doc.id,
       data: doc.data()
     }));
@@ -314,6 +413,52 @@ router.post('/api/db/query', async (req, res) => {
   }
 });
 
+/**
+ * @openapi
+ * /api/db/write:
+ *   post:
+ *     summary: Generic Firestore write proxy (create/update/delete), queued and authorized server-side
+ *     description: >
+ *       The fallback write path for any collection not covered by a dedicated /api/v1/* DAO
+ *       route. Requires a session. Every write is run through authorizeWrite (role/tenant
+ *       checks, field-level restrictions) before being queued (enqueueWrite) — the caller
+ *       never writes directly. A final exam submission (collectionName='attempts', status
+ *       set to 'completed' in the request) is NOT written as 'completed' directly: the
+ *       client-submitted score/accuracy are discarded, the raw answers are persisted
+ *       immediately as status='submitted', and grading (recomputeAttemptScore against the
+ *       verified answer key, then a status='completed' write) is queued via Cloud Tasks
+ *       (server/lib/taskQueue.ts) to run asynchronously on /api/internal/grade-attempt — this
+ *       response returns as soon as the submission is durably saved, not after grading
+ *       finishes. Supports an internal load-test bypass gated on a server-side secret
+ *       (x-load-test-secret header must match LOAD_TEST_SECRET, unset/disabled by
+ *       default — fail-closed).
+ *     tags: [Database Proxy]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [type, collectionName]
+ *             properties:
+ *               type: { type: string, enum: [set, update, delete], description: "Write operation type" }
+ *               collectionName: { type: string }
+ *               docId: { type: string }
+ *               data: { type: object }
+ *     responses:
+ *       200:
+ *         description: "Write queued/applied successfully. For an exam submission specifically, the response is { queued: true } — grading happens asynchronously, not before this response."
+ *       400:
+ *         description: Missing type or collectionName
+ *       401:
+ *         description: Missing or invalid session
+ *       403:
+ *         description: authorizeWrite denied this write for the caller's role/tenant
+ *       500:
+ *         description: Server/Firestore error, or failure to persist/queue an exam submission
+ */
 // Proxy Route for Cushioning and Batching Writes
 router.post('/api/db/write', requireSession, checkDuplicateSubmission, async (req: any, res) => {
   const { type, collectionName, docId, data } = req.body;
@@ -325,9 +470,7 @@ router.post('/api/db/write', requireSession, checkDuplicateSubmission, async (re
   // attacker-controlled docId/data substrings ("test-roll-", "StressTester"), letting anyone
   // silently mock a real write (data never persisted) by naming their own doc/fields that way.
   const isLoadTestWrite =
-    !!LOAD_TEST_SECRET &&
-    req.headers['x-load-test'] === 'true' &&
-    req.headers['x-load-test-secret'] === LOAD_TEST_SECRET;
+    !!LOAD_TEST_SECRET && req.headers['x-load-test'] === 'true' && req.headers['x-load-test-secret'] === LOAD_TEST_SECRET;
 
   if (isLoadTestWrite) {
     const key = `${collectionName}_${docId || 'autogen'}`;
@@ -338,18 +481,59 @@ router.post('/api/db/write', requireSession, checkDuplicateSubmission, async (re
 
   // Same rule as the named /api/attempts/:id/submit route: a final exam submission's score/
   // accuracy is never trusted from the client, even coming through this generic proxy — closes
-  // what would otherwise be a second, unguarded path to a fabricated grade.
-  const isSubmission = collectionName === 'attempts' && (type === 'update' || type === 'set') &&
-    data && data.status === 'completed';
+  // what would otherwise be a second, unguarded path to a fabricated grade. Grading itself now
+  // happens off the request path (server/lib/taskQueue.ts, /api/internal/grade-attempt) so a
+  // burst of submissions at exam-end doesn't hold open one HTTP request per student for the
+  // full recompute+write chain — see this branch below.
+  const isSubmission = collectionName === 'attempts' && (type === 'update' || type === 'set') && data && data.status === 'completed';
+
   if (isSubmission && docId) {
+    // Persist the student's own raw answers immediately as status='submitted' (not yet
+    // graded) — this is data the student legitimately owns, not a trust boundary, so there's
+    // no reason to delay it behind grading. Also means the submission survives even if
+    // grading is delayed or fails. score/accuracy are stripped here regardless of what the
+    // client sent — never even transiently trusted, same rule as the old inline path.
+    const { score: _clientScore, accuracy: _clientAccuracy, ...rest } = data;
+    const submittedData = { ...rest, status: 'submitted' };
+
+    let authorizedSubmittedData = submittedData;
     try {
-      const verified = await recomputeAttemptScore(docId, data.answers || []);
-      data.score = verified.score;
-      data.accuracy = verified.accuracy;
+      const decision = await authorizeWrite(req.auth, type, collectionName, docId, submittedData);
+      if (decision.ok === false) {
+        return res.status(decision.status).json({ error: decision.error });
+      }
+      authorizedSubmittedData = decision.data;
     } catch (err: any) {
-      console.error('[DB Proxy] Score verification failed:', err);
-      return res.status(500).json({ error: 'Failed to verify score: ' + (err.message || String(err)) });
+      logger.error('DB proxy write-auth error on submission', { docId, error: err });
+      return res.status(500).json({ error: err.message || String(err) });
     }
+
+    try {
+      await enqueueWrite({ type, collectionName, docId, data: authorizedSubmittedData });
+    } catch (err: any) {
+      logger.error('Failed to persist submitted answers', { docId, error: err });
+      return res.status(500).json({ error: err.message || String(err) });
+    }
+
+    try {
+      // examId/studentId here are supplementary metadata for the task payload/logging —
+      // grading itself (recomputeAttemptScore, called from taskQueueService.gradeAttempt)
+      // re-reads the attempt doc by attemptId regardless, so it doesn't depend on these
+      // being present or correct.
+      await taskQueueService.enqueueGradingTask({
+        eventId: `evt_${crypto.randomBytes(8).toString('hex')}`,
+        timestamp: new Date().toISOString(),
+        examId: authorizedSubmittedData.examId || data.examId || '',
+        studentId: req.auth.role === 'student' ? req.auth.uid : data.studentId || '',
+        answers: data.answers || [],
+        attemptId: docId
+      });
+    } catch (err: any) {
+      logger.error('Failed to queue grading task', { docId, error: err });
+      return res.status(500).json({ error: 'Submission saved, but grading could not be queued: ' + (err.message || String(err)) });
+    }
+
+    return res.status(200).json({ success: true, id: docId, queued: true });
   }
 
   let authorizedData = data;
