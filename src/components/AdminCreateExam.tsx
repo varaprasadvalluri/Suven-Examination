@@ -23,7 +23,11 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
+import { useSubjectCategories } from '../hooks/useNamedList';
+import { ManageNamedListDialog } from './ManageNamedListDialog';
 
+// Lookup-only now — the admin-managed list itself comes from useSubjectCategories(). Any name
+// not in this map (e.g. an admin-added "B.Tech") falls back to the generic FileText icon below.
 const SUBJECT_ICONS: Record<string, any> = {
   Mathematics: <Calculator className="h-4 w-4" />,
   Physics: <FlaskConical className="h-4 w-4" />,
@@ -33,8 +37,6 @@ const SUBJECT_ICONS: Record<string, any> = {
   Psychology: <Brain className="h-4 w-4" />,
   Other: <FileText className="h-4 w-4" />
 };
-
-const SUBJECTS = Object.keys(SUBJECT_ICONS);
 
 export const AdminCreateExam: React.FC = () => {
   const { profile } = useAuth();
@@ -46,10 +48,12 @@ export const AdminCreateExam: React.FC = () => {
 
   const [newExamMode, setNewExamMode] = useState<'global' | 'specific'>('global');
 
+  const { items: subjectCategories, loading: loadingSubjects, addItem: addSubjectCategory, removeItem: removeSubjectCategory } = useSubjectCategories();
+
   const [newExam, setNewExam] = useState({
     title: '',
     description: '',
-    subject: 'Computer Science',
+    subject: '',
     difficulty: 'Medium' as 'Easy' | 'Medium' | 'Hard',
     duration: 30,
     totalMarks: 100,
@@ -255,21 +259,31 @@ export const AdminCreateExam: React.FC = () => {
                       </div>
 
                       <div className="grid gap-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Subject Category *</Label>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Subject Category *</Label>
+                          <ManageNamedListDialog
+                            title="Manage Subject Categories"
+                            description="Add or remove subject/course entries admins can pick when creating an exam."
+                            items={subjectCategories}
+                            loading={loadingSubjects}
+                            onAdd={addSubjectCategory}
+                            onRemove={removeSubjectCategory}
+                          />
+                        </div>
                         <Select value={newExam.subject} onValueChange={(val) => setNewExam({ ...newExam, subject: val })}>
                           <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-slate-200 text-slate-900 font-bold px-4 justify-between focus:border-indigo-600 hover:border-indigo-500 transition-all text-sm">
                             <SelectValue placeholder="Select Subject" />
                           </SelectTrigger>
                           <SelectContent className="bg-white border border-slate-200 shadow-2xl rounded-2xl p-1.5 z-50">
-                            {SUBJECTS.map((s) => (
+                            {subjectCategories.map((c) => (
                               <SelectItem
-                                key={s}
-                                value={s}
+                                key={c.id}
+                                value={c.name}
                                 className="font-bold text-xs text-slate-800 hover:bg-slate-50 cursor-pointer py-2 px-3 rounded-lg"
                               >
                                 <div className="flex items-center gap-2">
-                                  {SUBJECT_ICONS[s]}
-                                  <span>{s}</span>
+                                  {SUBJECT_ICONS[c.name] ?? <FileText className="h-4 w-4" />}
+                                  <span>{c.name}</span>
                                 </div>
                               </SelectItem>
                             ))}

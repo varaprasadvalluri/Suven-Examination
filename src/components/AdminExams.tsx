@@ -33,12 +33,6 @@ import {
   ClipboardList,
   Eye,
   EyeOff,
-  BookOpen,
-  Brain,
-  Code,
-  Globe,
-  Calculator,
-  FlaskConical,
   Search,
   ShieldCheck,
   CheckCircle2,
@@ -57,18 +51,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Textarea } from './ui/textarea';
 import { AdminDispatchCenter } from './AdminDispatchCenter';
 import { DataLoader } from './DataLoader';
-
-const SUBJECT_ICONS: Record<string, any> = {
-  Mathematics: <Calculator className="h-4 w-4" />,
-  Physics: <FlaskConical className="h-4 w-4" />,
-  'Computer Science': <Code className="h-4 w-4" />,
-  English: <BookOpen className="h-4 w-4" />,
-  'General Knowledge': <Globe className="h-4 w-4" />,
-  Psychology: <Brain className="h-4 w-4" />,
-  Other: <FileText className="h-4 w-4" />
-};
-
-const SUBJECTS = Object.keys(SUBJECT_ICONS);
+import { useSubjectCategories } from '../hooks/useNamedList';
+import { ManageNamedListDialog } from './ManageNamedListDialog';
 
 const getExamVisualState = (exam: Exam): 'ongoing' | 'upcoming' | 'completed' => {
   if (!exam.startTime || !exam.endTime) {
@@ -105,6 +89,7 @@ const getExamLocation = (subject: string): string => {
 export const AdminExams: React.FC = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const { items: subjectCategories, loading: loadingSubjects, addItem: addSubjectCategory, removeItem: removeSubjectCategory } = useSubjectCategories();
   const [exams, setExams] = useState<Exam[]>([]);
   const [schools, setSchools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1046,9 +1031,19 @@ export const AdminExams: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit-subject" className="text-xs font-black uppercase tracking-widest text-slate-500">
-                      Academic Stream
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="edit-subject" className="text-xs font-black uppercase tracking-widest text-slate-500">
+                        Academic Stream
+                      </Label>
+                      <ManageNamedListDialog
+                        title="Manage Subject Categories"
+                        description="Add or remove subject/course entries admins can pick when creating an exam."
+                        items={subjectCategories}
+                        loading={loadingSubjects}
+                        onAdd={addSubjectCategory}
+                        onRemove={removeSubjectCategory}
+                      />
+                    </div>
                     <Select value={editExamState.subject} onValueChange={(val) => setEditExamState((prev) => ({ ...prev, subject: val }))}>
                       <SelectTrigger
                         id="edit-subject"
@@ -1057,9 +1052,9 @@ export const AdminExams: React.FC = () => {
                         <SelectValue placeholder="Select Stream" />
                       </SelectTrigger>
                       <SelectContent>
-                        {SUBJECTS.map((subj) => (
-                          <SelectItem key={subj} value={subj}>
-                            {subj}
+                        {subjectCategories.map((c) => (
+                          <SelectItem key={c.id} value={c.name}>
+                            {c.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

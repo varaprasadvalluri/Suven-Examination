@@ -59,28 +59,13 @@ import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-
-const ACADEMIC_LEVELS = [
-  'Play Class',
-  'LKG',
-  'UKG',
-  '1st Grade',
-  '2nd Grade',
-  '3rd Grade',
-  '4th Grade',
-  '5th Grade',
-  '6th Grade',
-  '7th Grade',
-  '8th Grade',
-  '9th Grade',
-  '10th Grade',
-  'Intermediate 1st Year',
-  'Intermediate 2nd Year'
-];
+import { useAcademicLevels } from '../hooks/useNamedList';
+import { ManageNamedListDialog } from './ManageNamedListDialog';
 
 export const SchoolStudentOnboarding: React.FC = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const { items: academicLevels, loading: loadingAcademicLevels, addItem: addAcademicLevel, removeItem: removeAcademicLevel } = useAcademicLevels();
   const [isUploading, setIsUploading] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [previewData, setPreviewData] = useState<any[]>([]);
@@ -1871,19 +1856,32 @@ export const SchoolStudentOnboarding: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
-                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Class Grade</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Class Grade</Label>
+                  {profile?.role === 'admin' && (
+                    <ManageNamedListDialog
+                      title="Manage Academic Levels"
+                      description="Add or remove class/grade entries (e.g. B.Tech, Degree)."
+                      items={academicLevels}
+                      loading={loadingAcademicLevels}
+                      onAdd={addAcademicLevel}
+                      onRemove={removeAcademicLevel}
+                      triggerLabel="Manage"
+                    />
+                  )}
+                </div>
                 <Select value={editForm.class} onValueChange={(val) => setEditForm({ ...editForm, class: val })}>
                   <SelectTrigger className="w-full h-11 bg-white border-2 border-slate-300 hover:border-indigo-500 focus:border-indigo-650 rounded-xl text-xs font-bold text-slate-900 px-4 justify-between shadow-sm">
                     <SelectValue placeholder="Grade" />
                   </SelectTrigger>
                   <SelectContent className="max-h-[160px] overflow-y-auto bg-white border-2 border-slate-300 shadow-xl rounded-xl p-1 z-50">
-                    {ACADEMIC_LEVELS.map((level) => (
+                    {academicLevels.map((level) => (
                       <SelectItem
-                        key={level}
-                        value={level}
+                        key={level.id}
+                        value={level.name}
                         className="text-xs font-bold text-slate-800 hover:bg-slate-50 cursor-pointer py-1.5 px-2.5 rounded-lg"
                       >
-                        {level}
+                        {level.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

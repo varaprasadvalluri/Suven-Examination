@@ -33,6 +33,8 @@ import { Switch } from './ui/switch';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from './ui/sheet';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { useAcademicLevels } from '../hooks/useNamedList';
+import { ManageNamedListDialog } from './ManageNamedListDialog';
 import {
   Plus,
   Building2,
@@ -129,6 +131,7 @@ const getTeachersCount = (totalStudents: number) => {
 
 export const AdminSchoolManagement: React.FC = () => {
   const navigate = useNavigate();
+  const { items: academicLevels, loading: loadingAcademicLevels, addItem: addAcademicLevel, removeItem: removeAcademicLevel } = useAcademicLevels();
   const [schools, setSchools] = useState<School[]>([]);
   const [schoolRealAvgScores, setSchoolRealAvgScores] = useState<Record<string, number | null>>({});
   const [loading, setLoading] = useState(true);
@@ -535,6 +538,15 @@ export const AdminSchoolManagement: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
+          <ManageNamedListDialog
+            title="Manage Academic Levels"
+            description="Add or remove the class/grade entries schools pick from when onboarding a student (e.g. B.Tech, Degree)."
+            items={academicLevels}
+            loading={loadingAcademicLevels}
+            onAdd={addAcademicLevel}
+            onRemove={removeAcademicLevel}
+            triggerLabel="Manage Academic Levels"
+          />
           <Dialog open={isPreRegisterOpen} onOpenChange={setIsPreRegisterOpen}>
             <DialogTrigger
               render={

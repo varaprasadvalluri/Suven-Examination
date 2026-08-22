@@ -28,6 +28,8 @@ import examQuestionControllerV1 from './server/routes/v1/ExamQuestionController'
 import attemptControllerV1 from './server/routes/v1/AttemptController';
 import adminStaffControllerV1 from './server/routes/v1/AdminStaffController';
 import studentDashboardControllerV1 from './server/routes/v1/StudentDashboardController';
+import subjectCategoryControllerV1 from './server/routes/v1/SubjectCategoryController';
+import academicLevelControllerV1 from './server/routes/v1/AcademicLevelController';
 import { errorHandler } from './server/middleware/errorHandler';
 import { openApiSpec } from './server/swagger';
 import { requireSession, requireRole } from './server/auth/middleware';
@@ -78,6 +80,8 @@ app.use(examQuestionControllerV1);
 app.use(attemptControllerV1);
 app.use(adminStaffControllerV1);
 app.use(studentDashboardControllerV1);
+app.use(subjectCategoryControllerV1);
+app.use(academicLevelControllerV1);
 
 // Worker route for async exam grading (server/lib/taskQueue.ts) — invoked by Cloud Tasks,
 // gated by its own OIDC verification (verifyCloudTasksAuth), not requireSession.

@@ -28,10 +28,13 @@ import { Textarea } from './ui/textarea';
 import { ArrowLeft, Plus, Save, Trash2, CheckCircle2, Edit3, X, Wand2, Loader2, FileUp, ImagePlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { FileUpload } from './FileUpload';
+import { useSubjectCategories } from '../hooks/useNamedList';
+import { ManageNamedListDialog } from './ManageNamedListDialog';
 
 export const ExamQuestions: React.FC = () => {
   const { examId } = useParams<{ examId: string }>();
   const navigate = useNavigate();
+  const { items: subjectCategories, loading: loadingSubjects, addItem: addSubjectCategory, removeItem: removeSubjectCategory } = useSubjectCategories();
   const [exam, setExam] = useState<Exam | null>(null);
   const [isEditingInfo, setIsEditingInfo] = useState(false);
   const [editedInfo, setEditedInfo] = useState({ title: '', description: '' });
@@ -734,18 +737,27 @@ export const ExamQuestions: React.FC = () => {
             <CardContent className="p-6 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="grid gap-1.5">
-                  <Label className="text-xs font-black uppercase tracking-wider text-slate-400">Subject Segment</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-black uppercase tracking-wider text-slate-400">Subject Segment</Label>
+                    <ManageNamedListDialog
+                      title="Manage Subject Categories"
+                      description="Add or remove subject/course entries admins can pick when authoring a question."
+                      items={subjectCategories}
+                      loading={loadingSubjects}
+                      onAdd={addSubjectCategory}
+                      onRemove={removeSubjectCategory}
+                    />
+                  </div>
                   <select
-                    value={newQuestion.subject || 'Physics'}
+                    value={newQuestion.subject || ''}
                     onChange={(e) => setNewQuestion({ ...newQuestion, subject: e.target.value })}
                     className="h-10 px-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="Physics">Physics Track</option>
-                    <option value="Chemistry">Chemistry Track</option>
-                    <option value="Mathematics">Mathematics (IIT JEE)</option>
-                    <option value="Biology">Biology (NEET Prep)</option>
-                    <option value="English">English</option>
-                    <option value="Other">General / Other Track</option>
+                    {subjectCategories.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

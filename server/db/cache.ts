@@ -6,7 +6,9 @@ export const CACHE_TTLS: Record<string, number> = {
   syllabus: 20000, // 20s cache
   questions: 15000, // 15s cache
   login_options: 60000, // 60s cache
-  invitations: 5000 // 5s cache
+  invitations: 5000, // 5s cache
+  subject_categories: 30000, // 30s cache — small admin-curated list, changes rarely
+  academic_levels: 30000 // 30s cache — same
 };
 
 // Wraps the underlying Map so nothing outside this file can reach in and store a malformed

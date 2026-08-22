@@ -966,3 +966,36 @@ export const usersService = {
     await updateDoc(ref, data);
   }
 };
+
+// --- Admin-managed named lists (Subject Categories, Academic Levels) ---
+// Both backed by server/routes/v1/createNamedListController.ts — same request/response shape,
+// just a different endpoint, so one factory here covers both instead of duplicating list/
+// create/remove twice.
+export interface NamedListItem {
+  id: string;
+  name: string;
+  createdAt?: string;
+}
+
+function createNamedListService(endpoint: string) {
+  return {
+    async list(): Promise<NamedListItem[]> {
+      const payload = await safeFetchJson(endpoint);
+      return (payload.data || []).map((d: any) => ({ id: d.id, name: d.data?.name, createdAt: d.data?.createdAt }));
+    },
+    async create(name: string): Promise<NamedListItem> {
+      const payload = await safeFetchJson(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      return payload.data;
+    },
+    async remove(id: string): Promise<void> {
+      await safeFetchJson(`${endpoint}/${id}`, { method: 'DELETE' });
+    }
+  };
+}
+
+export const subjectCategoriesService = createNamedListService('/api/v1/subject-categories');
+export const academicLevelsService = createNamedListService('/api/v1/academic-levels');

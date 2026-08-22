@@ -23,24 +23,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
-
-const ACADEMIC_LEVELS = [
-  'Play Class',
-  'LKG',
-  'UKG',
-  '1st Grade',
-  '2nd Grade',
-  '3rd Grade',
-  '4th Grade',
-  '5th Grade',
-  '6th Grade',
-  '7th Grade',
-  '8th Grade',
-  '9th Grade',
-  '10th Grade',
-  'Intermediate 1st Year',
-  'Intermediate 2nd Year'
-];
+import { useAcademicLevels } from '../hooks/useNamedList';
+import { ManageNamedListDialog } from './ManageNamedListDialog';
 
 interface SchoolCandidateOnboardingProps {
   onBack?: () => void;
@@ -49,6 +33,7 @@ interface SchoolCandidateOnboardingProps {
 export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps> = ({ onBack }) => {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const { items: academicLevels, loading: loadingAcademicLevels, addItem: addAcademicLevel, removeItem: removeAcademicLevel } = useAcademicLevels();
 
   const [isSubmittingCandidate, setIsSubmittingCandidate] = useState(false);
   const [createdStudentData, setCreatedStudentData] = useState<any | null>(null);
@@ -316,15 +301,28 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                   <div className="space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <Label className="text-xs font-bold text-slate-700 mb-1.5 block">Academic Grade</Label>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <Label className="text-xs font-bold text-slate-700 block">Academic Grade</Label>
+                          {profile?.role === 'admin' && (
+                            <ManageNamedListDialog
+                              title="Manage Academic Levels"
+                              description="Add or remove class/grade entries (e.g. B.Tech, Degree)."
+                              items={academicLevels}
+                              loading={loadingAcademicLevels}
+                              onAdd={addAcademicLevel}
+                              onRemove={removeAcademicLevel}
+                              triggerLabel="Manage"
+                            />
+                          )}
+                        </div>
                         <Select value={manualStudent.class} onValueChange={(val) => setManualStudent({ ...manualStudent, class: val })}>
                           <SelectTrigger className="h-11 bg-slate-50 border-slate-200 text-slate-900 rounded-xl text-xs font-medium focus:border-indigo-600 focus:bg-white">
                             <SelectValue placeholder="Select Grade" />
                           </SelectTrigger>
                           <SelectContent className="max-h-[220px] bg-white border border-slate-200 shadow-xl rounded-xl">
-                            {ACADEMIC_LEVELS.map((lvl) => (
-                              <SelectItem key={lvl} value={lvl} className="text-xs font-medium cursor-pointer">
-                                {lvl}
+                            {academicLevels.map((lvl) => (
+                              <SelectItem key={lvl.id} value={lvl.name} className="text-xs font-medium cursor-pointer">
+                                {lvl.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
