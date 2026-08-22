@@ -19,7 +19,13 @@ import {
   CalendarDays,
   Lock,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Calculator,
+  Atom,
+  Cpu,
+  BookOpen,
+  Globe2,
+  HelpCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ExamInstructionsScreen } from './ExamInstructionsScreen';
@@ -43,6 +49,18 @@ const SUBJECT_PALETTE: Record<string, { bg: string; border: string; text: string
 };
 const DEFAULT_SUBJECT_COLOR = { bg: '#FFD2C4', border: '#F0916E', text: '#7C2D12' };
 const subjectColor = (subject?: string) => (subject && SUBJECT_PALETTE[subject]) || DEFAULT_SUBJECT_COLOR;
+
+// Same keys as SUBJECT_PALETTE — a real glyph per subject instead of a first-letter badge,
+// falling back to a plain question mark for anything unmapped rather than guessing.
+const SUBJECT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  Mathematics: Calculator,
+  Physics: Atom,
+  Science: Atom,
+  'Computer Science': Cpu,
+  English: BookOpen,
+  'General Knowledge': Globe2
+};
+const subjectIcon = (subject?: string) => (subject && SUBJECT_ICONS[subject]) || HelpCircle;
 
 // Small hand-drawn-style mascot for the "nothing here yet" empty states — matches the
 // neubrutalist icon conventions from StudentPortal.tsx (thick black stroke, flat pastel
@@ -117,6 +135,7 @@ const LoadErrorCard: React.FC<{ onRetry: () => void }> = ({ onRetry }) => (
 // (the single highlighted card there); this card just points the student there.
 const UpcomingCard: React.FC<{ item: UpcomingItem; onViewInProgress: () => void }> = ({ item, onViewInProgress }) => {
   const color = subjectColor(item.subject);
+  const SubjectIcon = subjectIcon(item.subject);
 
   if (item.locked) {
     return (
@@ -152,10 +171,10 @@ const UpcomingCard: React.FC<{ item: UpcomingItem; onViewInProgress: () => void 
       <CardContent className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3.5 min-w-0">
           <div
-            className="h-11 w-11 rounded-xl border-2 flex items-center justify-center shrink-0 text-base font-black"
+            className="h-11 w-11 rounded-xl border-2 flex items-center justify-center shrink-0"
             style={{ backgroundColor: color.bg, borderColor: color.border, color: color.text }}
           >
-            {(item.subject || '?').charAt(0).toUpperCase()}
+            <SubjectIcon className="h-5 w-5" />
           </div>
           <div className="min-w-0 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -341,9 +360,9 @@ export const StudentDashboard: React.FC = () => {
     c.attempt?.status === 'started' || c.attempt?.status === 'in-progress' ? 'Resume' : 'Ready to Start';
 
   const NAV_ACCENT: Record<DashboardView, string> = {
-    'in-progress': '#f2a81e',
-    upcoming: '#BAE6FD',
-    completed: '#B5F2D2'
+    'in-progress': '#fbbf24',
+    upcoming: '#818cf8',
+    completed: '#34d399'
   };
 
   // Mobile: compact horizontal tab strip (a student shouldn't have to scroll past a full
@@ -361,19 +380,19 @@ export const StudentDashboard: React.FC = () => {
       <button
         onClick={() => setActiveView(view)}
         className={`flex-1 md:flex-none md:w-full flex flex-col md:flex-row items-center justify-center md:justify-start gap-1 md:gap-3 px-2 md:px-3.5 h-14 md:h-11 rounded-xl font-bold text-[10px] md:text-sm transition-colors cursor-pointer relative overflow-hidden shrink-0 ${
-          active ? 'text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+          active ? 'text-indigo-950 font-black' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
         }`}
       >
         {active && (
           <motion.div
             layoutId="nav-active-pill"
-            className="absolute inset-0 bg-white/10 rounded-xl"
+            className="absolute inset-0 bg-slate-100 rounded-xl"
             transition={{ type: 'spring', stiffness: 400, damping: 32 }}
           />
         )}
         <span
           className="relative z-10 shrink-0 flex items-center justify-center h-7 w-7 rounded-lg transition-colors"
-          style={active ? { backgroundColor: NAV_ACCENT[view], color: '#0B1E3F' } : undefined}
+          style={active ? { backgroundColor: NAV_ACCENT[view], color: '#1e1b4b' } : undefined}
         >
           {icon}
         </span>
@@ -384,7 +403,7 @@ export const StudentDashboard: React.FC = () => {
             initial={{ scale: 0.7 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-            className="z-10 absolute top-1 right-1 md:static md:ml-auto h-4 min-w-[16px] md:h-5 md:min-w-[20px] px-1 md:px-1.5 rounded-full bg-[#f2a81e] text-[#0B1E3F] text-[9px] md:text-[10px] font-black flex items-center justify-center"
+            className="z-10 absolute top-1 right-1 md:static md:ml-auto h-4 min-w-[16px] md:h-5 md:min-w-[20px] px-1 md:px-1.5 rounded-full bg-amber-400 text-indigo-950 text-[9px] md:text-[10px] font-black flex items-center justify-center"
           >
             {badge}
           </motion.span>
@@ -394,23 +413,26 @@ export const StudentDashboard: React.FC = () => {
   };
 
   return (
-    // Same brand shell as LoginPage.tsx (navy #0B1E3F + amber #f2a81e logo mark) so the
-    // student side of the app reads as the same product as the school/admin login, not a
-    // different visual system. Sidebar on desktop, collapses to a compact top bar + tab strip
-    // on phones — kept short so a student reaches actual exam content without much scrolling.
-    <div className="min-h-screen w-full bg-[#f3f6f9] font-sans text-slate-800 flex flex-col md:flex-row">
-      <aside className="w-full md:w-72 md:min-h-screen bg-[#0B1E3F] text-white shrink-0 flex flex-col">
+    // Same white/pastel "claymorphic" shell as the admin and school sidebars in Layout.tsx
+    // (bg-white, amber/indigo accents, slate borders) so the student side nav reads as the
+    // same product chrome as every other module, not a separate dark theme. Sidebar on
+    // desktop, collapses to a compact top bar + tab strip on phones — kept short so a student
+    // reaches actual exam content without much scrolling.
+    <div className="min-h-screen w-full bg-[#F0F4FA] font-sans text-slate-800 flex flex-col md:flex-row">
+      <aside className="w-full md:w-72 md:min-h-screen bg-white text-slate-800 shrink-0 flex flex-col border-b-4 md:border-b-0 md:border-r-4 border-slate-200">
         <div
-          className="p-4 md:p-6 flex items-center justify-between md:block"
+          className="p-4 md:p-6 flex items-center justify-between md:block border-b-2 border-dashed border-slate-200"
           style={{ paddingTop: 'max(env(safe-area-inset-top), 1rem)' }}
         >
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-[#f2a81e] flex items-center justify-center font-black text-white text-lg shadow-md shadow-[#f2a81e]/20 shrink-0">
+            <div className="h-10 w-10 rounded-xl bg-amber-400 flex items-center justify-center font-black text-indigo-950 text-lg shadow-md shrink-0">
               S
             </div>
             <div>
-              <span className="font-sans font-extrabold text-sm uppercase tracking-wider text-white block leading-none">SUVEN EDU</span>
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">Student Portal</span>
+              <span className="font-sans font-extrabold text-sm uppercase tracking-wider text-indigo-950 block leading-none">
+                SUVEN EDU
+              </span>
+              <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest block mt-0.5">Student Portal</span>
             </div>
           </div>
 
@@ -418,30 +440,30 @@ export const StudentDashboard: React.FC = () => {
             variant="outline"
             aria-label="Sign out"
             title="Sign out"
-            className="md:hidden h-9 px-3 border-white/20 bg-white/5 hover:bg-white/10 text-white font-bold text-xs shrink-0"
+            className="md:hidden h-9 px-3 border-slate-200 bg-slate-50 hover:bg-rose-500 hover:border-rose-600 hover:text-white text-slate-600 font-bold text-xs shrink-0"
             onClick={() => setShowSignOutConfirm(true)}
           >
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="hidden md:block px-5 md:px-6 pb-5 md:pb-6 space-y-3">
-          <div className="flex items-center gap-3 bg-white/[0.04] border border-white/10 rounded-2xl p-4">
-            <div className="h-11 w-11 rounded-full bg-[#f2a81e]/20 border-2 border-[#f2a81e]/40 text-[#f2a81e] flex items-center justify-center font-black text-base shrink-0">
+        <div className="hidden md:block px-5 md:px-6 pb-5 md:pb-6 pt-5 space-y-3">
+          <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+            <div className="h-11 w-11 rounded-full bg-amber-100 border-2 border-amber-400 text-amber-800 flex items-center justify-center font-black text-base shrink-0">
               {initial}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-black text-white truncate">{profile?.name || 'Student'}</p>
-              {subtitleParts.length > 0 && <p className="text-[11px] font-semibold text-slate-400 truncate">{subtitleParts.join(' · ')}</p>}
+              <p className="text-sm font-black text-slate-900 truncate">{profile?.name || 'Student'}</p>
+              {subtitleParts.length > 0 && <p className="text-[11px] font-semibold text-slate-500 truncate">{subtitleParts.join(' · ')}</p>}
             </div>
           </div>
           {isReturning && (
-            <p className="text-[11px] font-semibold text-[#f2a81e]/90 px-1 flex items-center gap-1.5">
+            <p className="text-[11px] font-semibold text-amber-600 px-1 flex items-center gap-1.5">
               <span>👋</span> Welcome back!
             </p>
           )}
           {!!completedPage?.total && (
-            <p className="text-[11px] font-bold text-slate-400 px-1">
+            <p className="text-[11px] font-bold text-slate-500 px-1">
               🎉 {completedPage.total} quiz{completedPage.total === 1 ? '' : 'zes'} completed
             </p>
           )}
@@ -468,10 +490,10 @@ export const StudentDashboard: React.FC = () => {
           />
         </nav>
 
-        <div className="hidden md:block mt-auto p-6 border-t border-white/10">
+        <div className="hidden md:block mt-auto p-6 border-t-2 border-slate-100">
           <Button
             variant="outline"
-            className="w-full h-11 border-white/20 bg-white/5 hover:bg-white/10 text-white font-bold text-xs"
+            className="w-full h-11 border-2 border-transparent text-rose-600 bg-transparent hover:text-white hover:bg-rose-500 hover:border-rose-600 hover:border-b-[4px] font-bold text-xs transition-all"
             onClick={() => setShowSignOutConfirm(true)}
           >
             <LogOut className="h-4 w-4 mr-1.5" />
@@ -481,6 +503,60 @@ export const StudentDashboard: React.FC = () => {
       </aside>
 
       <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-10" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 1.5rem)' }}>
+        {/* Quick-glance strip, shown above whichever tab is active. Every number here is a
+            real total the hook already fetched (inProgress/upcomingPage/completedPage) — no
+            derived average/streak, matching the no-invented-stats stance for this dashboard
+            (see ACHIEVEMENT_THRESHOLDS comment above). Doubles as quick nav on desktop, where
+            it sits above content the sidebar tabs already cover. */}
+        {/* Desktop only — the mobile top tab strip already carries these same three counts as
+            badges, so repeating them here would just duplicate, not inform. */}
+        <div className="hidden md:grid max-w-3xl mx-auto grid-cols-3 gap-4 mb-8">
+          {(
+            [
+              {
+                view: 'in-progress' as DashboardView,
+                label: 'In Progress',
+                value: loadingStatus ? null : inProgress ? 1 : 0,
+                icon: PlayCircle,
+                accent: NAV_ACCENT['in-progress']
+              },
+              {
+                view: 'upcoming' as DashboardView,
+                label: 'Upcoming',
+                value: loadingUpcoming ? null : (upcomingPage?.total ?? 0),
+                icon: NotebookPen,
+                accent: NAV_ACCENT.upcoming
+              },
+              {
+                view: 'completed' as DashboardView,
+                label: 'Completed',
+                value: loadingCompleted ? null : (completedPage?.total ?? 0),
+                icon: CheckCircle2,
+                accent: NAV_ACCENT.completed
+              }
+            ] as const
+          ).map((tile) => (
+            <button
+              key={tile.view}
+              onClick={() => setActiveView(tile.view)}
+              className={`text-left bg-white rounded-2xl border-2 p-3.5 sm:p-5 transition-all cursor-pointer ${
+                activeView === tile.view ? 'border-slate-900 shadow-sm' : 'border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div
+                className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg flex items-center justify-center mb-2 sm:mb-3"
+                style={{ backgroundColor: `${tile.accent}30`, color: '#1e1b4b' }}
+              >
+                <tile.icon className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
+                {tile.value === null ? <span className="text-slate-300">···</span> : tile.value}
+              </p>
+              <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wide mt-1 truncate">{tile.label}</p>
+            </button>
+          ))}
+        </div>
+
         <AnimatePresence mode="wait">
           <motion.div
             key={activeView}
@@ -518,6 +594,7 @@ export const StudentDashboard: React.FC = () => {
                 ) : (
                   (() => {
                     const color = subjectColor(inProgress.exam?.subject);
+                    const SubjectIcon = subjectIcon(inProgress.exam?.subject);
                     return (
                       <Card
                         className="rounded-[28px] border-2 border-b-[6px] shadow-sm overflow-hidden"
@@ -526,10 +603,10 @@ export const StudentDashboard: React.FC = () => {
                         <CardContent className="p-5 sm:p-6 space-y-4">
                           <div className="flex items-start gap-3.5 min-w-0">
                             <div
-                              className="h-12 w-12 rounded-2xl border-2 flex items-center justify-center shrink-0 text-lg font-black"
+                              className="h-12 w-12 rounded-2xl border-2 flex items-center justify-center shrink-0"
                               style={{ backgroundColor: color.bg, borderColor: color.border, color: color.text }}
                             >
-                              {(inProgress.exam?.subject || '?').charAt(0).toUpperCase()}
+                              <SubjectIcon className="h-5.5 w-5.5" />
                             </div>
                             <div className="min-w-0">
                               <span className="text-[10px] font-black uppercase tracking-widest text-[#0B1E3F] bg-white px-2.5 py-1 rounded-full border border-[#0B1E3F]/15">

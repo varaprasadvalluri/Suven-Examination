@@ -420,7 +420,7 @@ export const AdminCreateExam: React.FC = () => {
                           <div className="p-4 bg-slate-50 rounded-2xl max-h-[160px] overflow-y-auto space-y-2 border border-slate-200">
                             {schools.length === 0 ? (
                               <p className="text-xs text-slate-400 font-medium italic">
-                                No schools registered yet. Please add schools in School Registry.
+                                No schools registered yet. Please add schools in Institutions.
                               </p>
                             ) : (
                               schools.map((school) => {

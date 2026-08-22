@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { db } from '../lib/firebase';
-import { collection, getDocs, query, orderBy, limit, where, getCountFromServer } from 'firebase/firestore';
+import { db, collection, getDocs, query, orderBy, limit, where, getCountFromServer } from '../lib/firebase';
 import { Exam, School, Attempt } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
@@ -259,16 +258,14 @@ export const AdminOverview: React.FC = () => {
               variant="outline"
               className="bg-indigo-50 text-indigo-700 border-indigo-100 font-black text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider"
             >
-              Session Active
+              System Status: Online
             </Badge>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-              {profile?.schoolId ? 'School Admin' : 'Master Admin'} Panel
-            </span>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Operations Platform</span>
           </div>
           <h2 className="text-3xl md:text-4xl font-display font-black text-slate-900 tracking-tight flex items-center gap-3">
-            Command Center <Activity className="text-indigo-600 animate-pulse" size={32} />
+            Global Overview <Activity className="text-indigo-600 animate-pulse" size={32} />
           </h2>
-          <p className="text-slate-500 font-medium mt-1">SaaS Infrastructure Heuristics & Academic Oversight.</p>
+          <p className="text-slate-500 font-medium mt-1">Infrastructure Metrics & Governance.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
           <Button
@@ -296,9 +293,9 @@ export const AdminOverview: React.FC = () => {
           <CardHeader className="p-6 md:p-10 pb-0">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Throughput Velocity</CardTitle>
+                <CardTitle className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Daily Throughput</CardTitle>
                 <CardDescription className="font-semibold text-slate-400 mt-1">
-                  Digital assessments completed per diurnal cycle.
+                  Total assessments processed in the last 24 hours.
                 </CardDescription>
               </div>
               <Badge className="bg-emerald-500/10 text-emerald-600 border-0 font-black text-[10px] uppercase px-3 py-1">Live Feed</Badge>

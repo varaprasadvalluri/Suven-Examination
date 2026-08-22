@@ -402,10 +402,10 @@ export const SyllabusTracker: React.FC = () => {
             variant="outline"
             className="bg-indigo-50 text-indigo-700 border-indigo-100 font-black text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider mb-2"
           >
-            Curriculum Oversight
+            Academic Track
           </Badge>
-          <h2 className="text-4xl font-display font-black text-slate-900 tracking-tight">Syllabus Velocity</h2>
-          <p className="text-slate-500 font-medium mt-1">Real-time mapping of curriculum coverage against assessment milestones.</p>
+          <h2 className="text-4xl font-display font-black text-slate-900 tracking-tight">Syllabus Coverage</h2>
+          <p className="text-slate-500 font-medium mt-1">Live alignment of curriculum tracking and test dates.</p>
         </div>
 
         {canManage && (

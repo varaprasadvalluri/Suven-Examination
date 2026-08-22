@@ -76,44 +76,6 @@ const CuteAnalyticsIcon = () => (
   </svg>
 );
 
-const CuteRoadmapIcon = () => (
-  <svg
-    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-12 group-hover:-rotate-6 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
-    viewBox="0 0 24 24"
-    fill="none"
-  >
-    <defs>
-      <linearGradient id="roadGrad" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#E1CCFF" />
-        <stop offset="100%" stopColor="#9E70FF" />
-      </linearGradient>
-    </defs>
-    <rect x="3" y="3" width="18" height="18" rx="5" fill="url(#roadGrad)" stroke="#111222" strokeWidth="2" />
-    <path d="M 8 12 Q 12 8 16 12 T 20 16" stroke="#FFFFFF" strokeWidth="2" strokeDasharray="3,3" />
-    <circle cx="8" cy="12" r="2.5" fill="#FFE28A" stroke="#111222" strokeWidth="1.5" />
-    <circle cx="16" cy="12" r="2.5" fill="#FFB2B8" stroke="#111222" strokeWidth="1.5" />
-    <path d="M 12 6 V 18" stroke="#111222" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
-const CuteErrorBookIcon = () => (
-  <svg
-    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-12 group-hover:rotate-6 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
-    viewBox="0 0 24 24"
-    fill="none"
-  >
-    <defs>
-      <linearGradient id="errorGrad" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#FFB2B8" />
-        <stop offset="100%" stopColor="#FF3366" />
-      </linearGradient>
-    </defs>
-    <rect x="4" y="3" width="16" height="18" rx="4" fill="url(#errorGrad)" stroke="#111222" strokeWidth="2" />
-    <path d="M 10 9 L 14 13 M 14 9 L 10 13" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
-    <circle cx="12" cy="18" r="1" fill="#FFFFFF" />
-  </svg>
-);
-
 const CuteSchoolIcon = () => (
   <svg
     className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-12 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
@@ -180,19 +142,11 @@ const CuteBillingIcon = () => (
 );
 
 const CUTE_ICONS_MAPPING: Record<string, () => React.JSX.Element> = {
-  'Intelligence Base': CuteDashboardIcon,
-  'Intelligence Base (Admin)': CuteDashboardIcon,
-  'Intelligence Base (School)': CuteDashboardIcon,
-  'Intelligence-Based Assessments': CuteDashboardIcon,
-  'Onboarding Student': CuteSchoolIcon,
+  'Dashboard View': CuteDashboardIcon,
   'Student Onboarding': CuteSchoolIcon,
   'Assigned Exams': CuteExamsIcon,
-  'e-Exam Portal': CuteExamsIcon,
-  'Ranker View': CuteAnalyticsIcon,
-  'Roadmap Tracker': CuteRoadmapIcon,
-  'Error Book': CuteErrorBookIcon,
   'Exams Manager': CuteExamsIcon,
-  'School Registry': CuteSchoolIcon,
+  'Institutions': CuteSchoolIcon,
   'Security proctors': CuteProctorsIcon,
   'Syllabus Tracker': CuteExamsIcon,
   'Merit Scoreboard': CuteTrophyIcon,
@@ -283,11 +237,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // Sidebar Menu Config
   const menuItems = [
-    { label: 'Intelligence Base', path: '/', roles: ['admin'] },
-    { label: 'Intelligence Base', path: '/?tab=intelligence', roles: ['school'] },
+    { label: 'Dashboard View', path: '/', roles: ['admin'] },
+    { label: 'Dashboard View', path: '/?tab=intelligence', roles: ['school'] },
     { label: 'Student Onboarding', path: '/?tab=onboarding', roles: ['school'] },
     { label: 'Assigned Exams', path: '/?tab=exams', roles: ['school'] },
-    { label: 'School Registry', path: '/admin/schools', roles: ['admin'] },
+    { label: 'Institutions', path: '/admin/schools', roles: ['admin'] },
     { label: 'Exams Manager', path: '/admin/exams', roles: ['admin'] },
     { label: 'Security proctors', path: '/admin/proctoring', roles: ['admin'] },
     { label: 'Syllabus Tracker', path: '/admin/syllabus', roles: ['admin'] },
@@ -393,23 +347,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             // Map each option to vibrant pastel playground gradients with clay/3D borders
             const themeColors: Record<string, { gradient: string; activeBorder: string; activeText: string; accentBg: string }> = {
-              'Intelligence Base': {
+              'Dashboard View': {
                 gradient: 'from-amber-100 to-amber-50',
                 activeBorder: 'border-amber-400',
                 activeText: 'text-amber-850',
                 accentBg: 'bg-amber-400'
-              },
-              'Intelligence-Based Assessments': {
-                gradient: 'from-amber-100 to-amber-50',
-                activeBorder: 'border-amber-400',
-                activeText: 'text-amber-850',
-                accentBg: 'bg-indigo-400'
-              },
-              'Onboarding Student': {
-                gradient: 'from-purple-100 to-purple-50',
-                activeBorder: 'border-purple-400',
-                activeText: 'text-purple-850',
-                accentBg: 'bg-purple-400'
               },
               'Student Onboarding': {
                 gradient: 'from-purple-100 to-purple-50',
@@ -423,37 +365,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 activeText: 'text-emerald-850',
                 accentBg: 'bg-emerald-400'
               },
-              'e-Exam Portal': {
-                gradient: 'from-emerald-100 to-emerald-50',
-                activeBorder: 'border-emerald-400',
-                activeText: 'text-emerald-850',
-                accentBg: 'bg-emerald-400'
-              },
-              'Ranker View': {
-                gradient: 'from-sky-100 to-sky-50',
-                activeBorder: 'border-sky-400',
-                activeText: 'text-sky-850',
-                accentBg: 'bg-sky-400'
-              },
-              'Roadmap Tracker': {
-                gradient: 'from-purple-100 to-purple-50',
-                activeBorder: 'border-purple-400',
-                activeText: 'text-purple-855',
-                accentBg: 'bg-purple-400'
-              },
-              'Error Book': {
-                gradient: 'from-pink-100 to-pink-50',
-                activeBorder: 'border-pink-400',
-                activeText: 'text-pink-850',
-                accentBg: 'bg-pink-400'
-              },
               'Exams Manager': {
                 gradient: 'from-emerald-100 to-emerald-50',
                 activeBorder: 'border-emerald-400',
                 activeText: 'text-emerald-850',
                 accentBg: 'bg-emerald-400'
               },
-              'School Registry': {
+              'Institutions': {
                 gradient: 'from-sky-100 to-sky-50',
                 activeBorder: 'border-sky-400',
                 activeText: 'text-sky-850',

@@ -184,9 +184,9 @@ export const LiveProctoringWall: React.FC = () => {
       <Card className="shadow-2xl shadow-slate-200/50 border-0 rounded-[40px] overflow-hidden bg-slate-900 text-white">
         <CardHeader className="p-6 sm:p-10 border-b border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <CardTitle className="text-xl font-black uppercase tracking-tighter">Heuristic Anomaly Log</CardTitle>
+            <CardTitle className="text-xl font-black uppercase tracking-tighter">System Incident Log</CardTitle>
             <CardDescription className="text-slate-500 font-semibold">
-              Real-time system events categorized by severity levels.
+              Live system issues tracked by severity.
             </CardDescription>
           </div>
           <Badge className="bg-indigo-600 text-white font-black text-[10px] uppercase">Processing Live</Badge>

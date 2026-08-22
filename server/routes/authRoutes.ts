@@ -13,6 +13,7 @@ import {
   clientWhere
 } from '../firestoreClient';
 import { asyncHandler } from '../middleware/errorHandler';
+import { authLimiter } from '../middleware/rateLimit';
 import { UnauthorizedError, BadRequestError, ForbiddenError, NotFoundError, InternalServerError } from '../lib/errors';
 
 const router = express.Router();
@@ -27,7 +28,7 @@ const router = express.Router();
  *       server-side, and mints this app's own session token. Auto-detects admin/school role
  *       by cross-checking the schools/admins/super_admins collections, creating the users doc
  *       on first login if none exists. Public — this route's whole purpose is to bootstrap a
- *       session from a Firebase token, so no app session is required yet.
+ *       session from a Firebase token, so no app session is required yet. Rate-limited (authLimiter).
  *     tags: [Auth]
  *     security: []
  *     requestBody:
@@ -49,6 +50,7 @@ const router = express.Router();
 // SECURE SERVER-SIDE AUTHENTICATION ENDPOINTS
 router.post(
   '/api/auth/validate',
+  authLimiter,
   asyncHandler(async (req, res) => {
     // uid/email must come from a verified Firebase ID token, never trusted from the request
     // body directly — otherwise any client could mint a session for an arbitrary uid.
@@ -254,7 +256,7 @@ router.post(
  *       Public (bootstraps a session, same as /api/auth/validate). Admin self-registration is
  *       always blocked — admin accounts are provisioned manually in Firestore. A 'school' role
  *       requires the email to already be pre-authorized (allowed_schools, schools.adminEmail,
- *       or an allowed domain) or the request is rejected.
+ *       or an allowed domain) or the request is rejected. Rate-limited (authLimiter).
  *     tags: [Auth]
  *     security: []
  *     requestBody:
@@ -283,6 +285,7 @@ router.post(
  */
 router.post(
   '/api/auth/create-profile',
+  authLimiter,
   asyncHandler(async (req, res) => {
     // uid/email must come from a verified Firebase ID token, never trusted from the request
     // body directly — otherwise any client could create/overwrite a profile for an arbitrary uid.

@@ -119,6 +119,7 @@ const ExamInterfaceCore: React.FC = () => {
           studentEmail: attempt.studentEmail || '',
           examId: attempt.examId,
           examTitle: exam?.title || 'E-Exam Assessment',
+          schoolId: attempt.schoolId || exam?.schoolId || null,
           type,
           timestamp: new Date().toISOString(),
           description
@@ -864,7 +865,7 @@ const ExamInterfaceCore: React.FC = () => {
         const payload = {
           attemptId,
           studentId: attempt.studentId,
-          schoolId: attempt.schoolId || null,
+          schoolId: attempt.schoolId || exam?.schoolId || null,
           examId: attempt.examId,
           type,
           description,

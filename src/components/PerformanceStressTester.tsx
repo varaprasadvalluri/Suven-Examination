@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { db } from '../lib/firebase';
-import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { db, doc, setDoc, getDoc, deleteDoc } from '../lib/firebase';
 import { circuitBreaker } from '../services/api';
 import {
   Play,

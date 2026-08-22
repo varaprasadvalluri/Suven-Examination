@@ -42,6 +42,16 @@ export const gatekeeperEnrollLimiter = rateLimit({
   message: { error: 'Too many requests. Please wait a few minutes and try again.' }
 });
 
+// Firebase-token-only, pre-session bootstrap routes (/api/auth/validate,
+// /api/auth/create-profile) — reachable by anyone with a Firebase ID token, each call
+// does a Firestore read/write. Same per-IP cap shape as the gatekeeper limiters above.
+export const authLimiter = rateLimit({
+  ...commonConfig,
+  limit: 100,
+  skip: skipLoadTest,
+  message: { error: 'Too many requests. Please wait a few minutes and try again.' }
+});
+
 export const cloudinaryUploadLimiter = rateLimit({
   ...commonConfig,
   limit: 10,

@@ -368,7 +368,7 @@ router.post(
  * /api/gatekeeper/student-login:
  *   post:
  *     summary: Direct student login by name + roll number (no exam link/invite involved)
- *     description: Pre-session route — mints the session token itself, so it is intentionally public. DOB is optional at onboarding, so it's optional here too — checked only when both entered and present on the account; never onboards a new account on a miss. Rate-limited (gatekeeperLookupLimiter).
+ *     description: Pre-session route — mints the session token itself, so it is intentionally public. Name must match the account on file. DOB is optional at onboarding, so it's optional here too — checked only when both entered and present on the account; never onboards a new account on a miss. Rate-limited (gatekeeperLookupLimiter).
  *     tags: [Gatekeeper]
  *     security: []
  *     requestBody:
@@ -388,7 +388,7 @@ router.post(
  *       400:
  *         description: Missing name or roll number
  *       401:
- *         description: DOB provided but doesn't match the account's on-file DOB
+ *         description: Name doesn't match the account, or DOB provided but doesn't match the account's on-file DOB
  *       404:
  *         description: No student account found for that roll number
  *       409:
@@ -433,10 +433,17 @@ router.post(
     const matchedDoc = querySnap.docs[0];
     const matchedData = matchedDoc.data() as any;
 
+    // Name must match the account on file — roll number alone (often short/sequential)
+    // must not be sufficient to log in as another student.
+    const accountName = typeof matchedData.name === 'string' ? matchedData.name.trim() : '';
+    if (!accountName || accountName.toLowerCase() !== trimmedName.toLowerCase()) {
+      throw new UnauthorizedError('Full Name, Register / Roll Number, or Date of Birth does not match our records.');
+    }
+
     // DOB is optional at onboarding, so it's optional here too: checked only when the
     // student entered one AND the account actually has one on file. Product decision,
-    // accepted with known risk — roll-number-only login remains possible for accounts
-    // with no DOB set, or when the DOB field is left blank at login.
+    // accepted with known risk — DOB stays skippable at login even for accounts that do
+    // have one on file, since name-match above already closes the roll-number-only bypass.
     if (trimmedDob && matchedData.dob && String(matchedData.dob).trim() !== trimmedDob) {
       throw new UnauthorizedError('Full Name, Register / Roll Number, or Date of Birth does not match our records.');
     }

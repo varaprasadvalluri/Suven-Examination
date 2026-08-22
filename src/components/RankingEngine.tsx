@@ -401,8 +401,8 @@ export const RankingEngine: React.FC = () => {
         icon: <Users size={28} />,
         color: 'bg-indigo-50 text-indigo-600'
       },
-      { label: 'Mean Percentage', value: `${meanPercentage}%`, icon: <TrendingUp size={28} />, color: 'bg-emerald-50 text-emerald-600' },
-      { label: 'Mastery Quota (≥75%)', value: masteryString, icon: <Target size={28} />, color: 'bg-amber-50 text-amber-600' }
+      { label: 'Average Score', value: `${meanPercentage}%`, icon: <TrendingUp size={28} />, color: 'bg-emerald-50 text-emerald-600' },
+      { label: 'Pass Rate (≥75%)', value: masteryString, icon: <Target size={28} />, color: 'bg-amber-50 text-amber-600' }
     ];
   }, [combinedRankings]);
 
@@ -414,12 +414,12 @@ export const RankingEngine: React.FC = () => {
             variant="outline"
             className="bg-indigo-50 text-indigo-700 border-indigo-100 font-black text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider mb-2"
           >
-            Merit Matrix
+            Leaderboards
           </Badge>
           <h2 className="text-4xl font-display font-black text-slate-900 tracking-tight flex items-center gap-3">
-            Ranking Engine <Trophy className="text-amber-500" size={32} />
+            Analytics Engine <Trophy className="text-amber-500" size={32} />
           </h2>
-          <p className="text-slate-500 font-medium mt-1">Cross-institutional consolidated merit analysis & ranking heuristics.</p>
+          <p className="text-slate-500 font-medium mt-1">Compare student performance rankings across all schools.</p>
         </div>
         <div className="flex gap-3">
           <Button
@@ -470,9 +470,9 @@ export const RankingEngine: React.FC = () => {
       {/* Top 5 overall highlight strip */}
       <Card className="shadow-2xl shadow-slate-200/50 border-0 rounded-[40px] overflow-hidden bg-gradient-to-br from-slate-900 to-indigo-950 text-white">
         <CardHeader className="p-5 md:p-8 border-b border-white/5">
-          <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-300">Top 5 Overall</CardTitle>
+          <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-300">Top 5 Students</CardTitle>
           <CardDescription className="text-xs font-semibold text-indigo-200 mt-1">
-            {profile?.role === 'admin' ? 'Highest-accuracy candidates across every school.' : "This school's highest-accuracy candidates."}
+            {profile?.role === 'admin' ? 'Top performing candidates across all schools.' : "This school's top performing candidates."}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-5 md:p-8">

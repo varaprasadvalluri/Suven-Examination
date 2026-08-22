@@ -1,5 +1,4 @@
-import { db } from '../lib/firebase';
-import { doc, runTransaction, serverTimestamp, collection, addDoc } from 'firebase/firestore';
+import { db, doc, runTransaction, serverTimestamp, collection, addDoc } from '../lib/firebase';
 
 /**
  * ============================================================================

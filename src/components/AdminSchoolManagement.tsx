@@ -530,8 +530,8 @@ export const AdminSchoolManagement: React.FC = () => {
       {/* Top Header Row */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div className="space-y-1.5">
-          <h2 className="text-4xl font-serif font-black text-slate-900 tracking-tight leading-none">School Registry</h2>
-          <p className="text-slate-500 font-medium text-sm">Manage all registered institutions on the platform.</p>
+          <h2 className="text-4xl font-serif font-black text-slate-900 tracking-tight leading-none">Institutions</h2>
+          <p className="text-slate-500 font-medium text-sm">View and manage all registered schools.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-4">

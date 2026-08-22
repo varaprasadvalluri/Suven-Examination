@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
-import { db } from '../lib/firebase';
 import {
+  db,
   doc,
   getDoc,
   collection,
@@ -14,7 +14,7 @@ import {
   getCountFromServer,
   orderBy,
   deleteDoc
-} from 'firebase/firestore';
+} from '../lib/firebase';
 import { Attempt, Exam } from '../types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Button } from './ui/button';

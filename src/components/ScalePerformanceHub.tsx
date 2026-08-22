@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, doc, deleteDoc, getDoc } from 'firebase/firestore';
 import { PerformanceStressTester } from './PerformanceStressTester';
 import { DatabaseMigrator } from './DatabaseMigrator';
 import {
