@@ -8,7 +8,8 @@ interface ChemElement {
   symbol: string;
   name: string;
   mass: number;
-  group: 'alkali' | 'alkaline' | 'transition' | 'post-transition' | 'metalloid' | 'reactive-nonmetal' | 'noble-gas' | 'lanthanide' | 'actinide';
+  group:
+    'alkali' | 'alkaline' | 'transition' | 'post-transition' | 'metalloid' | 'reactive-nonmetal' | 'noble-gas' | 'lanthanide' | 'actinide';
 }
 
 const CHEMICAL_ELEMENTS: ChemElement[] = [
@@ -21,8 +22,8 @@ const CHEMICAL_ELEMENTS: ChemElement[] = [
   { number: 7, symbol: 'N', name: 'Nitrogen', mass: 14.007, group: 'reactive-nonmetal' },
   { number: 8, symbol: 'O', name: 'Oxygen', mass: 15.999, group: 'reactive-nonmetal' },
   { number: 9, symbol: 'F', name: 'Fluorine', mass: 18.998, group: 'reactive-nonmetal' },
-  { number: 10, symbol: 'Ne', name: 'Neon', mass: 20.180, group: 'noble-gas' },
-  { number: 11, symbol: 'Na', name: 'Sodium', mass: 22.990, group: 'alkali' },
+  { number: 10, symbol: 'Ne', name: 'Neon', mass: 20.18, group: 'noble-gas' },
+  { number: 11, symbol: 'Na', name: 'Sodium', mass: 22.99, group: 'alkali' },
   { number: 12, symbol: 'Mg', name: 'Magnesium', mass: 24.305, group: 'alkaline' },
   { number: 13, symbol: 'Al', name: 'Aluminium', mass: 26.982, group: 'post-transition' },
   { number: 14, symbol: 'Si', name: 'Silicon', mass: 28.085, group: 'metalloid' },
@@ -40,11 +41,11 @@ const CHEMICAL_ELEMENTS: ChemElement[] = [
 const GROUP_COLORS: Record<string, string> = {
   'reactive-nonmetal': 'bg-emerald-50 text-emerald-800 border-emerald-200',
   'noble-gas': 'bg-purple-50 text-purple-800 border-purple-200',
-  'alkali': 'bg-rose-50 text-rose-850 border-rose-200',
-  'alkaline': 'bg-amber-50 text-amber-800 border-amber-200',
-  'metalloid': 'bg-teal-50 text-teal-850 border-teal-200',
+  alkali: 'bg-rose-50 text-rose-850 border-rose-200',
+  alkaline: 'bg-amber-50 text-amber-800 border-amber-200',
+  metalloid: 'bg-teal-50 text-teal-850 border-teal-200',
   'post-transition': 'bg-blue-50 text-blue-800 border-blue-200',
-  'transition': 'bg-sky-50 text-sky-850 border-sky-200'
+  transition: 'bg-sky-50 text-sky-850 border-sky-200'
 };
 
 const COMMON_FORMULAS = [
@@ -66,21 +67,33 @@ export const PeriodicTableHelper: React.FC<PeriodicTableHelperProps> = ({ onInse
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 
-  const filteredElements = CHEMICAL_ELEMENTS.filter(el => {
-    const matchesSearch = el.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          el.symbol.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          el.number.toString() === searchTerm;
-    const matchesGroup = selectedGroup ? el.group === selectedGroup : true;
+  const filteredElements = CHEMICAL_ELEMENTS.filter((element) => {
+    const matchesSearch =
+      element.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      element.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      element.number.toString() === searchTerm;
+    const matchesGroup = selectedGroup ? element.group === selectedGroup : true;
     return matchesSearch && matchesGroup;
   });
 
   // Convert numbers to subscript elements: eg "H2O" -> "H₂O"
   const makeSubscript = (text: string): string => {
     const subscriptMap: Record<string, string> = {
-      '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
-      '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉'
+      '0': '₀',
+      '1': '₁',
+      '2': '₂',
+      '3': '₃',
+      '4': '₄',
+      '5': '₅',
+      '6': '₆',
+      '7': '₇',
+      '8': '₈',
+      '9': '₉'
     };
-    return text.split('').map(char => subscriptMap[char] || char).join('');
+    return text
+      .split('')
+      .map((char) => subscriptMap[char] || char)
+      .join('');
   };
 
   const handleElementClick = (symbol: string) => {
@@ -137,12 +150,12 @@ export const PeriodicTableHelper: React.FC<PeriodicTableHelperProps> = ({ onInse
               type="text"
               placeholder="Search by Symbol, Name or Number (e.g. Na)"
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-white border border-slate-200 pl-9 pr-4 h-9 rounded-xl outline-none text-xs text-slate-800 shadow-xs focus:border-indigo-500 transition-all font-semibold"
             />
           </div>
           <div className="flex flex-wrap gap-1">
-            {['alkali', 'transition', 'reactive-nonmetal', 'noble-gas'].map(grp => (
+            {['alkali', 'transition', 'reactive-nonmetal', 'noble-gas'].map((grp) => (
               <button
                 key={grp}
                 onClick={() => setSelectedGroup(selectedGroup === grp ? null : grp)}
@@ -155,22 +168,22 @@ export const PeriodicTableHelper: React.FC<PeriodicTableHelperProps> = ({ onInse
         </div>
 
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5 select-none max-h-48 overflow-y-auto pr-1">
-          {filteredElements.map((el) => {
-            const colorClass = GROUP_COLORS[el.group] || 'bg-slate-50 text-slate-800 border-slate-200';
+          {filteredElements.map((element) => {
+            const colorClass = GROUP_COLORS[element.group] || 'bg-slate-50 text-slate-800 border-slate-200';
             return (
               <button
-                key={el.number}
+                key={element.number}
                 type="button"
-                onClick={() => handleElementClick(el.symbol)}
+                onClick={() => handleElementClick(element.symbol)}
                 className={`border p-2.5 rounded-xl flex flex-col items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-xs cursor-pointer ${colorClass}`}
-                title={`${el.name}: Group=${el.group}, AtomicMass=${el.mass}`}
+                title={`${element.name}: Group=${element.group}, AtomicMass=${element.mass}`}
               >
                 <div className="flex items-center justify-between w-full text-[8px] font-bold opacity-60 leading-none">
-                  <span>{el.number}</span>
-                  <span>{Math.round(el.mass)}</span>
+                  <span>{element.number}</span>
+                  <span>{Math.round(element.mass)}</span>
                 </div>
-                <span className="text-base font-black tracking-tight leading-none my-1.5">{el.symbol}</span>
-                <span className="text-[8px] tracking-tight font-semibold line-clamp-1 opacity-70 leading-none">{el.name}</span>
+                <span className="text-base font-black tracking-tight leading-none my-1.5">{element.symbol}</span>
+                <span className="text-[8px] tracking-tight font-semibold line-clamp-1 opacity-70 leading-none">{element.name}</span>
               </button>
             );
           })}

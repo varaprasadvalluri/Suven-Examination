@@ -14,7 +14,7 @@ export const firebaseConfig = {
 if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
   console.warn(
     '[NODE EXPRESS SERVER] FIREBASE_PROJECT_ID/FIREBASE_API_KEY are not set — ' +
-    'Firestore REST calls will fail until they are. See .env.example.'
+      'Firestore REST calls will fail until they are. See .env.example.'
   );
 }
 
@@ -49,9 +49,20 @@ export const JWT_SECRET: string = (() => {
   const generated = crypto.randomBytes(48).toString('hex');
   console.warn(
     '[Auth] JWT_SECRET is not set — generated a random signing key for this process only. ' +
-    'Every existing session will be invalidated on the next restart, and multiple server ' +
-    'instances would each sign with a different key. Set JWT_SECRET in the environment for ' +
-    'any real deployment (see .env.example).'
+      'Every existing session will be invalidated on the next restart, and multiple server ' +
+      'instances would each sign with a different key. Set JWT_SECRET in the environment for ' +
+      'any real deployment (see .env.example).'
   );
   return generated;
 })();
+
+// Cloud Tasks config for async exam-grading (see server/lib/taskQueue.ts). Left unset in
+// local dev / this sandbox on purpose — enqueueGradingTask() falls back to grading inline
+// when CLOUD_TASKS_QUEUE isn't configured, same fail-safe-default pattern as
+// LOAD_TEST_SECRET above, rather than crashing when no real GCP queue exists yet.
+export const CLOUD_TASKS_LOCATION: string | null = process.env.GCP_LOCATION || null;
+export const CLOUD_TASKS_QUEUE: string | null = process.env.CLOUD_TASKS_QUEUE || null;
+export const CLOUD_TASKS_INVOKER_SA: string | null = process.env.CLOUD_TASKS_INVOKER_SA || null;
+// Base URL this service is reachable at — used both as the Cloud Task's target URL and as
+// the OIDC audience the worker route verifies incoming tokens against.
+export const CLOUD_RUN_SERVICE_URL: string | null = process.env.CLOUD_RUN_SERVICE_URL || null;

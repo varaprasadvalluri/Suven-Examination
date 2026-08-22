@@ -17,15 +17,15 @@ export function getAttemptSeed(attemptId: string): number {
 }
 
 export function seededShuffle<T>(array: T[], seed: number): T[] {
-  const arr = [...array];
+  const shuffled = [...array];
   let currentSeed = seed;
-  for (let i = arr.length - 1; i > 0; i--) {
+  for (let i = shuffled.length - 1; i > 0; i--) {
     currentSeed = (currentSeed * 9301 + 49297) % 233280;
     const rnd = currentSeed / 233280;
     const j = Math.floor(rnd * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
-  return arr;
+  return shuffled;
 }
 
 export function orderQuestionsForAttempt<T extends OrderableQuestion>(questions: T[], attemptId: string): T[] {

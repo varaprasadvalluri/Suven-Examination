@@ -81,7 +81,9 @@ export interface Attempt {
   score: number;
   startTime: any;
   endTime?: any;
-  status: 'started' | 'in-progress' | 'completed' | 'expired';
+  // 'submitted': answers saved, grading queued (see server/lib/taskQueue.ts) but not yet
+  // graded. 'grading_failed': the async grading worker gave up after retrying.
+  status: 'started' | 'in-progress' | 'submitted' | 'completed' | 'grading_failed' | 'expired';
   canReattempt?: boolean;
 }
 

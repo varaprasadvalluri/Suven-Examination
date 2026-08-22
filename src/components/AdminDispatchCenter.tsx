@@ -1,43 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   db,
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  addDoc, 
-  onSnapshot, 
-  doc, 
-  updateDoc, 
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  onSnapshot,
+  doc,
+  updateDoc,
   runTransaction,
-  serverTimestamp 
+  serverTimestamp
 } from '../lib/firebase';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
-  DialogTitle 
-} from './ui/dialog';
-import { 
-  Send, 
-  Mail, 
-  Phone, 
-  RefreshCw, 
-  Check, 
-  AlertTriangle, 
-  Clock, 
-  ShieldAlert, 
-  Link as LinkIcon, 
-  User, 
-  Share2, 
-  Lock, 
-  CheckCircle2, 
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import {
+  Send,
+  Mail,
+  Phone,
+  RefreshCw,
+  Check,
+  AlertTriangle,
+  Clock,
+  ShieldAlert,
+  Link as LinkIcon,
+  User,
+  Share2,
+  Lock,
+  CheckCircle2,
   Fingerprint,
   Info
 } from 'lucide-react';
@@ -69,13 +63,13 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
     const fetchSchools = async () => {
       try {
         const snap = await getDocs(collection(db, 'schools'));
-        const schoolList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const schoolList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setSchools(schoolList);
         if (schoolList.length > 0) {
           setSelectedSchoolId(schoolList[0].id);
         }
       } catch (err) {
-        console.error("Failed loading schools", err);
+        console.error('Failed loading schools', err);
       }
     };
     fetchSchools();
@@ -103,15 +97,12 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
     const loadStudents = async () => {
       setLoadingStudents(true);
       try {
-        const q = query(
-          collection(db, 'users'),
-          where('schoolId', '==', selectedSchoolId)
-        );
-        const snap = await getDocs(q);
+        const studentsQuery = query(collection(db, 'users'), where('schoolId', '==', selectedSchoolId));
+        const snap = await getDocs(studentsQuery);
         const studentList = snap.docs
-          .map(d => ({ id: d.id, ...d.data() }))
-          .filter((u: any) => u.role === 'student' || !u.role);
-        
+          .map((userDoc) => ({ id: userDoc.id, ...userDoc.data() }))
+          .filter((userRecord: any) => userRecord.role === 'student' || !userRecord.role);
+
         setStudents(studentList);
       } catch (err) {
         console.error(err);
@@ -127,13 +118,10 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
   useEffect(() => {
     if (!exam?.id || !isOpen) return;
 
-    const q = query(
-      collection(db, 'notifications_queue'),
-      where('examId', '==', exam.id)
-    );
+    const notificationsQuery = query(collection(db, 'notifications_queue'), where('examId', '==', exam.id));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as NotificationRecord));
+    const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+      const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as NotificationRecord);
       // Sort by lastUpdated or triggeredTime
       items.sort((a, b) => {
         const timeA = a.lastUpdated?.seconds || 0;
@@ -152,16 +140,15 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
 
     const toastId = toast.loading(`Initializing transactional lock for ${student.name}...`);
     const baseUrl = window.location.origin;
-    
+
     // Construct exam url containing necessary parameters
     let linkUrl = `${baseUrl}/student/exam-entry?examId=${exam.id}&schoolId=${selectedSchoolId}`;
     if (linkType === 'single') {
       linkUrl += `&roll=${encodeURIComponent(student.rollNumber)}`;
     }
 
-    const destination = channel === 'email' 
-      ? (student.email || `${student.rollNumber.toLowerCase()}@school.com`)
-      : (student.phone || '+1 415-555-0199');
+    const destination =
+      channel === 'email' ? student.email || `${student.rollNumber.toLowerCase()}@school.com` : student.phone || '+1 415-555-0199';
 
     try {
       // 1. Write the notification record to the queue collection with status "pending"
@@ -190,7 +177,7 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
         const currentNotif = notifSnap.data() as NotificationRecord;
 
         if (currentNotif.deliveryStatus === 'processing' || currentNotif.deliveryStatus === 'sent') {
-          throw new Error("Lock mismatch or duplicate trigger intercepted!");
+          throw new Error('Lock mismatch or duplicate trigger intercepted!');
         }
 
         // Set lock active
@@ -218,7 +205,6 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
           toast.error(`Carrier Discrepancy: Dispatch failed. See real-time monitor.`, { id: toastId });
         }
       }, 1500);
-
     } catch (err: any) {
       toast.error(`Security Cancel: ${err.message || err}`, { id: toastId });
     }
@@ -227,16 +213,16 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
   // Trigger Bulk Dispatches simultaneously
   const handleBulkTrigger = async (channel: 'sms' | 'email') => {
     if (students.length === 0) {
-      toast.error("No student profiles active to queue dispatches.");
+      toast.error('No student profiles active to queue dispatches.');
       return;
     }
     setSendingAll(true);
     toast.message(`Staggering ${students.length} idempotent dispatch tasks...`);
-    
+
     for (const student of students) {
       await handleTriggerSend(student, channel);
       // Brief sleep to avoid stampeding parallel APIs too hard (as high traffic best practice)
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
     setSendingAll(false);
   };
@@ -251,11 +237,11 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
 
       await runTransaction(db, async (transaction) => {
         const snap = await transaction.get(docRef);
-        const data = snap.data() as NotificationRecord;
+        const notificationRecord = snap.data() as NotificationRecord;
 
         transaction.update(docRef, {
           deliveryStatus: 'processing',
-          retryCount: data.retryCount + 1,
+          retryCount: notificationRecord.retryCount + 1,
           lastUpdated: serverTimestamp()
         });
       });
@@ -269,16 +255,19 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
         });
         toast.success(`Success! Dispatched on retry sequence.`, { id: toastId });
       }, 1200);
-
     } catch (err) {
-      toast.error("Retry lock failed", { id: toastId });
+      toast.error('Retry lock failed', { id: toastId });
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="w-full max-w-[95vw] lg:max-w-5xl xl:max-w-6xl p-0 overflow-hidden rounded-[24px] border border-slate-200 shadow-2xl bg-slate-50 flex flex-col h-[90vh]">
-        
         {/* Portal Header */}
         <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-7 relative">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(99,102,241,0.15),transparent)] pointer-events-none" />
@@ -302,10 +291,8 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
         {/* Portal Body Scrolling Grid */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
             {/* Left side parameters section */}
             <div className="lg:col-span-5 space-y-6">
-              
               {/* Link Strategy */}
               <Card className="border-slate-200/80 rounded-2xl shadow-xs bg-white">
                 <CardHeader className="pb-3">
@@ -314,7 +301,7 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setLinkType('single')}
@@ -339,9 +326,9 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                   <div className="p-3 bg-slate-50 border rounded-xl flex items-start gap-2.5">
                     <Info size={14} className="text-indigo-600 flex-shrink-0 mt-0.5" />
                     <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                      {linkType === 'single' 
-                        ? "Generates individual credentials inside URLs. Perfect for full student auditing to prevent impersonation." 
-                        : "Creates a single shared landing URL. Students register themselves with validation ID at the Entry Gate."}
+                      {linkType === 'single'
+                        ? 'Generates individual credentials inside URLs. Perfect for full student auditing to prevent impersonation.'
+                        : 'Creates a single shared landing URL. Students register themselves with validation ID at the Entry Gate.'}
                     </p>
                   </div>
                 </CardContent>
@@ -357,37 +344,43 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                 <CardContent className="space-y-4">
                   <div className="grid gap-2">
                     <Label className="text-[10px] font-black uppercase text-slate-500">Access Expiration (Time Lock)</Label>
-                    <Input 
-                      type="datetime-local" 
+                    <Input
+                      type="datetime-local"
                       value={expirationTime}
-                      onChange={e => setExpirationTime(e.target.value)}
+                      onChange={(e) => setExpirationTime(e.target.value)}
                       className="h-10 border-slate-200 text-xs rounded-xl"
                     />
-                    <p className="text-[9px] text-slate-400 font-semibold leading-none">Server locks the link instantly past this timestamp.</p>
+                    <p className="text-[9px] text-slate-400 font-semibold leading-none">
+                      Server locks the link instantly past this timestamp.
+                    </p>
                   </div>
 
                   {linkType === 'bulk' && (
                     <div className="grid gap-2">
                       <Label className="text-[10px] font-black uppercase text-slate-500">Maximum Admissions (Max Uses)</Label>
-                      <Input 
-                        type="number" 
+                      <Input
+                        type="number"
                         value={maxUses}
-                        onChange={e => setMaxUses(Number(e.target.value))}
+                        onChange={(e) => setMaxUses(Number(e.target.value))}
                         className="h-10 border-slate-200 text-xs rounded-xl"
                       />
-                      <p className="text-[9px] text-slate-400 font-semibold leading-none font-sans">Blocks onboarding once this tally is completed.</p>
+                      <p className="text-[9px] text-slate-400 font-semibold leading-none font-sans">
+                        Blocks onboarding once this tally is completed.
+                      </p>
                     </div>
                   )}
 
                   <div className="grid gap-2">
                     <Label className="text-[10px] font-black uppercase text-slate-500">Allowed IP CIDR Range (Institutional Labs)</Label>
-                    <Input 
-                      placeholder="e.g. 192.168.10.0/24" 
+                    <Input
+                      placeholder="e.g. 192.168.10.0/24"
                       value={ipRestrictions}
-                      onChange={e => setIpRestrictions(e.target.value)}
+                      onChange={(e) => setIpRestrictions(e.target.value)}
                       className="h-10 border-slate-200 text-xs font-mono rounded-xl"
                     />
-                    <p className="text-[9px] text-slate-400 font-semibold leading-none">Optional protection locking access to laboratory subnets only.</p>
+                    <p className="text-[9px] text-slate-400 font-semibold leading-none">
+                      Optional protection locking access to laboratory subnets only.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -401,41 +394,41 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                   <label className="block text-wrap">
                     <select
                       value={selectedSchoolId}
-                      onChange={e => setSelectedSchoolId(e.target.value)}
+                      onChange={(e) => setSelectedSchoolId(e.target.value)}
                       className="w-full h-11 border border-slate-200 rounded-xl bg-white px-3 text-xs font-bold text-slate-800 focus:outline-indigo-600 outline-none"
                     >
-                      {schools.map(s => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
+                      {schools.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
                       ))}
                     </select>
                   </label>
                 </CardContent>
               </Card>
-
             </div>
 
             {/* Right side students roster + manual trigger list */}
             <div className="lg:col-span-7 space-y-6">
-              
               {/* Students listing card */}
               <Card className="border-slate-200/80 rounded-2xl shadow-xs bg-white overflow-hidden flex flex-col max-h-[480px]">
-                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-slate-50/50">
                   <div>
                     <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">Onboarded Directory Lists</h3>
                     <p className="text-[9px] text-slate-400 font-bold mt-0.5 leading-none">Ready for credential triggering</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button 
-                      size="sm" 
-                      disabled={sendingAll || students.length === 0} 
+                    <Button
+                      size="sm"
+                      disabled={sendingAll || students.length === 0}
                       onClick={() => handleBulkTrigger('email')}
                       className="h-8 text-[10px] font-black uppercase tracking-wider bg-indigo-600 rounded-lg hover:bg-slate-950"
                     >
                       Bulk Email
                     </Button>
-                    <Button 
-                      size="sm" 
-                      disabled={sendingAll || students.length === 0} 
+                    <Button
+                      size="sm"
+                      disabled={sendingAll || students.length === 0}
                       onClick={() => handleBulkTrigger('sms')}
                       className="h-8 text-[10px] font-black uppercase tracking-wider bg-slate-900 text-white rounded-lg hover:bg-slate-950"
                     >
@@ -450,9 +443,9 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                   ) : students.length === 0 ? (
                     <div className="p-10 text-center text-slate-400 text-xs">No students matching school parameters.</div>
                   ) : (
-                    students.map(std => {
+                    students.map((std) => {
                       // Get corresponding item in queue if exists
-                      const notifRecord = queue.find(q => q.studentId === std.id);
+                      const notifRecord = queue.find((q) => q.studentId === std.id);
                       return (
                         <div key={std.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
                           <div className="min-w-0 flex-1">
@@ -462,10 +455,10 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                               <span className="truncate">{std.email}</span>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center gap-1.5 ml-4">
                             {/* Manual Carrier Triggers */}
-                            <Button 
+                            <Button
                               size="sm"
                               variant="outline"
                               onClick={() => handleTriggerSend(std, 'email')}
@@ -475,7 +468,7 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                             >
                               <Mail size={13} className="text-indigo-600" />
                             </Button>
-                            <Button 
+                            <Button
                               size="sm"
                               variant="outline"
                               onClick={() => handleTriggerSend(std, 'sms')}
@@ -492,17 +485,17 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                   )}
                 </div>
               </Card>
-
             </div>
-
           </div>
 
           {/* Real-time Carrier Dispatch Monitor grid (Module 5) */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
                 <h4 className="text-xs font-black uppercase tracking-widest text-slate-700">Live Distributed Carrier Dispatch Monitor</h4>
-                <p className="text-[10px] text-slate-400 font-bold leading-normal">Operational telemetry stream monitoring distributed network dispatches.</p>
+                <p className="text-[10px] text-slate-400 font-bold leading-normal">
+                  Operational telemetry stream monitoring distributed network dispatches.
+                </p>
               </div>
               <div className="flex items-center gap-1">
                 <Badge className="bg-emerald-500/10 text-emerald-600 px-3 py-1 font-mono hover:bg-emerald-500/10 text-[9px] uppercase tracking-wider">
@@ -534,17 +527,15 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                     ) : (
                       queue.map((notif) => (
                         <tr key={notif.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-5 py-3 font-sans font-black text-slate-800 text-xs uppercase">
-                            {notif.studentName}
-                          </td>
+                          <td className="px-5 py-3 font-sans font-black text-slate-800 text-xs uppercase">{notif.studentName}</td>
                           <td className="px-5 py-3">
-                            <Badge className={`rounded-xl px-2 py-0.5 uppercase text-[9px] ${notif.channel === 'sms' ? 'bg-indigo-50 text-indigo-700' : 'bg-amber-50 text-amber-700'}`}>
+                            <Badge
+                              className={`rounded-xl px-2 py-0.5 uppercase text-[9px] ${notif.channel === 'sms' ? 'bg-indigo-50 text-indigo-700' : 'bg-amber-50 text-amber-700'}`}
+                            >
                               {notif.channel}
                             </Badge>
                           </td>
-                          <td className="px-5 py-3 text-slate-600 truncate max-w-[150px]">
-                            {notif.destination}
-                          </td>
+                          <td className="px-5 py-3 text-slate-600 truncate max-w-[150px]">{notif.destination}</td>
                           <td className="px-5 py-3">
                             <div className="flex items-center gap-1.5">
                               {notif.deliveryStatus === 'pending' && (
@@ -563,17 +554,21 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                                 </span>
                               )}
                               {notif.deliveryStatus === 'failed' && (
-                                <span className="flex items-center gap-1.5 text-rose-600 font-sans text-[11px] font-extrabold uppercase" title={notif.errorReason}>
+                                <span
+                                  className="flex items-center gap-1.5 text-rose-600 font-sans text-[11px] font-extrabold uppercase"
+                                  title={notif.errorReason}
+                                >
                                   <ShieldAlert className="h-3.5 w-3.5 text-rose-500" /> Failed
                                 </span>
                               )}
                             </div>
                           </td>
                           <td className="px-5 py-3 text-[10px] text-slate-400 max-w-[200px] truncate leading-none">
-                            {notif.deliveryStatus === 'failed' 
-                              ? <span className="text-rose-500 font-sans text-[9px] block leading-tight font-bold">{notif.errorReason}</span>
-                              : `Thread synced (T${notif.retryCount || 0})`
-                            }
+                            {notif.deliveryStatus === 'failed' ? (
+                              <span className="text-rose-500 font-sans text-[9px] block leading-tight font-bold">{notif.errorReason}</span>
+                            ) : (
+                              `Thread synced (T${notif.retryCount || 0})`
+                            )}
                           </td>
                           <td className="px-5 py-3 text-right">
                             {notif.deliveryStatus === 'failed' && (
@@ -599,19 +594,17 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
               </div>
             </Card>
           </div>
-
         </div>
 
         {/* Footer controls */}
         <div className="p-5 bg-slate-100 border-t border-slate-200 flex justify-end">
-          <Button 
+          <Button
             className="px-6 h-11 bg-slate-900 hover:bg-black rounded-xl font-bold uppercase text-[11px] tracking-wider text-white cursor-pointer"
             onClick={onClose}
           >
             Dismiss Console
           </Button>
         </div>
-
       </DialogContent>
     </Dialog>
   );

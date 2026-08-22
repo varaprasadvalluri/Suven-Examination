@@ -34,13 +34,13 @@ function getSectionsInfo(exam: any, questions: any[]) {
   }
 
   const groups: Record<string, { count: number; marks: number }> = {};
-  questions.forEach(q => {
-    const sub = q.subject || exam?.subject || 'General';
-    if (!groups[sub]) {
-      groups[sub] = { count: 0, marks: 0 };
+  questions.forEach((question) => {
+    const subjectKey = question.subject || exam?.subject || 'General';
+    if (!groups[subjectKey]) {
+      groups[subjectKey] = { count: 0, marks: 0 };
     }
-    groups[sub].count += 1;
-    groups[sub].marks += q.marks || 4;
+    groups[subjectKey].count += 1;
+    groups[subjectKey].marks += question.marks || 4;
   });
 
   return Object.entries(groups).map(([name, data]) => ({
@@ -75,7 +75,7 @@ export const ExamInstructionsScreen: React.FC<ExamInstructionsScreenProps> = ({
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-amber-500/5 rounded-full blur-[120px] pointer-events-none" />
 
       {/* LEFT COLUMN: Candidate Details & Exam Structure */}
-      <div className="w-full md:w-[360px] bg-[#0E1424] border-r border-slate-800/80 p-8 flex flex-col gap-8 flex-shrink-0">
+      <div className="w-full md:w-[360px] bg-[#0E1424] border-r border-slate-800/80 p-6 md:p-8 flex flex-col gap-6 md:gap-8 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 bg-amber-500 rounded-xl flex items-center justify-center font-black text-black text-xl shadow-lg shadow-amber-500/20">
             S
@@ -114,7 +114,9 @@ export const ExamInstructionsScreen: React.FC<ExamInstructionsScreenProps> = ({
           </div>
           <div className="flex justify-between items-center py-2.5 border-b border-slate-800/60 text-xs">
             <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Date</span>
-            <span className="text-white font-semibold">{new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+            <span className="text-white font-semibold">
+              {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
           </div>
           <div className="flex justify-between items-center py-2.5 border-b border-slate-800/60 text-xs">
             <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Shift</span>
@@ -134,7 +136,9 @@ export const ExamInstructionsScreen: React.FC<ExamInstructionsScreenProps> = ({
                     <span className={`h-2 w-2 rounded-full ${dotColor}`} />
                     <span className="text-slate-300 font-semibold">{sec.name}</span>
                   </div>
-                  <span className="text-slate-400 font-medium">{sec.count || 10} Qs · <strong className="text-white font-mono">{sec.marking}</strong></span>
+                  <span className="text-slate-400 font-medium">
+                    {sec.count || 10} Qs · <strong className="text-white font-mono">{sec.marking}</strong>
+                  </span>
                 </div>
               );
             })}
@@ -152,9 +156,7 @@ export const ExamInstructionsScreen: React.FC<ExamInstructionsScreenProps> = ({
           <div className="inline-flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-amber-500">
             📋 EXAMINATION INSTRUCTIONS — {exam?.title}
           </div>
-          <h1 className="text-3xl md:text-5xl font-display font-black tracking-tight text-white leading-none">
-            Before You Begin
-          </h1>
+          <h1 className="text-3xl md:text-5xl font-display font-black tracking-tight text-white leading-none">Before You Begin</h1>
           <p className="text-slate-400 text-sm md:text-base font-medium max-w-2xl leading-relaxed">
             Read all question paper guidelines carefully. Once the exam starts, the timer cannot be paused.
           </p>
@@ -253,11 +255,13 @@ export const ExamInstructionsScreen: React.FC<ExamInstructionsScreenProps> = ({
               type="checkbox"
               id="agree-checkbox"
               checked={agreedToTerms}
-              onChange={e => onAgreedChange(e.target.checked)}
+              onChange={(e) => onAgreedChange(e.target.checked)}
               className="h-5 w-5 rounded border-slate-800 bg-[#0E1424] text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-900 cursor-pointer mt-0.5 accent-amber-500"
             />
             <label htmlFor="agree-checkbox" className="text-xs text-slate-300 select-none cursor-pointer leading-relaxed font-medium">
-              I have read and understood all instructions. I agree to abide by the rules and regulations of the examination, and I acknowledge that any form of malpractice, window switching, or proctoring violation will be recorded and could lead to disqualification.
+              I have read and understood all instructions. I agree to abide by the rules and regulations of the examination, and I
+              acknowledge that any form of malpractice, window switching, or proctoring violation will be recorded and could lead to
+              disqualification.
             </label>
           </div>
 

@@ -13,7 +13,7 @@ if (redisUrl || redisHost) {
   try {
     const options: any = {
       connectTimeout: 5000,
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: 3
     };
     if (redisUrl) {
       redisClient = new Redis(redisUrl, options);
@@ -39,10 +39,7 @@ export async function checkDuplicateSubmission(req: any, res: any, next: () => v
   const { type, collectionName, docId, data } = req.body;
 
   // Detect if this is an exam submission
-  const isSubmission = collectionName === 'attempts' &&
-                       (type === 'update' || type === 'set') &&
-                       data &&
-                       data.status === 'completed';
+  const isSubmission = collectionName === 'attempts' && (type === 'update' || type === 'set') && data && data.status === 'completed';
 
   if (!isSubmission || !docId) {
     return next();

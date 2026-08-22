@@ -73,7 +73,7 @@ describe('authorizeWrite: users collection', () => {
     expect(decision.ok).toBe(true);
   });
 
-  it('student cannot update a different uid\'s profile', async () => {
+  it("student cannot update a different uid's profile", async () => {
     const decision = await authorizeWrite(studentA, 'update', 'users', 'someone-else', { name: 'X' });
     expect(decision).toMatchObject({ ok: false, status: 403 });
   });
@@ -108,7 +108,7 @@ describe('authorizeWrite: users collection', () => {
     expect(decision).toMatchObject({ ok: false, status: 403 });
   });
 
-  it('school cannot write into another school\'s scope', async () => {
+  it("school cannot write into another school's scope", async () => {
     const decision = await authorizeWrite(schoolA, 'set', 'users', 'x', { schoolId: 'school-B' });
     expect(decision).toMatchObject({ ok: false, status: 403 });
   });
@@ -160,7 +160,7 @@ describe('authorizeWrite: generic tenant-scoped collections (attempts) — owner
     expect(mockGetDoc).toHaveBeenCalledTimes(2);
   });
 
-  it('school write to another school\'s attempt is rejected', async () => {
+  it("school write to another school's attempt is rejected", async () => {
     mockGetDoc.mockResolvedValueOnce(found({ studentId: 'student-x', schoolId: 'school-B' }));
     const decision = await authorizeWrite(schoolA, 'update', 'attempts', 'other-schools-attempt', { canReattempt: true });
     expect(decision).toMatchObject({ ok: false, status: 403 });

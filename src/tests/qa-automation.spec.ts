@@ -14,22 +14,46 @@ export class PortalPOM {
   }
 
   // Locators
-  get emailInput() { return this.page.locator('input[type="email"]'); }
-  get passwordInput() { return this.page.locator('input[type="password"]'); }
-  get submitBtn() { return this.page.locator('button[type="submit"]'); }
-  get roleSelectCard() { return this.page.locator('.role-card'); }
-  
+  get emailInput() {
+    return this.page.locator('input[type="email"]');
+  }
+  get passwordInput() {
+    return this.page.locator('input[type="password"]');
+  }
+  get submitBtn() {
+    return this.page.locator('button[type="submit"]');
+  }
+  get roleSelectCard() {
+    return this.page.locator('.role-card');
+  }
+
   // School Dashboard Locators
-  get schoolSectionContainer() { return this.page.locator('.school-section'); }
-  get studentOnboardingTab() { return this.page.locator('button:has-text("Student Onboarding"), a:has-text("Student Onboarding")'); }
-  get studentNameInput() { return this.page.locator('input[placeholder*="Full Name"], input[name="name"]'); }
-  get studentRollInput() { return this.page.locator('input[placeholder*="Roll Number"], input[name="rollNumber"]'); }
-  get submitStudentBtn() { return this.page.locator('button:has-text("Onboard Student"), button:has-text("Register")'); }
-  
+  get schoolSectionContainer() {
+    return this.page.locator('.school-section');
+  }
+  get studentOnboardingTab() {
+    return this.page.locator('button:has-text("Student Onboarding"), a:has-text("Student Onboarding")');
+  }
+  get studentNameInput() {
+    return this.page.locator('input[placeholder*="Full Name"], input[name="name"]');
+  }
+  get studentRollInput() {
+    return this.page.locator('input[placeholder*="Roll Number"], input[name="rollNumber"]');
+  }
+  get submitStudentBtn() {
+    return this.page.locator('button:has-text("Onboard Student"), button:has-text("Register")');
+  }
+
   // Merit List Engine
-  get rankingEngineTab() { return this.page.locator('a:has-text("Merit Scoreboard"), a:has-text("Scale & Performance Hub")'); }
-  get searchCandidateInput() { return this.page.locator('input[placeholder*="Search candidates"]'); }
-  get meritListItemRow() { return this.page.locator('tbody tr'); }
+  get rankingEngineTab() {
+    return this.page.locator('a:has-text("Merit Scoreboard"), a:has-text("Scale & Performance Hub")');
+  }
+  get searchCandidateInput() {
+    return this.page.locator('input[placeholder*="Search candidates"]');
+  }
+  get meritListItemRow() {
+    return this.page.locator('tbody tr');
+  }
 
   // Actions
   async navigateToHome() {
@@ -64,9 +88,9 @@ test.describe('SuvenEdu QA Automation - Pipeline & Auth Verification Suite', () 
 
   test.beforeEach(async ({ page }) => {
     pom = new PortalPOM(page);
-    
+
     // Setup Console Error Traps to verify 401, 403, and CORS console failures
-    page.on('console', msg => {
+    page.on('console', (msg) => {
       if (msg.type() === 'error') {
         console.log(`[BROWSER ERROR INTERCEPTED] 🚨: "${msg.text()}"`);
       }
@@ -88,9 +112,18 @@ test.describe('SuvenEdu QA Automation - Pipeline & Auth Verification Suite', () 
 
     console.log(`[START] Initiating Data Pipeline integration test for: ${targetStudent.name}`);
 
+    // Real school credentials for whatever environment this suite runs against — never
+    // hardcode credentials in a test file. Set QA_SCHOOL_EMAIL/QA_SCHOOL_PASSWORD before
+    // running this spec.
+    const qaSchoolEmail = process.env.QA_SCHOOL_EMAIL;
+    const qaSchoolPassword = process.env.QA_SCHOOL_PASSWORD;
+    if (!qaSchoolEmail || !qaSchoolPassword) {
+      throw new Error('QA_SCHOOL_EMAIL and QA_SCHOOL_PASSWORD must be set to run this spec.');
+    }
+
     // Login to school dash
-    await pom.loginAsSchool('school@suvenedu.demo', 'demoPassword123!');
-    
+    await pom.loginAsSchool(qaSchoolEmail, qaSchoolPassword);
+
     // Ensure school dashboard is responsive and consistent.
     await expect(pom.schoolSectionContainer).toBeVisible();
 
@@ -99,13 +132,13 @@ test.describe('SuvenEdu QA Automation - Pipeline & Auth Verification Suite', () 
     await page.route('**/google.firestore.v1.Firestore/**', async (route) => {
       const request = route.request();
       console.log(`[NETWORK INTERCEPTED] Firestore Pipe: ${request.method()} -> ${request.url()}`);
-      
+
       // Spy on payload structure
       if (request.postData()) {
         const payload = request.postData();
         console.log(`[PAYLOAD INSPECTION] Dynamic JSON Write Stream:`, payload?.substring(0, 300));
       }
-      
+
       await route.continue();
     });
 
@@ -118,10 +151,10 @@ test.describe('SuvenEdu QA Automation - Pipeline & Auth Verification Suite', () 
     // E.g., verifying if 'status' field is missing or if schoolId mismatch exists.
     const isStatusFlagValid = targetStudent.status !== undefined && targetStudent.status !== '';
     const isJoinKeyComplete = targetStudent.schoolId && targetStudent.rollNumber;
-    
+
     expect(isStatusFlagValid).toBe(true);
     expect(isJoinKeyComplete).toBeTruthy();
-    
+
     console.log(`[DB VALIDATION] Relational scan simulation: 
       - Join Key "schoolId" Exists: TRUE
       - Status Flag "status" Defined: TRUE (Value: ${targetStudent.status})
@@ -130,11 +163,11 @@ test.describe('SuvenEdu QA Automation - Pipeline & Auth Verification Suite', () 
     // Navigate to merit list to verify visibility
     await pom.rankingEngineTab.click();
     await pom.searchCandidateInput.fill(targetStudent.name);
-    
+
     // Assert candidate is shown on the UI grid successfully
     const matchedRowsCount = await pom.meritListItemRow.count();
     console.log(`[PIPELINE CHECK] Candidates list matching query on Merit list: ${matchedRowsCount}`);
-    
+
     // In our playground / production test, we assert the pipeline propagates the student record.
     // If it's mock state, we assert correct loading behavior.
     console.log(`[SUCCESS] Data pipeline verified. Fresh onboarded students successfully synced with Merit Engine.`);
@@ -146,9 +179,9 @@ test.describe('SuvenEdu QA Automation - Pipeline & Auth Verification Suite', () 
    * -----------------------------------------------------------------------
    */
   test('Security & Auth - Shared Magic Link URL parameters & credentials propagation', async ({ page }) => {
-    const mockToken = "secureSecTokenXYZ123AlphaOmega";
-    const testExamId = "exam-sandbox-core-99";
-    const testSchoolId = "school-core-node-1";
+    const mockToken = 'secureSecTokenXYZ123AlphaOmega';
+    const testExamId = 'exam-sandbox-core-99';
+    const testSchoolId = 'school-core-node-1';
 
     const magicLinkUrl = `/?examId=${testExamId}&schoolId=${testSchoolId}&authToken=${mockToken}`;
     console.log(`[START] Verification of Shared Magic Link authentication: ${magicLinkUrl}`);
@@ -157,14 +190,14 @@ test.describe('SuvenEdu QA Automation - Pipeline & Auth Verification Suite', () 
     await page.route(`**/*${testExamId}*`, async (route) => {
       const request = route.request();
       const interceptedUrl = new URL(request.url());
-      
+
       // Perform strict assertion on magic security URL tokens
       const extractedToken = interceptedUrl.searchParams.get('authToken');
       const extractedSchool = interceptedUrl.searchParams.get('schoolId');
-      
+
       expect(extractedToken).toBe(mockToken);
       expect(extractedSchool).toBe(testSchoolId);
-      
+
       console.log(`[ROUTE CAPTURE] Token validated in route interceptor: "${extractedToken}" for School: "${extractedSchool}"`);
       await route.continue();
     });
@@ -179,7 +212,7 @@ test.describe('SuvenEdu QA Automation - Pipeline & Auth Verification Suite', () 
     });
 
     console.log(`[LOCAL STORAGE INSPECTION] Credential Object:`, getLocalStorageProfile);
-    
+
     // Assert local state token is populated
     expect(getLocalStorageProfile).toBeDefined();
 
@@ -191,18 +224,18 @@ test.describe('SuvenEdu QA Automation - Pipeline & Auth Verification Suite', () 
     await page.route('**/api/v1/auth/verify-magic-token', async (route) => {
       const request = route.request();
       const payload = JSON.parse(request.postData() || '{}');
-      
+
       if (payload.token === 'EXPIRED_SIGNATURE_KEY_999') {
         console.log(`[API MOCK] Invalid token detected. Returning 401 Unauthorized status.`);
         await route.fulfill({
           status: 401,
           contentType: 'application/json',
           headers: {
-            'Access-Control-Allow-Origin': '*', // CORS Header verification
+            'Access-Control-Allow-Origin': '*' // CORS Header verification
           },
           body: JSON.stringify({
-            error: "UNAUTHORIZED_LINK_RESD",
-            message: "Authentication link signature has expired or is cryptographically invalid."
+            error: 'UNAUTHORIZED_LINK_RESD',
+            message: 'Authentication link signature has expired or is cryptographically invalid.'
           })
         });
       } else {
@@ -212,7 +245,7 @@ test.describe('SuvenEdu QA Automation - Pipeline & Auth Verification Suite', () 
 
     // Travel to expired link location
     await page.goto(expiredTokenUrl);
-    
+
     // Assert gateway shows precise security error boundaries cleanly
     console.log(`[SUCCESS] Error handling verification complete. 401, 403, and CORS headers successfully captured.`);
   });

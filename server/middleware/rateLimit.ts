@@ -9,9 +9,7 @@ import { LOAD_TEST_SECRET } from '../config';
 // server-side secret required. Same trusted-secret pattern already used in gatekeeper.ts/
 // db.ts's isLoadTestRequest checks.
 const skipLoadTest = (req: any) =>
-  !!LOAD_TEST_SECRET &&
-  req.headers['x-load-test'] === 'true' &&
-  req.headers['x-load-test-secret'] === LOAD_TEST_SECRET;
+  !!LOAD_TEST_SECRET && req.headers['x-load-test'] === 'true' && req.headers['x-load-test-secret'] === LOAD_TEST_SECRET;
 
 const commonConfig = {
   windowMs: 15 * 60 * 1000,
@@ -44,6 +42,16 @@ export const gatekeeperEnrollLimiter = rateLimit({
   message: { error: 'Too many requests. Please wait a few minutes and try again.' }
 });
 
+// Firebase-token-only, pre-session bootstrap routes (/api/auth/validate,
+// /api/auth/create-profile) — reachable by anyone with a Firebase ID token, each call
+// does a Firestore read/write. Same per-IP cap shape as the gatekeeper limiters above.
+export const authLimiter = rateLimit({
+  ...commonConfig,
+  limit: 100,
+  skip: skipLoadTest,
+  message: { error: 'Too many requests. Please wait a few minutes and try again.' }
+});
+
 export const cloudinaryUploadLimiter = rateLimit({
   ...commonConfig,
   limit: 10,
@@ -56,3 +64,10 @@ export const storageUploadLimiter = rateLimit({
   message: { error: 'Too many upload requests. Please wait a few minutes and try again.' }
 });
 
+// Diagnostics sink, not a feature endpoint — a crash-looping client shouldn't be able to
+// flood server logs. Low limit is intentional.
+export const clientErrorReportLimiter = rateLimit({
+  ...commonConfig,
+  limit: 20,
+  message: { error: 'Too many error reports. Please wait a few minutes and try again.' }
+});

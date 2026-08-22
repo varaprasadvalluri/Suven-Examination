@@ -15,8 +15,8 @@ export const DataLoader: React.FC<DataLoaderProps> = ({
   isLoading,
   error,
   onRetry,
-  loadingMessage = "Synchronizing with secure academic cloud...",
-  children,
+  loadingMessage = 'Synchronizing with secure academic cloud...',
+  children
 }) => {
   return (
     <div className="relative min-h-[300px] w-full">
@@ -26,7 +26,7 @@ export const DataLoader: React.FC<DataLoaderProps> = ({
           <motion.div
             key="loading-overlay"
             initial={{ opacity: 1 }}
-            exit={{ opacity: 0, transition: { duration: 0.5, ease: "easeInOut" } }}
+            exit={{ opacity: 0, transition: { duration: 0.5, ease: 'easeInOut' } }}
             className="absolute inset-0 z-50 min-h-[400px] bg-slate-50/95 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 rounded-3xl"
             id="data-loader-overlay"
           >
@@ -38,15 +38,15 @@ export const DataLoader: React.FC<DataLoaderProps> = ({
                   className="absolute w-20 h-20 bg-indigo-500/10 rounded-full blur-xl"
                   animate={{
                     scale: [1, 1.2, 1],
-                    opacity: [0.5, 0.8, 0.5],
+                    opacity: [0.5, 0.8, 0.5]
                   }}
                   transition={{
                     duration: 3,
                     repeat: Infinity,
-                    ease: "easeInOut",
+                    ease: 'easeInOut'
                   }}
                 />
-                
+
                 {/* Rotating outer ring */}
                 <motion.div
                   className="w-16 h-16 rounded-full border-4 border-slate-100 border-t-indigo-600 border-r-indigo-600"
@@ -54,7 +54,7 @@ export const DataLoader: React.FC<DataLoaderProps> = ({
                   transition={{
                     duration: 1.2,
                     repeat: Infinity,
-                    ease: "linear",
+                    ease: 'linear'
                   }}
                 />
 
@@ -65,7 +65,7 @@ export const DataLoader: React.FC<DataLoaderProps> = ({
                   transition={{
                     duration: 1.8,
                     repeat: Infinity,
-                    ease: "linear",
+                    ease: 'linear'
                   }}
                 />
 
@@ -78,7 +78,7 @@ export const DataLoader: React.FC<DataLoaderProps> = ({
                   className="text-xs font-black uppercase tracking-[0.2em] text-slate-700 font-mono"
                   initial={{ opacity: 0.6 }}
                   animate={{ opacity: [0.6, 1, 0.6] }}
-                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
                 >
                   {loadingMessage}
                 </motion.p>
@@ -104,11 +104,10 @@ export const DataLoader: React.FC<DataLoaderProps> = ({
               </div>
 
               <div className="space-y-2">
-                <h3 className="text-lg font-black text-rose-950 uppercase tracking-tight">
-                  Database Retrieval Interrupted
-                </h3>
+                <h3 className="text-lg font-black text-rose-950 uppercase tracking-tight">Database Retrieval Interrupted</h3>
                 <p className="text-slate-500 text-xs font-medium leading-relaxed px-2">
-                  A connection disruption or secure credential verification failure occurred while downloading content from academic servers.
+                  A connection disruption or secure credential verification failure occurred while downloading content from academic
+                  servers.
                 </p>
               </div>
 
@@ -117,7 +116,7 @@ export const DataLoader: React.FC<DataLoaderProps> = ({
                   <AlertCircle className="h-3 w-3" /> Diagnostics Payload:
                 </p>
                 <p className="text-[11px] text-rose-800 font-semibold break-all leading-relaxed">
-                  {typeof error === 'string' ? error : error.message || "Unknown communication failure"}
+                  {typeof error === 'string' ? error : error.message || 'Unknown communication failure'}
                 </p>
               </div>
 
@@ -138,7 +137,7 @@ export const DataLoader: React.FC<DataLoaderProps> = ({
           <motion.div
             key="actual-content"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { duration: 0.6, ease: "easeOut" } }}
+            animate={{ opacity: 1, transition: { duration: 0.6, ease: 'easeOut' } }}
             className="w-full h-full"
             id="data-loader-content"
           >

@@ -17,25 +17,38 @@ export interface IdGenerationStrategy {
 export class CryptographicEduStrategy implements IdGenerationStrategy {
   private getPrefix(collectionName: string): string {
     switch (collectionName) {
-      case 'schools': return 'sch';
-      case 'login_options': return 'opt';
-      case 'users': return 'usr';
-      case 'invitations': return 'inv';
-      case 'secure_exam_links': return 'lnk';
-      case 'exams': return 'exm';
-      case 'questions': return 'qst';
-      case 'attempts': return 'att';
-      case 'microschedules': return 'schd';
-      case 'error_books': return 'err';
-      case 'proctoring_logs': return 'prc';
-      case 'syllabus': return 'syl';
-      default: return 'gen';
+      case 'schools':
+        return 'sch';
+      case 'login_options':
+        return 'opt';
+      case 'users':
+        return 'usr';
+      case 'invitations':
+        return 'inv';
+      case 'secure_exam_links':
+        return 'lnk';
+      case 'exams':
+        return 'exm';
+      case 'questions':
+        return 'qst';
+      case 'attempts':
+        return 'att';
+      case 'microschedules':
+        return 'schd';
+      case 'error_books':
+        return 'err';
+      case 'proctoring_logs':
+        return 'prc';
+      case 'syllabus':
+        return 'syl';
+      default:
+        return 'gen';
     }
   }
 
   generate(collectionName: string): string {
     const prefix = this.getPrefix(collectionName);
-    
+
     // We try to use Node's crypto API on the server, and fall back to standard web-crypto or math-random on the client.
     let randomHex = '';
     if (typeof window === 'undefined' && crypto && crypto.randomBytes) {
@@ -45,12 +58,14 @@ export class CryptographicEduStrategy implements IdGenerationStrategy {
       const array = new Uint32Array(2);
       if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
         window.crypto.getRandomValues(array);
-        randomHex = Array.from(array).map(b => b.toString(16).padStart(8, '0')).join('');
+        randomHex = Array.from(array)
+          .map((randomUint32) => randomUint32.toString(16).padStart(8, '0'))
+          .join('');
       } else {
         randomHex = Math.random().toString(16).substring(2, 10) + Math.random().toString(16).substring(2, 10);
       }
     }
-    
+
     // Random component leads (right after the fixed collection prefix), timestamp trails —
     // Firestore range-shards writes by the lexicographic doc ID, so a burst of near-simultaneous
     // writes (e.g. thousands of students triggering a proctoring event in the same second)

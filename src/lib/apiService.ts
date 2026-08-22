@@ -69,28 +69,39 @@ export function serverTimestamp() {
 
 // Centralized safe fetch helper to prevent JSON parsing crashes on HTML responses and handle offline states gracefully
 async function safeFetchJson(url: string, options: RequestInit = {}, _isRetry = false): Promise<any> {
+  // Per-call trace id — echoes the server's requestContext.ts (see server/lib/requestContext.ts),
+  // so a failed call here and its matching backend log line share one id, the same way a Sleuth
+  // traceId lets you find one request's log lines across a Spring Boot service.
+  const traceId = crypto.randomUUID();
   try {
-    const res = await fetch(url, {
+    const response = await fetch(url, {
       ...options,
-      headers: { ...authHeaders(), ...(options.headers || {}) }
+      headers: { ...authHeaders(), 'X-Request-Id': traceId, ...(options.headers || {}) }
     });
+    const responseTraceId = response.headers.get('X-Request-Id') || traceId;
 
-    const contentType = res.headers.get('content-type');
+    const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
-      throw new Error(`Server returned non-JSON response (status ${res.status}, content-type: ${contentType || 'none'}).`);
+      const err = new Error(
+        `Server returned non-JSON response (status ${response.status}, content-type: ${contentType || 'none'}).`
+      ) as Error & { traceId?: string };
+      err.traceId = responseTraceId;
+      throw err;
     }
 
-    const payload = await res.json();
+    const payload = await response.json();
 
-    if (!res.ok) {
+    if (!response.ok) {
       // A 401 with a token actually present in storage is almost always transient (e.g. a
       // request landing on a Cloud Run instance mid-rollout to a new revision) rather than a
       // genuinely invalid session — retry once before surfacing it as a failure to the user.
-      if (res.status === 401 && !_isRetry && getSessionToken()) {
-        await new Promise(resolve => setTimeout(resolve, 800));
+      if (response.status === 401 && !_isRetry && getSessionToken()) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
         return safeFetchJson(url, options, true);
       }
-      throw new Error(payload.error || `HTTP error! status: ${res.status}`);
+      const err = new Error(payload.error || `HTTP error! status: ${response.status}`) as Error & { traceId?: string };
+      err.traceId = payload.traceId || responseTraceId;
+      throw err;
     }
 
     return payload;
@@ -133,7 +144,7 @@ export async function runTransaction(dbInstance: any, updateFunction: (transacti
     }
   };
 
-  const result = await updateFunction(transactionProxy);
+  const transactionResult = await updateFunction(transactionProxy);
 
   // Commit all operations accumulated during the transaction
   for (const op of operations) {
@@ -146,7 +157,7 @@ export async function runTransaction(dbInstance: any, updateFunction: (transacti
   }
 
   dispatchDbWrite();
-  return result;
+  return transactionResult;
 }
 
 // Client-side drop-in mock of Firestore writeBatch
@@ -222,7 +233,49 @@ function isExactWhere(c: any, field: string, op: string, value?: any) {
   return c && c.type === 'where' && c.field === field && c.op === op && (value === undefined || c.value === value);
 }
 
+const ATTEMPTS_FILTER_FIELDS = new Set(['examId', 'schoolId', 'studentId', 'status']);
+// Must match server/dao/pagination.ts's MAX_PAGE_SIZE — a limit() above this would silently
+// get truncated server-side (normalizePageParams caps it), which is exactly the "near-match
+// routed to the wrong result" case this matcher is deliberately narrow to avoid. A caller
+// asking for more than this (e.g. RankingEngine's 5000-row display cap) falls through to the
+// generic proxy unchanged rather than risk a silent truncation regression.
+const ATTEMPTS_MAX_LIMIT = 200;
+
+// True only if every constraint is either an `==` where on one of the fixed attempts filter
+// fields, a single orderBy, or a single limit within ATTEMPTS_MAX_LIMIT — i.e. exactly the
+// shape GET /api/v1/attempts supports. Anything else (startAfter-based cursor pagination, an
+// unsupported field, a second orderBy, an oversized limit) falls through to the generic
+// proxy unchanged.
+function isAttemptsListShape(constraints: any[]): boolean {
+  let orderByCount = 0;
+  let limitCount = 0;
+  for (const c of constraints) {
+    if (c.type === 'where') {
+      if (c.op !== '==' || !ATTEMPTS_FILTER_FIELDS.has(c.field)) return false;
+    } else if (c.type === 'orderBy') {
+      orderByCount++;
+      if (orderByCount > 1 || !['startTime', 'score', 'endTime'].includes(c.field)) return false;
+    } else if (c.type === 'limit') {
+      limitCount++;
+      if (limitCount > 1 || c.value > ATTEMPTS_MAX_LIMIT) return false;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
 async function tryNamedGetDocs(collectionName: string, constraints: any[]): Promise<any | null> {
+  if (collectionName === 'attempts' && isAttemptsListShape(constraints)) {
+    const params = new URLSearchParams();
+    for (const c of constraints) {
+      if (c.type === 'where') params.set(c.field, c.value);
+      else if (c.type === 'orderBy') params.set('sortBy', c.field);
+      else if (c.type === 'limit') params.set('pageSize', String(c.value));
+    }
+    const payload = await safeFetchJson(`/api/v1/attempts?${params.toString()}`);
+    return wrapDocsResult((payload.data?.items || []).map((item: any) => ({ id: item.id, data: item.data })));
+  }
   if (collectionName === 'schools' && constraints.length === 0) {
     const payload = await safeFetchJson('/api/v1/schools');
     return wrapDocsResult(payload.data || []);
@@ -319,14 +372,26 @@ export async function setDoc(docRef: any, data: any, options?: any) {
 
 // Core standard UPDATE document write
 export async function updateDoc(docRef: any, data: any) {
-  // Named-route fast path: the final exam-submission write only (attempts + status:'completed').
-  // Every other attempts write (autosave, timePerQuestion ticks, status:'in-progress',
-  // proctoring/violation updates) stays on the generic proxy below, unchanged — those aren't
-  // what server/routes/attempts.ts's submit endpoint implements, and force-fitting them would
-  // risk the dup-submission lock / ownership check firing on writes it was never meant to gate.
+  // Named-route fast path: the final exam-submission write (attempts + status:'completed')
+  // goes through /submit specifically — that's the only path with the dup-submission lock
+  // and server-side score recomputation. Every other attempts write falls to the PATCH
+  // fast path just below instead.
   if (docRef.collectionName === 'attempts' && data && data.status === 'completed') {
     await safeFetchJson(`/api/v1/attempts/${encodeURIComponent(docRef.id)}/submit`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    dispatchDbWrite(docRef.collectionName, 'update', docRef.id);
+    return { success: true };
+  }
+
+  // Every other attempts write (autosave, timePerQuestion ticks, status:'in-progress',
+  // proctoring/violation counts, canReattempt) — PATCH /api/v1/attempts/:id rejects
+  // status:'completed' itself, so the fast path above always wins for that case.
+  if (docRef.collectionName === 'attempts') {
+    await safeFetchJson(`/api/v1/attempts/${encodeURIComponent(docRef.id)}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
@@ -410,11 +475,7 @@ export async function getCountFromServer(queryRef: any) {
 }
 
 // Core Real-Time subscription simulation (using standard polling interval abstraction)
-export function onSnapshot(
-  ref: any,
-  callback: (snapshot: any) => void,
-  errorCallback?: (error: any) => void
-) {
+export function onSnapshot(ref: any, callback: (snapshot: any) => void, errorCallback?: (error: any) => void) {
   let isUnsubscribed = false;
   let intervalId: any = null;
 
@@ -429,15 +490,16 @@ export function onSnapshot(
       }
     } catch (err: any) {
       const msg = (err?.message || String(err)).toLowerCase();
-      const isTransient = msg.includes('failed to fetch') || 
-                          msg.includes('failed to connect') || 
-                          msg.includes('temporarily restarting') || 
-                          msg.includes('non-json response') || 
-                          msg.includes('html fallback') || 
-                          msg.includes('temporary html fallback') || 
-                          msg.includes('networkerror') || 
-                          msg.includes('aborted');
-      
+      const isTransient =
+        msg.includes('failed to fetch') ||
+        msg.includes('failed to connect') ||
+        msg.includes('temporarily restarting') ||
+        msg.includes('non-json response') ||
+        msg.includes('html fallback') ||
+        msg.includes('temporary html fallback') ||
+        msg.includes('networkerror') ||
+        msg.includes('aborted');
+
       if (isTransient) {
         // Log as low-severity warning during temporary server restarts / HMR reloads
         console.warn('[onSnapshot Polling Transient Notice (Self-recovering)]:', err.message || err);

@@ -1,10 +1,10 @@
 /**
  * 🚀 SUVEN EDU EXAM PORTAL - HIGH-CONCURRENCY LOAD TEST SIMULATOR
- * 
+ *
  * This script simulates thousands of concurrent students taking an exam on the SuvenEdu platform.
  * It is built using pure Node.js (no external npm dependencies) so you can run it anywhere
  * instantly by running:
- * 
+ *
  *    node load-test.cjs [target_url] [number_of_students] [duration_seconds] [concurrency_limit]
  *
  * Example:
@@ -29,7 +29,7 @@ const CONFIG = {
   testDurationSeconds: durationArg,
   rampUpMs: 2000, // Ramp-up window to stagger initial connections
   heartbeatIntervalMs: 3000, // Simulated proctor heartbeat interval
-  concurrencyLimit: concurrencyArg, // Max simultaneous HTTP requests in flight
+  concurrencyLimit: concurrencyArg // Max simultaneous HTTP requests in flight
 };
 
 // State metrics tracker
@@ -78,13 +78,13 @@ function makeRequest(method, endpoint, payload = null, sessionToken = null) {
       method: method,
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        Accept: 'application/json',
         'x-load-test': 'true',
         // Server now requires this secret (LOAD_TEST_SECRET env var) to actually enable the
         // load-test bypass — set it in the environment running this script, matching the
         // target server's configuration, or the bypass is disabled and requests will 401/403.
         ...(process.env.LOAD_TEST_SECRET ? { 'x-load-test-secret': process.env.LOAD_TEST_SECRET } : {}),
-        ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {})
+        ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {})
       }
     };
 
@@ -96,15 +96,23 @@ function makeRequest(method, endpoint, payload = null, sessionToken = null) {
     const requestStart = performance.now();
 
     METRICS.requestsSent++;
-    const endpointKey = endpoint.includes('health') ? 'health' :
-                        endpoint.includes('enroll') ? 'enroll' :
-                        endpoint.includes('write') ? (payload?.data?.status === 'completed' ? 'submit' : 'heartbeat') : 'health';
-    
+    const endpointKey = endpoint.includes('health')
+      ? 'health'
+      : endpoint.includes('enroll')
+        ? 'enroll'
+        : endpoint.includes('write')
+          ? payload?.data?.status === 'completed'
+            ? 'submit'
+            : 'heartbeat'
+          : 'health';
+
     METRICS.endpoints[endpointKey].sent++;
 
     const req = lib.request(options, (res) => {
       let data = '';
-      res.on('data', (chunk) => { data += chunk; });
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
       res.on('end', () => {
         const latency = performance.now() - requestStart;
         METRICS.latencies.push(latency);
@@ -183,7 +191,7 @@ async function simulateStudent(studentIndex) {
 
   // Stagger start to avoid artificial lockups
   const staggerDelay = Math.random() * CONFIG.rampUpMs;
-  await new Promise(r => setTimeout(r, staggerDelay));
+  await new Promise((r) => setTimeout(r, staggerDelay));
 
   // Step 1: Gatekeeper Enroll / Session Creation
   const enrollPayload = {
@@ -207,7 +215,7 @@ async function simulateStudent(studentIndex) {
     const parsed = JSON.parse(enrollRes.data);
     attemptId = parsed.attemptIdRaw;
     sessionToken = parsed.sessionToken || null;
-  } catch (e) {
+  } catch {
     attemptId = `att_${examId}_${matchedStudentId}`;
   }
 
@@ -226,7 +234,7 @@ async function simulateStudent(studentIndex) {
   }, CONFIG.heartbeatIntervalMs);
 
   // Keep simulator active for configured duration, then submit
-  await new Promise(r => setTimeout(r, CONFIG.testDurationSeconds * 1000));
+  await new Promise((r) => setTimeout(r, CONFIG.testDurationSeconds * 1000));
   clearInterval(intervalId);
 
   // Step 3: Final Exam Submit
@@ -251,7 +259,9 @@ async function simulateStudent(studentIndex) {
 function printDiagnostics() {
   const elapsed = (Date.now() - METRICS.startTime) / 1000;
   const rps = elapsed > 0 ? (METRICS.requestsSent / elapsed).toFixed(1) : 0;
-  console.log(`[PROGRESS] Elapsed: ${elapsed.toFixed(1)}s | Req: ${METRICS.requestsSent} | Success: ${METRICS.requestsSuccess} | Failed: ${METRICS.requestsFailed} | RPS: ${rps}`);
+  console.log(
+    `[PROGRESS] Elapsed: ${elapsed.toFixed(1)}s | Req: ${METRICS.requestsSent} | Success: ${METRICS.requestsSuccess} | Failed: ${METRICS.requestsFailed} | RPS: ${rps}`
+  );
 }
 
 // Main runner orchestrator
@@ -276,21 +286,21 @@ async function run() {
 
   // Wait for all simulated students to complete their exam cycle
   await Promise.all(studentPromises);
-  
+
   clearInterval(diagnosticsInterval);
   METRICS.endTime = Date.now();
 
   // Calculate stats
   const totalDuration = (METRICS.endTime - METRICS.startTime) / 1000;
   const totalRps = (METRICS.requestsSent / totalDuration).toFixed(1);
-  
+
   // Sort latencies to compute median and percentiles
   const sortedLatencies = [...METRICS.latencies].sort((a, b) => a - b);
   const minLatency = sortedLatencies.length ? sortedLatencies[0].toFixed(1) : 0;
   const maxLatency = sortedLatencies.length ? sortedLatencies[sortedLatencies.length - 1].toFixed(1) : 0;
   const medianLatency = sortedLatencies.length ? sortedLatencies[Math.floor(sortedLatencies.length * 0.5)].toFixed(1) : 0;
   const p95Latency = sortedLatencies.length ? sortedLatencies[Math.floor(sortedLatencies.length * 0.95)].toFixed(1) : 0;
-  
+
   let avgLatency = 0;
   if (sortedLatencies.length) {
     const sum = sortedLatencies.reduce((a, b) => a + b, 0);

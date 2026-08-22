@@ -1,13 +1,16 @@
 import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
-  GoogleAuthProvider, 
-  signInWithPopup, 
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
   signOut,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
-  sendPasswordResetEmail as firebaseSendPasswordResetEmail
+  sendPasswordResetEmail as firebaseSendPasswordResetEmail,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence
 } from 'firebase/auth';
 // Same values server.ts reads server-side, injected here at build time via vite.config.ts's
 // `define` block — one set of env vars for both, no separate checked-in config file.
@@ -17,24 +20,24 @@ const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
   storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID
 };
 export {
-  db, 
-  collection, 
-  doc, 
-  query, 
-  where, 
-  orderBy, 
-  limit, 
-  startAfter, 
-  serverTimestamp, 
-  onSnapshot, 
-  getDoc, 
-  getDocs, 
-  setDoc, 
-  updateDoc, 
-  deleteDoc, 
+  db,
+  collection,
+  doc,
+  query,
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  serverTimestamp,
+  onSnapshot,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  deleteDoc,
   addDoc,
   writeBatch,
   runTransaction,
@@ -49,7 +52,7 @@ googleProvider.addScope('https://www.googleapis.com/auth/cloud-platform');
 
 // Performance Optimization: Check connection on boot
 export const testConnection = async () => {
-  console.log("Database connection routed successfully through secure API Proxy.");
+  console.log('Database connection routed successfully through secure API Proxy.');
 };
 
 // Mandatory Firestore Error Handling Pattern
@@ -59,7 +62,7 @@ export enum OperationType {
   DELETE = 'delete',
   LIST = 'list',
   GET = 'get',
-  WRITE = 'write',
+  WRITE = 'write'
 }
 
 export interface FirestoreErrorInfo {
@@ -70,7 +73,7 @@ export interface FirestoreErrorInfo {
     userId?: string | null;
     email?: string | null;
     emailVerified?: boolean | null;
-  }
+  };
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
@@ -79,7 +82,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
+      emailVerified: auth.currentUser?.emailVerified
     },
     operationType,
     path
@@ -88,25 +91,27 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-export const signInWithGoogle = async () => {
+export const signInWithGoogle = async (remember: boolean = true) => {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
+    await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
+    const credential = await signInWithPopup(auth, googleProvider);
+    return credential.user;
   } catch (error) {
-    console.error("Error signing in with Google", error);
+    console.error('Error signing in with Google', error);
     throw error;
   }
 };
 
-export const signInWithEmail = async (email: string, pass: string) => {
-  const res = await signInWithEmailAndPassword(auth, email, pass);
-  return res.user;
+export const signInWithEmail = async (email: string, pass: string, remember: boolean = true) => {
+  await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
+  const credential = await signInWithEmailAndPassword(auth, email, pass);
+  return credential.user;
 };
 
 export const signUpWithEmail = async (email: string, pass: string, name: string) => {
-  const res = await createUserWithEmailAndPassword(auth, email, pass);
-  await updateProfile(res.user, { displayName: name });
-  return res.user;
+  const credential = await createUserWithEmailAndPassword(auth, email, pass);
+  await updateProfile(credential.user, { displayName: name });
+  return credential.user;
 };
 
 export const logout = () => signOut(auth);

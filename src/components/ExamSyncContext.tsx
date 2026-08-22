@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { db, doc, updateDoc, writeBatch } from '../lib/firebase';
+import { db, doc, updateDoc } from '../lib/firebase';
 import { Wifi, WifiOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { examAnswerQueue } from '../services/api';
@@ -22,14 +22,14 @@ export const ExamSyncProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      toast.success("Back online. Syncing your answers...", {
+      toast.success('Back online. Syncing your answers...', {
         icon: <Wifi className="h-4 w-4 text-emerald-500 animate-bounce" />
       });
     };
 
     const handleOffline = () => {
       setIsOnline(false);
-      toast.warning("Server disconnected. The exam portal is running locally on offline cache.", {
+      toast.warning('Server disconnected. The exam portal is running locally on offline cache.', {
         icon: <WifiOff className="h-4 w-4 text-rose-500 animate-pulse" />,
         duration: 8000
       });
@@ -79,7 +79,7 @@ export const ExamSyncProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Queue the state update for high-throughput batching
       examAnswerQueue.enqueue(attemptId, currentAnswers);
     } catch (e) {
-      console.error("Local sync transaction error", e);
+      console.error('Local sync transaction error', e);
       setIsSynced(false);
     }
   };
@@ -94,14 +94,14 @@ export const ExamSyncProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       const cachedAnswers = JSON.parse(offlineCacheString);
       const attemptRef = doc(db, 'attempts', attemptId);
-      
-      const batch = writeBatch(db);
-      batch.update(attemptRef, {
+
+      // Single-doc update — no batch needed. Routes through PATCH /api/v1/attempts/:id via
+      // apiService's updateDoc fast path (src/lib/apiService.ts) instead of the old writeBatch
+      // wrapper, which just looped one /api/db/write call per op anyway for a batch of one.
+      await updateDoc(attemptRef, {
         answers: cachedAnswers,
         updatedAt: new Date().toISOString()
       });
-      
-      await batch.commit();
 
       setPendingDraft(null);
       setIsSynced(true);
@@ -109,15 +109,11 @@ export const ExamSyncProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // is noisy. The header's quiet "Saving.../Auto-save" indicator (driven by isSynced)
       // already communicates save state without interrupting the student.
     } catch (e) {
-      console.error("Background replication mismatch:", e);
+      console.error('Background replication mismatch:', e);
     }
   };
 
-  return (
-    <ExamSyncContext.Provider value={{ isOnline, isSynced, syncAnswers, forceBackgroundSync }}>
-      {children}
-    </ExamSyncContext.Provider>
-  );
+  return <ExamSyncContext.Provider value={{ isOnline, isSynced, syncAnswers, forceBackgroundSync }}>{children}</ExamSyncContext.Provider>;
 };
 
 export const useExamSync = () => {

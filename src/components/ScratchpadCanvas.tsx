@@ -25,12 +25,12 @@ export const ScratchpadCanvas: React.FC = () => {
 
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    
+
     // Draw subtle math grid cells
     ctx.strokeStyle = '#F1F5F9';
     ctx.lineWidth = 0.5;
     const gridSize = 20;
-    
+
     for (let x = 0; x < rect.width; x += gridSize) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -45,21 +45,37 @@ export const ScratchpadCanvas: React.FC = () => {
     }
   }, [isOpen]);
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Shared coordinate extraction for both input types — a touch event carries its
+  // coordinates on e.touches[0] instead of directly on the event like a mouse event does.
+  const getCanvasPoint = (
+    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>,
+    rect: DOMRect
+  ): { x: number; y: number } | null => {
+    if ('touches' in e) {
+      const touch = e.touches[0];
+      if (!touch) return null;
+      return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+    }
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
+    const point = getCanvasPoint(e, rect);
+    if (!point) return;
     ctx.beginPath();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.moveTo(point.x, point.y);
     ctx.strokeStyle = isEraser ? '#FFFFFF' : color;
     ctx.lineWidth = isEraser ? 15 : lineWidth;
     setIsDrawing(true);
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -67,7 +83,9 @@ export const ScratchpadCanvas: React.FC = () => {
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    const point = getCanvasPoint(e, rect);
+    if (!point) return;
+    ctx.lineTo(point.x, point.y);
     ctx.stroke();
   };
 
@@ -104,7 +122,7 @@ export const ScratchpadCanvas: React.FC = () => {
 
   if (!isOpen) {
     return (
-      <Button 
+      <Button
         variant="outline"
         size="sm"
         onClick={() => setIsOpen(true)}
@@ -116,13 +134,13 @@ export const ScratchpadCanvas: React.FC = () => {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 w-[360px] sm:w-[420px] bg-white border border-slate-200 rounded-[28px] shadow-2xl p-4 z-40 flex flex-col space-y-3 select-none animate-in slide-in-from-bottom-5 duration-300">
+    <div className="fixed bottom-4 right-4 w-[calc(100vw-2rem)] max-w-[360px] sm:max-w-[420px] bg-white border border-slate-200 rounded-[28px] shadow-2xl p-4 z-40 flex flex-col space-y-3 select-none animate-in slide-in-from-bottom-5 duration-300">
       <div className="flex items-center justify-between border-b border-slate-100 pb-2">
         <div className="flex items-center gap-1.5">
           <Pencil className="h-4 w-4 text-indigo-600" />
           <span className="text-xs font-black uppercase text-slate-800 tracking-wider">Scratchpad Workspace</span>
         </div>
-        <button 
+        <button
           onClick={() => setIsOpen(false)}
           className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-50 transition-colors"
         >
@@ -137,24 +155,28 @@ export const ScratchpadCanvas: React.FC = () => {
           onMouseMove={draw}
           onMouseUp={stopDrawing}
           onMouseLeave={stopDrawing}
-          className="w-full h-48 bg-white block"
+          onTouchStart={startDrawing}
+          onTouchMove={draw}
+          onTouchEnd={stopDrawing}
+          onTouchCancel={stopDrawing}
+          className="w-full h-48 bg-white block touch-none"
         />
       </div>
 
-      <div className="flex items-center justify-between gap-2 bg-slate-50 p-2 rounded-xl">
+      <div className="flex items-center flex-wrap justify-between gap-2 bg-slate-50 p-2 rounded-xl">
         <div className="flex items-center gap-1">
-          <Button 
-            variant={!isEraser ? "default" : "outline"} 
-            size="icon" 
+          <Button
+            variant={!isEraser ? 'default' : 'outline'}
+            size="icon"
             onClick={() => setIsEraser(false)}
             className={`h-8 w-8 rounded-lg cursor-pointer ${!isEraser ? 'bg-indigo-600 text-white' : 'text-slate-600 bg-white'}`}
             title="Pencil draw"
           >
             <Pencil className="h-3.5 w-3.5" />
           </Button>
-          <Button 
-            variant={isEraser ? "default" : "outline"} 
-            size="icon" 
+          <Button
+            variant={isEraser ? 'default' : 'outline'}
+            size="icon"
             onClick={() => setIsEraser(true)}
             className={`h-8 w-8 rounded-lg cursor-pointer ${isEraser ? 'bg-indigo-600 text-white' : 'text-slate-600 bg-white'}`}
             title="Eraser tool"
@@ -165,7 +187,7 @@ export const ScratchpadCanvas: React.FC = () => {
 
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] uppercase font-black text-slate-400">Brush Size:</span>
-          {[2, 4, 8].map(size => (
+          {[2, 4, 8].map((size) => (
             <button
               key={size}
               onClick={() => setLineWidth(size)}
@@ -176,9 +198,9 @@ export const ScratchpadCanvas: React.FC = () => {
           ))}
         </div>
 
-        <Button 
-          variant="ghost" 
-          size="sm" 
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={clearCanvas}
           className="text-destructive hover:bg-rose-50 font-black text-[10px] uppercase tracking-wider h-8 rounded-lg cursor-pointer px-2"
         >

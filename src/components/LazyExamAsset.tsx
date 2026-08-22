@@ -71,21 +71,11 @@ export const LazyExamAsset: React.FC<LazyExamAssetProps> = ({ src, type, alt = '
   return (
     <div className="animate-in fade-in duration-500 rounded-2xl overflow-hidden shadow-xs border border-slate-100 bg-white">
       {type === 'image' ? (
-        <img 
-          src={src} 
-          alt={alt} 
-          referrerPolicy="no-referrer"
-          className="w-full max-h-80 object-contain mx-auto block bg-slate-50"
-        />
+        <img src={src} alt={alt} referrerPolicy="no-referrer" className="w-full max-h-80 object-contain mx-auto block bg-slate-50" />
       ) : (
         <div className="p-4 bg-indigo-50/50 border border-indigo-100 flex items-center gap-4">
           <Volume2 className="h-5 w-5 text-indigo-650 shrink-0" />
-          <audio 
-            src={src} 
-            controls 
-            className="w-full focus:outline-none" 
-            controlsList="nodownload"
-          />
+          <audio src={src} controls className="w-full focus:outline-none" controlsList="nodownload" />
         </div>
       )}
     </div>

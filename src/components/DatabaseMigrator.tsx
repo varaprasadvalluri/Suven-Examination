@@ -2,19 +2,19 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { 
-  Database, 
-  RefreshCw, 
-  CheckCircle2, 
-  AlertCircle, 
-  ArrowRight, 
-  Settings, 
-  Key, 
-  Users, 
-  Terminal, 
-  ExternalLink, 
-  ShieldAlert, 
-  Copy, 
+import {
+  Database,
+  RefreshCw,
+  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
+  Settings,
+  Key,
+  Users,
+  Terminal,
+  ExternalLink,
+  ShieldAlert,
+  Copy,
   FileText,
   ShieldCheck,
   Cpu,
@@ -59,14 +59,14 @@ export const DatabaseMigrator: React.FC = () => {
 
   // Dynamic cost estimates
   const totalSubmissions = examsPerMonth * avgStudentsPerExam;
-  
+
   // Reads per session calculation: fetch questions + dashboard configs + student identity
-  const questionReadsPerSession = questionsPerExam; 
-  const initialProfileAndAuthReads = 3; 
+  const questionReadsPerSession = questionsPerExam;
+  const initialProfileAndAuthReads = 3;
   const totalReadsPerSession = initialProfileAndAuthReads + questionReadsPerSession;
-  
+
   // Our intelligent client-side caching proxy intercepts 85% of standard read loads
-  const readCacheOptimizerFactor = 0.85; 
+  const readCacheOptimizerFactor = 0.85;
   const calculatedMonthlyReads = Math.round(totalSubmissions * totalReadsPerSession * (1 - readCacheOptimizerFactor));
 
   // Writes based on sync frequency selections
@@ -87,8 +87,8 @@ export const DatabaseMigrator: React.FC = () => {
   const deleteRatePer100k = 0.02;
 
   // Monthly free tier limits (daily limit multiplied by 30)
-  const monthlyFreeReads = 1500000;  // 50,000 / day
-  const monthlyFreeWrites = 600000;  // 20,000 / day
+  const monthlyFreeReads = 1500000; // 50,000 / day
+  const monthlyFreeWrites = 600000; // 20,000 / day
   const monthlyFreeDeletes = 600000; // 20,000 / day
 
   // Net billable usage count
@@ -103,7 +103,7 @@ export const DatabaseMigrator: React.FC = () => {
   const staticStorageCostUsd = 0.72; // ~4GB storage excess estimation
 
   const totalCostUsd = readsCostUsd + writesCostUsd + deletesCostUsd + staticStorageCostUsd;
-  
+
   // Exchange multiplier: 1 USD = 83.5 INR
   const exchangeRate = 83.5;
   const calculatedCost = currency === 'INR' ? totalCostUsd * exchangeRate : totalCostUsd;
@@ -114,28 +114,28 @@ export const DatabaseMigrator: React.FC = () => {
     setIsMigrating(true);
     setMigrationLogs(['[INFO] Contacting migration gateway on host service...']);
     setMigrationStats(null);
-    toast.loading("Starting Firestore data migration...");
+    toast.loading('Starting Firestore data migration...');
 
     try {
-      const res = await fetch('/api/db/migrate', {
+      const migrateResponse = await fetch('/api/db/migrate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() }
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setMigrationLogs(data.logs || []);
-        setMigrationStats(data.stats || null);
+      const migrateResult = await migrateResponse.json();
+      if (migrateResponse.ok && migrateResult.success) {
+        setMigrationLogs(migrateResult.logs || []);
+        setMigrationStats(migrateResult.stats || null);
         toast.dismiss();
-        toast.success("Firestore data migration completed successfully!");
+        toast.success('Firestore data migration completed successfully!');
       } else {
-        setMigrationLogs(data.logs || [ `[ERROR] Migration failed: ${data.error || 'Unknown error'}` ]);
+        setMigrationLogs(migrateResult.logs || [`[ERROR] Migration failed: ${migrateResult.error || 'Unknown error'}`]);
         toast.dismiss();
-        toast.error(`Migration Failed: ${data.error || 'Check server logs'}`);
+        toast.error(`Migration Failed: ${migrateResult.error || 'Check server logs'}`);
       }
     } catch (err: any) {
       const errMsg = err?.message || String(err);
-      setMigrationLogs(prev => [...prev, `[CRITICAL ERROR] ${errMsg}`]);
+      setMigrationLogs((prev) => [...prev, `[CRITICAL ERROR] ${errMsg}`]);
       toast.dismiss();
       toast.error(`Network Error: ${errMsg}`);
     } finally {
@@ -148,28 +148,28 @@ export const DatabaseMigrator: React.FC = () => {
     setIsSeeding(true);
     setSeedingLogs(['[INFO] Connecting to database bootstrapper gateway...']);
     setSeedingStats(null);
-    toast.loading("Bootstrapping clean database schema...");
+    toast.loading('Bootstrapping clean database schema...');
 
     try {
-      const res = await fetch('/api/db/seed', {
+      const seedResponse = await fetch('/api/db/seed', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() }
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setSeedingLogs(data.logs || []);
-        setSeedingStats(data.stats || null);
+      const seedResult = await seedResponse.json();
+      if (seedResponse.ok && seedResult.success) {
+        setSeedingLogs(seedResult.logs || []);
+        setSeedingStats(seedResult.stats || null);
         toast.dismiss();
-        toast.success("Database seeded with sample data successfully!");
+        toast.success('Database seeded with sample data successfully!');
       } else {
-        setSeedingLogs(data.logs || [ `[ERROR] Seeding failed: ${data.error || 'Unknown error'}` ]);
+        setSeedingLogs(seedResult.logs || [`[ERROR] Seeding failed: ${seedResult.error || 'Unknown error'}`]);
         toast.dismiss();
-        toast.error(`Seeding Failed: ${data.error || 'Check server logs'}`);
+        toast.error(`Seeding Failed: ${seedResult.error || 'Check server logs'}`);
       }
     } catch (err: any) {
       const errMsg = err?.message || String(err);
-      setSeedingLogs(prev => [...prev, `[CRITICAL ERROR] ${errMsg}`]);
+      setSeedingLogs((prev) => [...prev, `[CRITICAL ERROR] ${errMsg}`]);
       toast.dismiss();
       toast.error(`Network Error: ${errMsg}`);
     } finally {
@@ -182,28 +182,28 @@ export const DatabaseMigrator: React.FC = () => {
     setIsSyncingIam(true);
     setIamLogs(['[INFO] Querying authorization bindings on Cloud Resource Manager API...']);
     setIamStats(null);
-    toast.loading("Deploying GCP IAM policies...");
+    toast.loading('Deploying GCP IAM policies...');
 
     try {
-      const res = await fetch('/api/gcp/sync-iam', {
+      const iamSyncResponse = await fetch('/api/gcp/sync-iam', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() }
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setIamLogs(data.logs || []);
-        setIamStats(data.stats || null);
+      const iamSyncResult = await iamSyncResponse.json();
+      if (iamSyncResponse.ok && iamSyncResult.success) {
+        setIamLogs(iamSyncResult.logs || []);
+        setIamStats(iamSyncResult.stats || null);
         toast.dismiss();
-        toast.success("GCP IAM Permissions synchronized successfully!");
+        toast.success('GCP IAM Permissions synchronized successfully!');
       } else {
-        setIamLogs(data.logs || [ `[ERROR] IAM Sync failed: ${data.error || 'Unknown error'}` ]);
+        setIamLogs(iamSyncResult.logs || [`[ERROR] IAM Sync failed: ${iamSyncResult.error || 'Unknown error'}`]);
         toast.dismiss();
-        toast.error(`IAM Sync Failed: ${data.error || 'Check server logs'}`);
+        toast.error(`IAM Sync Failed: ${iamSyncResult.error || 'Check server logs'}`);
       }
     } catch (err: any) {
       const errMsg = err?.message || String(err);
-      setIamLogs(prev => [...prev, `[CRITICAL ERROR] ${errMsg}`]);
+      setIamLogs((prev) => [...prev, `[CRITICAL ERROR] ${errMsg}`]);
       toast.dismiss();
       toast.error(`Network Error: ${errMsg}`);
     } finally {
@@ -214,12 +214,13 @@ export const DatabaseMigrator: React.FC = () => {
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedCommand(id);
-    toast.success("Command copied to clipboard!");
+    toast.success('Command copied to clipboard!');
     setTimeout(() => setCopiedCommand(null), 2000);
   };
 
-  const exportAuthCommand = "firebase auth:export accounts_backup.json --project=gen-lang-client-0086284509";
-  const importAuthCommand = "firebase auth:import accounts_backup.json --hash-algo=SCRYPT --rounds=8 --mem-cost=14 --project=project-02bb6275-51ac-45e7-940";
+  const exportAuthCommand = 'firebase auth:export accounts_backup.json --project=gen-lang-client-0086284509';
+  const importAuthCommand =
+    'firebase auth:import accounts_backup.json --hash-algo=SCRYPT --rounds=8 --mem-cost=14 --project=project-02bb6275-51ac-45e7-940';
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto pb-12">
@@ -228,7 +229,9 @@ export const DatabaseMigrator: React.FC = () => {
         <div className="space-y-1">
           <h4 className="font-bold text-amber-900 text-sm">Target Database Architecture Active</h4>
           <p className="text-xs text-amber-800 leading-relaxed font-semibold">
-            The application is currently configured to connect to your new custom database <Badge className="bg-amber-100 text-amber-950 font-black text-[10px] uppercase border-amber-200">suven-edu</Badge> under Google Cloud Project <span className="font-mono text-[11px] bg-amber-100 px-1 py-0.5 rounded">project-02bb6275-51ac-45e7-940</span>.
+            The application is currently configured to connect to your new custom database{' '}
+            <Badge className="bg-amber-100 text-amber-950 font-black text-[10px] uppercase border-amber-200">suven-edu</Badge> under Google
+            Cloud Project <span className="font-mono text-[11px] bg-amber-100 px-1 py-0.5 rounded">project-02bb6275-51ac-45e7-940</span>.
           </p>
         </div>
       </div>
@@ -248,16 +251,17 @@ export const DatabaseMigrator: React.FC = () => {
           </CardHeader>
           <CardContent className="px-6 pb-6 pt-0 space-y-3">
             <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-              Open the Google Cloud console link to provision the database with exact custom ID <strong className="text-indigo-600">suven-edu</strong>:
+              Open the Google Cloud console link to provision the database with exact custom ID{' '}
+              <strong className="text-indigo-600">suven-edu</strong>:
             </p>
             <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] font-mono text-slate-600 break-all leading-normal">
               Firestore DB ID: <span className="font-bold text-slate-800">suven-edu</span>
             </div>
           </CardContent>
           <CardFooter className="p-6 bg-slate-50/50 border-t border-slate-100">
-            <a 
-              href="https://console.cloud.google.com/firestore/create-database?authuser=1&facet_url=https:%2F%2Fcloud.google.com%2Ffree&project=project-02bb6275-51ac-45e7-940" 
-              target="_blank" 
+            <a
+              href="https://console.cloud.google.com/firestore/create-database?authuser=1&facet_url=https:%2F%2Fcloud.google.com%2Ffree&project=project-02bb6275-51ac-45e7-940"
+              target="_blank"
               referrerPolicy="no-referrer"
               className="w-full flex items-center justify-center gap-2 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:underline"
             >
@@ -280,19 +284,20 @@ export const DatabaseMigrator: React.FC = () => {
           </CardHeader>
           <CardContent className="px-6 pb-6 pt-0 space-y-3">
             <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-              Verify that the Web app is registered in your Firebase project and set these environment variables (see <code className="text-amber-600 font-bold">.env.example</code>):
+              Verify that the Web app is registered in your Firebase project and set these environment variables (see{' '}
+              <code className="text-amber-600 font-bold">.env.example</code>):
             </p>
             <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[10px] font-mono text-slate-600 whitespace-pre scroll-x-auto">
-{`FIREBASE_PROJECT_ID=project-02bb6275...
+              {`FIREBASE_PROJECT_ID=project-02bb6275...
 FIRESTORE_DATABASE_ID=suven-edu
 FIREBASE_APP_ID=1:your-custom-app-id...
 FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             </div>
           </CardContent>
           <CardFooter className="p-6 bg-slate-50/50 border-t border-slate-100">
-            <a 
-              href="https://console.cloud.google.com/apis/credentials?authuser=1&project=project-02bb6275-51ac-45e7-940" 
-              target="_blank" 
+            <a
+              href="https://console.cloud.google.com/apis/credentials?authuser=1&project=project-02bb6275-51ac-45e7-940"
+              target="_blank"
               referrerPolicy="no-referrer"
               className="w-full flex items-center justify-center gap-2 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline"
             >
@@ -315,16 +320,19 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
           </CardHeader>
           <CardContent className="px-6 pb-6 pt-0 space-y-3">
             <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-              Navigate to Google Cloud IAM Console to add team accounts, assign roles (<code className="text-emerald-600 font-bold">Cloud Datastore Owner</code> / <code className="text-emerald-600 font-bold">Firebase Admin</code>) for complete management.
+              Navigate to Google Cloud IAM Console to add team accounts, assign roles (
+              <code className="text-emerald-600 font-bold">Cloud Datastore Owner</code> /{' '}
+              <code className="text-emerald-600 font-bold">Firebase Admin</code>) for complete management.
             </p>
             <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] font-mono text-slate-600 leading-normal">
-              Role: <span className="font-bold text-slate-800">Firebase Admin</span> / <span className="font-bold text-slate-800">Datastore Owner</span>
+              Role: <span className="font-bold text-slate-800">Firebase Admin</span> /{' '}
+              <span className="font-bold text-slate-800">Datastore Owner</span>
             </div>
           </CardContent>
           <CardFooter className="p-6 bg-slate-50/50 border-t border-slate-100">
-            <a 
-              href="https://console.cloud.google.com/iam-admin/iam?authuser=1&project=project-02bb6275-51ac-45e7-940" 
-              target="_blank" 
+            <a
+              href="https://console.cloud.google.com/iam-admin/iam?authuser=1&project=project-02bb6275-51ac-45e7-940"
+              target="_blank"
               referrerPolicy="no-referrer"
               className="w-full flex items-center justify-center gap-2 text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline"
             >
@@ -343,11 +351,12 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
               <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">Direct Firestore Data Migrator</CardTitle>
             </div>
             <CardDescription className="font-semibold text-slate-400 mt-1">
-              Copies all existing database collections (schools, exams, questions, users, attempts, schedules, syllabus) from the old project to the new <strong className="text-slate-850">suven-edu</strong> database.
+              Copies all existing database collections (schools, exams, questions, users, attempts, schedules, syllabus) from the old
+              project to the new <strong className="text-slate-850">suven-edu</strong> database.
             </CardDescription>
           </div>
-          <Button 
-            onClick={startDataMigration} 
+          <Button
+            onClick={startDataMigration}
             disabled={isMigrating}
             className="bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl h-11 px-6 font-bold uppercase text-xs tracking-wider flex items-center gap-2 shadow-lg shadow-indigo-200"
           >
@@ -368,12 +377,8 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                     <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-tight truncate" title={collection}>
                       {collection}
                     </span>
-                    <strong className="text-lg font-black text-indigo-650 block">
-                      {count}
-                    </strong>
-                    <span className="text-[9px] text-emerald-600 font-bold block uppercase">
-                      Migrated
-                    </span>
+                    <strong className="text-lg font-black text-indigo-650 block">{count}</strong>
+                    <span className="text-[9px] text-emerald-600 font-bold block uppercase">Migrated</span>
                   </div>
                 ))}
               </div>
@@ -393,7 +398,9 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             </div>
             <div className="space-y-2 max-h-[240px] overflow-y-auto scroller-hide">
               {migrationLogs.length === 0 ? (
-                <p className="text-slate-550 italic text-[11px] py-4 text-center">Migration console offline. Click "Start Firestore Migration" to execute dynamic cross-tenant data pipeline.</p>
+                <p className="text-slate-550 italic text-[11px] py-4 text-center">
+                  Migration console offline. Click "Start Firestore Migration" to execute dynamic cross-tenant data pipeline.
+                </p>
               ) : (
                 migrationLogs.map((log, index) => (
                   <div key={index} className="leading-relaxed whitespace-pre-wrap text-[11px]">
@@ -420,14 +427,18 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
           <div>
             <div className="flex items-center gap-2">
               <Badge className="bg-amber-100 text-amber-800 font-bold hover:bg-amber-100">CLEAN SLATE SETUP</Badge>
-              <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">Fresh Database Seeder & Bootstrapper</CardTitle>
+              <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                Fresh Database Seeder & Bootstrapper
+              </CardTitle>
             </div>
             <CardDescription className="font-semibold text-slate-400 mt-1">
-              Perfect if you do not have credit card details for migration. Seeds the current <strong className="text-amber-700">suven-edu</strong> database from scratch with demo schools, default login portals, JEE & NEET syllabus maps, and high-quality mock assessments.
+              Perfect if you do not have credit card details for migration. Seeds the current{' '}
+              <strong className="text-amber-700">suven-edu</strong> database from scratch with demo schools, default login portals, JEE &
+              NEET syllabus maps, and high-quality mock assessments.
             </CardDescription>
           </div>
-          <Button 
-            onClick={startDatabaseSeeding} 
+          <Button
+            onClick={startDatabaseSeeding}
             disabled={isSeeding}
             className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl h-11 px-6 font-bold uppercase text-xs tracking-wider flex items-center gap-2 shadow-lg shadow-amber-200 border-none cursor-pointer"
           >
@@ -448,12 +459,8 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                     <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-tight truncate" title={collection}>
                       {collection}
                     </span>
-                    <strong className="text-lg font-black text-amber-650 block">
-                      {count}
-                    </strong>
-                    <span className="text-[9px] text-emerald-600 font-bold block uppercase">
-                      Created
-                    </span>
+                    <strong className="text-lg font-black text-amber-650 block">{count}</strong>
+                    <span className="text-[9px] text-emerald-600 font-bold block uppercase">Created</span>
                   </div>
                 ))}
               </div>
@@ -473,7 +480,9 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             </div>
             <div className="space-y-2 max-h-[240px] overflow-y-auto scroller-hide">
               {seedingLogs.length === 0 ? (
-                <p className="text-slate-550 italic text-[11px] py-4 text-center">Seeding engine offline. Click "Bootstrap Clean Database" to construct database collections with pre-configured schemas.</p>
+                <p className="text-slate-550 italic text-[11px] py-4 text-center">
+                  Seeding engine offline. Click "Bootstrap Clean Database" to construct database collections with pre-configured schemas.
+                </p>
               ) : (
                 seedingLogs.map((log, index) => (
                   <div key={index} className="leading-relaxed whitespace-pre-wrap text-[11px]">
@@ -500,14 +509,18 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
           <div>
             <div className="flex items-center gap-2">
               <Badge className="bg-emerald-50 text-emerald-700 font-bold hover:bg-emerald-50">AUTOMATED GCP GATEWAY</Badge>
-              <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">Automated GCP IAM Role Synchronizer</CardTitle>
+              <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                Automated GCP IAM Role Synchronizer
+              </CardTitle>
             </div>
             <CardDescription className="font-semibold text-slate-400 mt-1">
-              Automatically assigns necessary roles for project <strong className="text-indigo-600 font-bold font-mono">project-02bb6275-51ac-45e7-940</strong> to all authorized administrative personnel in the system.
+              Automatically assigns necessary roles for project{' '}
+              <strong className="text-indigo-600 font-bold font-mono">project-02bb6275-51ac-45e7-940</strong> to all authorized
+              administrative personnel in the system.
             </CardDescription>
           </div>
-          <Button 
-            onClick={startIamSync} 
+          <Button
+            onClick={startIamSync}
             disabled={isSyncingIam}
             className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-11 px-6 font-bold uppercase text-xs tracking-wider flex items-center gap-2 shadow-lg shadow-emerald-200"
           >
@@ -524,37 +537,19 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
               </h5>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
-                    Staff Registry Scanned
-                  </span>
-                  <strong className="text-2xl font-black text-emerald-600 block">
-                    {iamStats.usersScanned}
-                  </strong>
-                  <span className="text-[9px] text-slate-400 font-bold block uppercase">
-                    Accounts Matched
-                  </span>
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Staff Registry Scanned</span>
+                  <strong className="text-2xl font-black text-emerald-600 block">{iamStats.usersScanned}</strong>
+                  <span className="text-[9px] text-slate-400 font-bold block uppercase">Accounts Matched</span>
                 </div>
                 <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
-                    GCP Roles Compiled
-                  </span>
-                  <strong className="text-2xl font-black text-indigo-600 block">
-                    {iamStats.rolesAssigned}
-                  </strong>
-                  <span className="text-[9px] text-slate-400 font-bold block uppercase">
-                    Roles Mapped
-                  </span>
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">GCP Roles Compiled</span>
+                  <strong className="text-2xl font-black text-indigo-600 block">{iamStats.rolesAssigned}</strong>
+                  <span className="text-[9px] text-slate-400 font-bold block uppercase">Roles Mapped</span>
                 </div>
                 <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
-                    Active IAM Bindings
-                  </span>
-                  <strong className="text-2xl font-black text-violet-600 block">
-                    {iamStats.bindingsCreated}
-                  </strong>
-                  <span className="text-[9px] text-emerald-600 font-bold block uppercase">
-                    Policy Bindings Deployed
-                  </span>
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Active IAM Bindings</span>
+                  <strong className="text-2xl font-black text-violet-600 block">{iamStats.bindingsCreated}</strong>
+                  <span className="text-[9px] text-emerald-600 font-bold block uppercase">Policy Bindings Deployed</span>
                 </div>
               </div>
             </div>
@@ -574,14 +569,19 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             <div className="space-y-2 max-h-[240px] overflow-y-auto scroller-hide">
               {iamLogs.length === 0 ? (
                 <p className="text-slate-550 italic text-[11px] py-4 text-center">
-                  IAM Policy Gateway offline. Click "Sync IAM Permissions" to compile, verify, and synchronize all user-specific GCP roles automatically.
+                  IAM Policy Gateway offline. Click "Sync IAM Permissions" to compile, verify, and synchronize all user-specific GCP roles
+                  automatically.
                 </p>
               ) : (
                 iamLogs.map((log, index) => (
                   <div key={index} className="leading-relaxed whitespace-pre-wrap text-[11px]">
                     {log.includes('[ERROR]') || log.includes('⚠️') ? (
                       <span className="text-rose-400 font-semibold">{log}</span>
-                    ) : log.includes('success') || log.includes('successfully') || log.includes('completed') || log.includes('🎉') || log.includes('✨') ? (
+                    ) : log.includes('success') ||
+                      log.includes('successfully') ||
+                      log.includes('completed') ||
+                      log.includes('🎉') ||
+                      log.includes('✨') ? (
                       <span className="text-emerald-400 font-semibold">{log}</span>
                     ) : log.includes('[INFO]') ? (
                       <span className="text-indigo-400">{log}</span>
@@ -605,10 +605,17 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             <div>
               <div className="flex items-center gap-2">
                 <Badge className="bg-indigo-50 text-indigo-700 font-bold hover:bg-indigo-50">FINANCIAL PLANNER & OPTIMIZER</Badge>
-                <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">suven-edu Cloud Cost & Budget Estimator</CardTitle>
+                <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                  suven-edu Cloud Cost & Budget Estimator
+                </CardTitle>
               </div>
               <CardDescription className="font-semibold text-slate-400 mt-1">
-                Estimate and optimize monthly Firestore costs to safely stay within your <strong className="text-emerald-600 font-bold">{currency === 'INR' ? '₹' : '$'}{targetBudget.toLocaleString()}</strong> monthly budget.
+                Estimate and optimize monthly Firestore costs to safely stay within your{' '}
+                <strong className="text-emerald-600 font-bold">
+                  {currency === 'INR' ? '₹' : '$'}
+                  {targetBudget.toLocaleString()}
+                </strong>{' '}
+                monthly budget.
               </CardDescription>
             </div>
             <div className="flex bg-slate-100 p-1 rounded-xl shrink-0 self-start sm:self-center">
@@ -632,13 +639,12 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
 
         <CardContent className="p-8 space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            
             {/* Left side: Interactive Slider Controls */}
             <div className="space-y-6">
               <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
                 <Sliders size={14} className="text-indigo-600" /> Workload Configuration Parameters
               </h4>
-              
+
               {/* Sliders */}
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -712,7 +718,9 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                     className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${syncFrequency === 'every_question' ? 'bg-indigo-50/50 border-indigo-200 text-indigo-900 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'}`}
                   >
                     <span className="text-[11px] font-extrabold block">Instant Sync</span>
-                    <span className="text-[9px] text-slate-400 font-bold leading-tight mt-1">Writes to Cloud on every click (No caching)</span>
+                    <span className="text-[9px] text-slate-400 font-bold leading-tight mt-1">
+                      Writes to Cloud on every click (No caching)
+                    </span>
                   </button>
                   <button
                     type="button"
@@ -721,9 +729,13 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                   >
                     <div className="flex items-center gap-1">
                       <span className="text-[11px] font-extrabold block">Interval Cache</span>
-                      <Badge className="bg-emerald-100 text-emerald-800 text-[8px] px-1 py-0 font-bold leading-none shrink-0">RECOMMENDED</Badge>
+                      <Badge className="bg-emerald-100 text-emerald-800 text-[8px] px-1 py-0 font-bold leading-none shrink-0">
+                        RECOMMENDED
+                      </Badge>
                     </div>
-                    <span className="text-[9px] text-slate-400 font-bold leading-tight mt-1">Debounces and batches writes every 5 mins</span>
+                    <span className="text-[9px] text-slate-400 font-bold leading-tight mt-1">
+                      Debounces and batches writes every 5 mins
+                    </span>
                   </button>
                   <button
                     type="button"
@@ -738,7 +750,9 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
 
               {/* Set Target Budget input */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-600 block">Expected Target Monthly Budget ({currency === 'INR' ? 'INR ₹' : 'USD $'})</label>
+                <label className="text-xs font-bold text-slate-600 block">
+                  Expected Target Monthly Budget ({currency === 'INR' ? 'INR ₹' : 'USD $'})
+                </label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-xs">{currency === 'INR' ? '₹' : '$'}</span>
@@ -766,28 +780,34 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                 <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
                   <Gauge size={14} className="text-emerald-600 animate-pulse" /> Real-time Analytics & Cost Verdict
                 </h4>
-                
+
                 {/* Large visual estimated cost representation */}
                 <div className="text-center bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-2 relative overflow-hidden">
-                  <div className={`absolute left-0 top-0 bottom-0 w-2.5 ${calculatedCost > targetBudget ? 'bg-rose-500' : calculatedCost > targetBudget * 0.75 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Estimated Monthly Firestore Bill</span>
+                  <div
+                    className={`absolute left-0 top-0 bottom-0 w-2.5 ${calculatedCost > targetBudget ? 'bg-rose-500' : calculatedCost > targetBudget * 0.75 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                  />
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    Estimated Monthly Firestore Bill
+                  </span>
                   <div className="flex items-baseline justify-center gap-1">
                     <strong className="text-4xl font-black text-slate-900 leading-none">
-                      {currency === 'INR' ? '₹' : '$'}{calculatedCost.toFixed(2)}
+                      {currency === 'INR' ? '₹' : '$'}
+                      {calculatedCost.toFixed(2)}
                     </strong>
                     <span className="text-xs font-bold text-slate-500">/ month</span>
                   </div>
-                  
+
                   {/* Progress bar budget utilization */}
                   <div className="space-y-1 pt-2">
                     <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
                       <span>Budget Utilization</span>
                       <span className={calculatedCost > targetBudget ? 'text-rose-600' : 'text-emerald-600'}>
-                        {budgetUtilizationPercent.toFixed(1)}% of {currency === 'INR' ? '₹' : '$'}{targetBudget.toLocaleString()} limit
+                        {budgetUtilizationPercent.toFixed(1)}% of {currency === 'INR' ? '₹' : '$'}
+                        {targetBudget.toLocaleString()} limit
                       </span>
                     </div>
                     <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className={`h-full transition-all duration-500 rounded-full ${calculatedCost > targetBudget ? 'bg-rose-500' : calculatedCost > targetBudget * 0.75 ? 'bg-amber-500' : 'bg-emerald-500'}`}
                         style={{ width: `${budgetUtilizationPercent}%` }}
                       />
@@ -813,26 +833,24 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
 
                 {/* Operations breakdown list */}
                 <div className="space-y-2">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Usage Breakdowns & Allocations</span>
-                  <div className="grid grid-cols-2 gap-3 text-xs font-semibold text-slate-600">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    Usage Breakdowns & Allocations
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold text-slate-600">
                     <div className="p-3 bg-white border border-slate-100 rounded-xl space-y-1">
                       <span className="text-[9px] text-slate-400 block font-bold uppercase">Monthly Student Sessions</span>
                       <strong className="text-sm font-extrabold text-slate-800">{totalSubmissions.toLocaleString()} runs</strong>
                     </div>
                     <div className="p-3 bg-white border border-slate-100 rounded-xl space-y-1">
                       <span className="text-[9px] text-slate-400 block font-bold uppercase">Optimized Cloud Reads</span>
-                      <strong className="text-sm font-extrabold text-slate-800">
-                        {calculatedMonthlyReads.toLocaleString()} reads
-                      </strong>
+                      <strong className="text-sm font-extrabold text-slate-800">{calculatedMonthlyReads.toLocaleString()} reads</strong>
                       <span className="text-[8px] text-slate-400 block leading-none font-medium mt-0.5">
                         Free: 1.5M/mo ({Math.round(Math.min(100, (calculatedMonthlyReads / 1500000) * 100))}% used)
                       </span>
                     </div>
                     <div className="p-3 bg-white border border-slate-100 rounded-xl space-y-1">
                       <span className="text-[9px] text-slate-400 block font-bold uppercase">Estimated Cloud Writes</span>
-                      <strong className="text-sm font-extrabold text-slate-800">
-                        {calculatedMonthlyWrites.toLocaleString()} writes
-                      </strong>
+                      <strong className="text-sm font-extrabold text-slate-800">{calculatedMonthlyWrites.toLocaleString()} writes</strong>
                       <span className="text-[8px] text-slate-400 block leading-none font-medium mt-0.5">
                         Free: 600k/mo ({Math.round(Math.min(100, (calculatedMonthlyWrites / 600000) * 100))}% used)
                       </span>
@@ -856,15 +874,25 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                 <ul className="space-y-1.5 text-[10px] text-slate-600 font-semibold leading-relaxed">
                   <li className="flex items-start gap-1.5">
                     <span className="text-indigo-600 font-bold shrink-0">•</span>
-                    <span><strong>Client-Side Caching:</strong> App automatically caches exam content inside local state, ensuring we only read from Firestore once per student test window instead of on every refresh. (Saves up to 85% of standard reads).</span>
+                    <span>
+                      <strong>Client-Side Caching:</strong> App automatically caches exam content inside local state, ensuring we only read
+                      from Firestore once per student test window instead of on every refresh. (Saves up to 85% of standard reads).
+                    </span>
                   </li>
                   <li className="flex items-start gap-1.5">
                     <span className="text-indigo-600 font-bold shrink-0">•</span>
-                    <span><strong>Use Debounced "Interval Cache" Sync:</strong> Saving answers in 5-minute batches rather than on every single radio selector click reduces database writes by <strong>75%</strong>, ensuring even 10,000+ student runs stay inside free tier.</span>
+                    <span>
+                      <strong>Use Debounced "Interval Cache" Sync:</strong> Saving answers in 5-minute batches rather than on every single
+                      radio selector click reduces database writes by <strong>75%</strong>, ensuring even 10,000+ student runs stay inside
+                      free tier.
+                    </span>
                   </li>
                   <li className="flex items-start gap-1.5">
                     <span className="text-indigo-600 font-bold shrink-0">•</span>
-                    <span><strong>Workload Threshold:</strong> With recommended parameters, you can conduct up to <strong>150 exams of 80 students</strong> each month without paying a single rupee to Google Cloud!</span>
+                    <span>
+                      <strong>Workload Threshold:</strong> With recommended parameters, you can conduct up to{' '}
+                      <strong>150 exams of 80 students</strong> each month without paying a single rupee to Google Cloud!
+                    </span>
                   </li>
                 </ul>
               </div>
@@ -883,54 +911,78 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge className="bg-amber-50 text-amber-700 font-bold hover:bg-amber-50">FINANCIAL SAFETY SHIELD</Badge>
-                <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">suven-edu Billing Alerts & Resource Quotas Guide</CardTitle>
+                <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                  suven-edu Billing Alerts & Resource Quotas Guide
+                </CardTitle>
               </div>
               <CardDescription className="font-semibold text-slate-400 mt-1">
-                Step-by-step instructions to configure hard spending limits and preventative usage caps in Google Cloud Console to ensure you never exceed your ₹5,000 monthly budget.
+                Step-by-step instructions to configure hard spending limits and preventative usage caps in Google Cloud Console to ensure
+                you never exceed your ₹5,000 monthly budget.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="p-8 space-y-8">
-          
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            
             {/* Step 1: Setting up Billing Budget & Alerts */}
             <div className="space-y-4 border border-slate-100 p-6 rounded-3xl bg-slate-50/50">
               <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs">1</span>
+                <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs">
+                  1
+                </span>
                 <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Configure GCP Billing Alerts (₹5k Limit)</h4>
               </div>
               <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-                Billing alerts notify you via email the moment your project consumption crosses specific percentage thresholds of your monthly target budget.
+                Billing alerts notify you via email the moment your project consumption crosses specific percentage thresholds of your
+                monthly target budget.
               </p>
-              
+
               <div className="space-y-3.5 pt-2">
                 <div className="p-4 bg-white rounded-2xl border border-slate-150 space-y-2">
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Configuration Checklist</span>
                   <ul className="space-y-2 text-xs text-slate-600 font-medium leading-relaxed">
                     <li className="flex items-start gap-2">
                       <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
-                      <span>Navigate to <a href="https://console.cloud.google.com/billing/budgets?project=project-02bb6275-51ac-45e7-940" target="_blank" referrerPolicy="no-referrer" className="text-indigo-600 font-bold hover:underline inline-flex items-center gap-0.5">GCP Billing Budgets <ExternalLink size={10} /></a>.</span>
+                      <span>
+                        Navigate to{' '}
+                        <a
+                          href="https://console.cloud.google.com/billing/budgets?project=project-02bb6275-51ac-45e7-940"
+                          target="_blank"
+                          referrerPolicy="no-referrer"
+                          className="text-indigo-600 font-bold hover:underline inline-flex items-center gap-0.5"
+                        >
+                          GCP Billing Budgets <ExternalLink size={10} />
+                        </a>
+                        .
+                      </span>
                     </li>
                     <li className="flex items-start gap-2">
                       <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
-                      <span>Click <strong>Create Budget</strong> and select your Billing Account.</span>
+                      <span>
+                        Click <strong>Create Budget</strong> and select your Billing Account.
+                      </span>
                     </li>
                     <li className="flex items-start gap-2">
                       <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
-                      <span>Name it <strong>"suven-edu-monthly-budget"</strong> and bind it to project <strong>"project-02bb6275-51ac-45e7-940"</strong>.</span>
+                      <span>
+                        Name it <strong>"suven-edu-monthly-budget"</strong> and bind it to project{' '}
+                        <strong>"project-02bb6275-51ac-45e7-940"</strong>.
+                      </span>
                     </li>
                     <li className="flex items-start gap-2">
                       <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
-                      <span>Set <strong>Budget Type</strong> to <strong>Specified Amount</strong> and enter <strong>5,000</strong> INR.</span>
+                      <span>
+                        Set <strong>Budget Type</strong> to <strong>Specified Amount</strong> and enter <strong>5,000</strong> INR.
+                      </span>
                     </li>
                   </ul>
                 </div>
 
                 <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100 space-y-2.5">
-                  <span className="text-[10px] font-black text-indigo-950 uppercase tracking-wider block">Recommended Threshold Triggers</span>
-                  <div className="grid grid-cols-3 gap-2 text-center">
+                  <span className="text-[10px] font-black text-indigo-950 uppercase tracking-wider block">
+                    Recommended Threshold Triggers
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                     <div className="p-2 bg-white rounded-xl border border-slate-100">
                       <strong className="text-[11px] font-extrabold text-slate-700 block">50% Threshold</strong>
                       <span className="text-[10px] font-black text-emerald-600 font-mono">₹2,500</span>
@@ -948,7 +1000,8 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                     </div>
                   </div>
                   <span className="text-[9px] text-slate-500 block leading-relaxed">
-                    💡 <strong>Pro-Tip:</strong> Check the box for <em>"Email alerts to billing admins and users"</em> to ensure notifications are sent directly to <strong>suveen2619@gmail.com</strong>.
+                    💡 <strong>Pro-Tip:</strong> Check the box for <em>"Email alerts to billing admins and users"</em> to ensure
+                    notifications are sent directly to <strong>suveen2619@gmail.com</strong>.
                   </span>
                 </div>
               </div>
@@ -957,11 +1010,14 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             {/* Step 2: Configuring Hard Quotas & Caps */}
             <div className="space-y-4 border border-slate-100 p-6 rounded-3xl bg-slate-50/50">
               <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 font-bold flex items-center justify-center text-xs">2</span>
+                <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 font-bold flex items-center justify-center text-xs">
+                  2
+                </span>
                 <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Set Firestore Daily Resource Quotas</h4>
               </div>
               <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-                Quotas act as an absolute circuit-breaker. If a developer error or malicious request triggers an infinite loop, Firestore stops serving once the limit is hit, preventing runaway charges.
+                Quotas act as an absolute circuit-breaker. If a developer error or malicious request triggers an infinite loop, Firestore
+                stops serving once the limit is hit, preventing runaway charges.
               </p>
 
               <div className="space-y-3.5 pt-2">
@@ -970,11 +1026,25 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                   <ul className="space-y-2 text-xs text-slate-600 font-medium leading-relaxed">
                     <li className="flex items-start gap-2">
                       <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
-                      <span>Go to <a href="https://console.cloud.google.com/apis/api/firestore.googleapis.com/quotas?project=project-02bb6275-51ac-45e7-940" target="_blank" referrerPolicy="no-referrer" className="text-indigo-600 font-bold hover:underline inline-flex items-center gap-0.5">GCP API Quotas Panel <ExternalLink size={10} /></a>.</span>
+                      <span>
+                        Go to{' '}
+                        <a
+                          href="https://console.cloud.google.com/apis/api/firestore.googleapis.com/quotas?project=project-02bb6275-51ac-45e7-940"
+                          target="_blank"
+                          referrerPolicy="no-referrer"
+                          className="text-indigo-600 font-bold hover:underline inline-flex items-center gap-0.5"
+                        >
+                          GCP API Quotas Panel <ExternalLink size={10} />
+                        </a>
+                        .
+                      </span>
                     </li>
                     <li className="flex items-start gap-2">
                       <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
-                      <span>Locate the quotas for <strong>"Reads / day"</strong>, <strong>"Writes / day"</strong>, and <strong>"Deletes / day"</strong>.</span>
+                      <span>
+                        Locate the quotas for <strong>"Reads / day"</strong>, <strong>"Writes / day"</strong>, and{' '}
+                        <strong>"Deletes / day"</strong>.
+                      </span>
                     </li>
                     <li className="flex items-start gap-2">
                       <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
@@ -984,7 +1054,9 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                 </div>
 
                 <div className="p-4 bg-amber-50/30 rounded-2xl border border-amber-100 space-y-2">
-                  <span className="text-[10px] font-black text-amber-950 uppercase tracking-wider block">Recommended Safe Circuit-Breakers</span>
+                  <span className="text-[10px] font-black text-amber-950 uppercase tracking-wider block">
+                    Recommended Safe Circuit-Breakers
+                  </span>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div className="p-2.5 bg-white rounded-xl border border-slate-100 text-center space-y-0.5">
                       <strong className="text-[10px] font-extrabold text-slate-600 block">Read Cap</strong>
@@ -1004,12 +1076,14 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                   </div>
                   <span className="text-[9px] text-amber-800 font-semibold block leading-normal mt-1 flex items-start gap-1">
                     <AlertTriangle size={12} className="shrink-0 text-amber-600 mt-0.5" />
-                    <span>When a hard cap is hit, Firestore responds with error code <strong>RESOURCE_EXHAUSTED</strong> for that day. It resets at midnight Pacific Time. This guarantees ₹0.00 surprise bills.</span>
+                    <span>
+                      When a hard cap is hit, Firestore responds with error code <strong>RESOURCE_EXHAUSTED</strong> for that day. It resets
+                      at midnight Pacific Time. This guarantees ₹0.00 surprise bills.
+                    </span>
                   </span>
                 </div>
               </div>
             </div>
-
           </div>
 
           {/* Real-time Simulator Info Callout */}
@@ -1041,18 +1115,21 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
               </div>
             </div>
           </div>
-
         </CardContent>
         <CardFooter className="p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
             <Info size={14} className="text-slate-400" />
-            <span className="text-[11px] font-bold text-slate-400">All direct project links point specifically to Project ID project-02bb6275-51ac-45e7-940</span>
+            <span className="text-[11px] font-bold text-slate-400">
+              All direct project links point specifically to Project ID project-02bb6275-51ac-45e7-940
+            </span>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             className="text-xs font-extrabold text-slate-700 bg-white shadow-sm border border-slate-200 hover:bg-slate-50 animate-pulse"
-            onClick={() => window.open('https://console.cloud.google.com/billing/budgets?project=project-02bb6275-51ac-45e7-940', '_blank', 'noreferrer')}
+            onClick={() =>
+              window.open('https://console.cloud.google.com/billing/budgets?project=project-02bb6275-51ac-45e7-940', '_blank', 'noreferrer')
+            }
           >
             Open Billing Budgets Console <ExternalLink size={12} className="ml-1.5" />
           </Button>
@@ -1068,7 +1145,8 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
           <div>
             <CardTitle className="text-lg font-black text-slate-900 tracking-tight">Identity & Sign-in / Sign-up Users Migration</CardTitle>
             <CardDescription className="text-xs font-semibold leading-relaxed text-slate-400 mt-1">
-              Firebase Client API SDK does not allow reading user accounts directly for privacy and security. You can easily export and import all of your user signup/signin records securely using the Firebase CLI tool.
+              Firebase Client API SDK does not allow reading user accounts directly for privacy and security. You can easily export and
+              import all of your user signup/signin records securely using the Firebase CLI tool.
             </CardDescription>
           </div>
         </CardHeader>
@@ -1077,24 +1155,29 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             {/* Export Auth */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">1</span>
+                <span className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                  1
+                </span>
                 <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider">Export Existing User Accounts</h5>
               </div>
               <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-                Run this command in your development terminal to securely export all login profiles (emails, names, salt, password hashes) from the old project:
+                Run this command in your development terminal to securely export all login profiles (emails, names, salt, password hashes)
+                from the old project:
               </p>
               <div className="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl p-4 font-mono text-[11px] relative group flex items-center justify-between">
                 <span className="select-all break-all pr-10">{exportAuthCommand}</span>
-                <Button 
-                  onClick={() => handleCopy(exportAuthCommand, 'export')} 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  onClick={() => handleCopy(exportAuthCommand, 'export')}
+                  variant="ghost"
+                  size="icon"
                   className="h-8 w-8 text-slate-400 hover:text-slate-100 shrink-0 hover:bg-slate-800"
                 >
                   <Copy size={14} />
                 </Button>
                 {copiedCommand === 'export' && (
-                  <span className="absolute bottom-1 right-2 text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-sans font-bold">Copied!</span>
+                  <span className="absolute bottom-1 right-2 text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-sans font-bold">
+                    Copied!
+                  </span>
                 )}
               </div>
             </div>
@@ -1102,24 +1185,29 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             {/* Import Auth */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">2</span>
+                <span className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                  2
+                </span>
                 <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider">Import User Accounts to New Project</h5>
               </div>
               <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-                Import the backup file directly into your new project. Firebase Auth SCRYPT password algorithm variables are fully pre-configured:
+                Import the backup file directly into your new project. Firebase Auth SCRYPT password algorithm variables are fully
+                pre-configured:
               </p>
               <div className="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl p-4 font-mono text-[11px] relative group flex items-center justify-between">
                 <span className="select-all break-all pr-10">{importAuthCommand}</span>
-                <Button 
-                  onClick={() => handleCopy(importAuthCommand, 'import')} 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  onClick={() => handleCopy(importAuthCommand, 'import')}
+                  variant="ghost"
+                  size="icon"
                   className="h-8 w-8 text-slate-400 hover:text-slate-100 shrink-0 hover:bg-slate-800"
                 >
                   <Copy size={14} />
                 </Button>
                 {copiedCommand === 'import' && (
-                  <span className="absolute bottom-1 right-2 text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-sans font-bold">Copied!</span>
+                  <span className="absolute bottom-1 right-2 text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-sans font-bold">
+                    Copied!
+                  </span>
                 )}
               </div>
             </div>
@@ -1130,7 +1218,17 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
               <FileText size={14} className="text-indigo-500" /> Web Console Alternative
             </h6>
             <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
-              If you don't use CLI, you can simply open the authentication page of your project at <a href="https://console.firebase.google.com/project/project-02bb6275-51ac-45e7-940/authentication/users?authuser=1" target="_blank" referrerPolicy="no-referrer" className="text-indigo-600 font-bold hover:underline">Firebase Console Auth Users <ExternalLink size={10} className="inline" /></a>, enable Email/Password provider, and tell existing student and school admins to use their emails to login, or recreate school/admin credentials easily via the School Onboarding module.
+              If you don't use CLI, you can simply open the authentication page of your project at{' '}
+              <a
+                href="https://console.firebase.google.com/project/project-02bb6275-51ac-45e7-940/authentication/users?authuser=1"
+                target="_blank"
+                referrerPolicy="no-referrer"
+                className="text-indigo-600 font-bold hover:underline"
+              >
+                Firebase Console Auth Users <ExternalLink size={10} className="inline" />
+              </a>
+              , enable Email/Password provider, and tell existing student and school admins to use their emails to login, or recreate
+              school/admin credentials easily via the School Onboarding module.
             </p>
           </div>
         </CardContent>

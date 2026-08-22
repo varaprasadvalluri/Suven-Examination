@@ -8,21 +8,21 @@ import { StudentDao } from './StudentDao';
 // writes here would silently regress the scale characteristics the write queue exists for.
 export class FirestoreStudentDao implements StudentDao {
   async findBySchool(schoolId: string): Promise<DocRecord[]> {
-    const q = clientQuery(
+    const studentsInSchoolQuery = clientQuery(
       clientCollection(clientDb, 'users'),
       clientWhere('schoolId', '==', schoolId),
       clientWhere('role', '==', 'student')
     );
-    const snap = await clientGetDocs(q);
+    const snap = await clientGetDocs(studentsInSchoolQuery);
     return snap.docs.map((doc: any) => ({ id: doc.id, data: doc.data() }));
   }
 
-  async create(data: any): Promise<any> {
-    return enqueueWrite({ type: 'add', collectionName: 'users', data });
+  async create(studentFields: any): Promise<any> {
+    return enqueueWrite({ type: 'add', collectionName: 'users', data: studentFields });
   }
 
-  async update(studentId: string, data: any): Promise<any> {
-    return enqueueWrite({ type: 'update', collectionName: 'users', docId: studentId, data });
+  async update(studentId: string, studentFields: any): Promise<any> {
+    return enqueueWrite({ type: 'update', collectionName: 'users', docId: studentId, data: studentFields });
   }
 }
 

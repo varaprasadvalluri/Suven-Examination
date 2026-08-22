@@ -25,10 +25,10 @@ describe('scoreExam', () => {
     expect(result.accuracy).toBe(100);
   });
 
-  it('applies -1 negative marking for a wrong single-choice answer and logs an error-book entry', () => {
+  it('does not deduct anything for a wrong single-choice answer, but still logs an error-book entry', () => {
     const questions = [q({ id: 'q1', correctAnswerIndex: 2, marks: 4 })];
     const result = scoreExam(questions, [0], meta);
-    expect(result.score).toBe(0); // clamped at 0, started at 0 - 1
+    expect(result.score).toBe(0); // no negative marking — a wrong answer just contributes 0
     expect(result.correctCount).toBe(0);
     expect(result.errorBookEntries).toHaveLength(1);
     expect(result.errorBookEntries[0]).toMatchObject({
@@ -39,15 +39,15 @@ describe('scoreExam', () => {
     });
   });
 
-  it('never lets score go negative even with several wrong answers in a row', () => {
+  it('never deducts marks earned from correct answers because of wrong answers elsewhere', () => {
     const questions = [
-      q({ id: 'q1', correctAnswerIndex: 0 }),
+      q({ id: 'q1', correctAnswerIndex: 0, marks: 5 }),
       q({ id: 'q2', correctAnswerIndex: 0 }),
       q({ id: 'q3', correctAnswerIndex: 0 })
     ];
-    const result = scoreExam(questions, [1, 1, 1], meta);
-    expect(result.score).toBe(0);
-    expect(result.errorBookEntries).toHaveLength(3);
+    const result = scoreExam(questions, [0, 1, 1], meta);
+    expect(result.score).toBe(5);
+    expect(result.errorBookEntries).toHaveLength(2);
   });
 
   it('does not penalize or log an unanswered question', () => {
@@ -79,18 +79,34 @@ describe('scoreExam', () => {
     expect(result.correctCount).toBe(1);
   });
 
-  it('does not apply negative marking to a wrong numerical answer', () => {
+  it('does not deduct anything for a wrong numerical answer', () => {
     const questions = [q({ id: 'q1', type: 'numerical', numericalAnswer: '3.14', marks: 4 })];
     const result = scoreExam(questions, ['2.71'], meta);
     expect(result.score).toBe(0);
     expect(result.errorBookEntries).toHaveLength(1);
   });
 
-  it('computes accuracy as percent of questions answered correctly, and 0 for an empty question set', () => {
+  it('gives the same score for the same correct answers regardless of how many wrong answers surround them, low-marks questions included', () => {
+    // 4 correct 1-mark questions + 1 wrong 1-mark question. Under the old flat -1 negative
+    // marking this fully wiped out a correct answer's worth of credit (score 3 instead of 4) —
+    // the actual bug behind "accuracy nonzero, score zero" on low-marks exams. No negative
+    // marking at all removes that failure mode entirely: score always equals marks actually
+    // earned from correct answers.
     const questions = [
-      q({ id: 'q1', correctAnswerIndex: 0 }),
-      q({ id: 'q2', correctAnswerIndex: 0 })
+      q({ id: 'q1', correctAnswerIndex: 0, marks: 1 }),
+      q({ id: 'q2', correctAnswerIndex: 0, marks: 1 }),
+      q({ id: 'q3', correctAnswerIndex: 0, marks: 1 }),
+      q({ id: 'q4', correctAnswerIndex: 0, marks: 1 }),
+      q({ id: 'q5', correctAnswerIndex: 0, marks: 1 })
     ];
+    const result = scoreExam(questions, [0, 0, 0, 0, 1], meta);
+    expect(result.score).toBe(4);
+    expect(result.correctCount).toBe(4);
+    expect(result.accuracy).toBe(80);
+  });
+
+  it('computes accuracy as percent of questions answered correctly, and 0 for an empty question set', () => {
+    const questions = [q({ id: 'q1', correctAnswerIndex: 0 }), q({ id: 'q2', correctAnswerIndex: 0 })];
     const result = scoreExam(questions, [0, 1], meta);
     expect(result.accuracy).toBe(50);
     expect(scoreExam([], [], meta).accuracy).toBe(0);

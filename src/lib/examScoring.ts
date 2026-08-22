@@ -32,11 +32,7 @@ export interface ScoringResult {
 // multiple/numerical scoring, negative marking, error-book entries) can be unit tested without
 // mounting the whole exam-taking component. Behavior must stay byte-identical to what it
 // replaced — see examScoring.test.ts.
-export function scoreExam(
-  questions: Question[],
-  answers: StudentAnswer[],
-  meta: ScoringMeta
-): ScoringResult {
+export function scoreExam(questions: Question[], answers: StudentAnswer[], meta: ScoringMeta): ScoringResult {
   let score = 0;
   let correctCount = 0;
   const errorBookEntries: ErrorBookEntry[] = [];
@@ -47,8 +43,7 @@ export function scoreExam(
     let isCorrect = false;
 
     if (qType === 'numerical') {
-      isCorrect = studentAns !== null && studentAns !== undefined &&
-        String(studentAns).trim() === String(q.numericalAnswer || '').trim();
+      isCorrect = studentAns !== null && studentAns !== undefined && String(studentAns).trim() === String(q.numericalAnswer || '').trim();
     } else if (qType === 'multiple') {
       if (Array.isArray(studentAns)) {
         isCorrect = studentAns.includes(q.correctAnswerIndex);
@@ -63,21 +58,22 @@ export function scoreExam(
       score += q.marks;
       correctCount++;
     } else if (studentAns !== null && studentAns !== undefined) {
-      // Negative marking deduction (-1) for incorrect single or multiple choice MCQs
-      if (qType !== 'numerical') {
-        score = Math.max(0, score - 1);
-      }
-
+      // No negative marking — a wrong answer contributes 0, never a deduction. (Previously
+      // deducted a flat -1 regardless of the question's own marks value, which over-penalized
+      // low-marks questions and was the cause of "accuracy nonzero, score zero" reports; removed
+      // entirely rather than rebalanced, per product decision.) Still logged to the error book
+      // either way, for the student's post-exam review.
       errorBookEntries.push({
         studentId: meta.studentId,
         examId: meta.examId,
         questionId: q.id || idx.toString(),
         questionText: q.text,
-        selectedAnswer: qType === 'numerical' ? String(studentAns) : (Array.isArray(studentAns) ? studentAns.join(', ') : studentAns as string | number),
+        selectedAnswer:
+          qType === 'numerical' ? String(studentAns) : Array.isArray(studentAns) ? studentAns.join(', ') : (studentAns as string | number),
         correctAnswer: qType === 'numerical' ? String(q.numericalAnswer) : q.correctAnswerIndex,
         subject: q.subject || meta.examSubject || 'General',
-        explanation: q.explanation || "Review the step-by-step formula and solution logic.",
-        imageUrl: q.imageUrl || "",
+        explanation: q.explanation || 'Review the step-by-step formula and solution logic.',
+        imageUrl: q.imageUrl || '',
         createdAt: new Date().toISOString()
       });
     }

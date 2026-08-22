@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { db, doc, getDoc, collection, query, where, orderBy, limit, startAfter, getDocs, getCountFromServer, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db, doc, getDoc, handleFirestoreError, OperationType } from '../lib/firebase';
+import { attemptsService } from '../services/api';
 import { useAuth } from '../lib/AuthContext';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
@@ -22,21 +23,21 @@ export const StudentExamHistory: React.FC = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [lastVisibleDocs, setLastVisibleDocs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!studentId) return;
-    getDoc(doc(db, 'users', studentId)).then(snap => {
-      if (snap.exists()) setStudentProfile({ id: snap.id, ...snap.data() });
-    }).catch(err => console.error('Failed to load student profile:', err));
+    getDoc(doc(db, 'users', studentId))
+      .then((snap) => {
+        if (snap.exists()) setStudentProfile({ id: snap.id, ...snap.data() });
+      })
+      .catch((err) => console.error('Failed to load student profile:', err));
   }, [studentId]);
 
   useEffect(() => {
     if (!studentId) return;
     setPage(1);
-    setLastVisibleDocs([]);
   }, [studentId, pageSize]);
 
   useEffect(() => {
@@ -46,41 +47,15 @@ export const StudentExamHistory: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const countQ = query(
-          collection(db, 'attempts'),
-          where('studentId', '==', studentId),
-          where('status', '==', 'completed')
-        );
-        const countSnap = await getCountFromServer(countQ);
-        setTotalCount(countSnap.data().count);
-
-        let attemptsQ = query(
-          collection(db, 'attempts'),
-          where('studentId', '==', studentId),
-          where('status', '==', 'completed'),
-          orderBy('endTime', 'desc'),
-          limit(pageSize)
-        );
-
-        if (page > 1) {
-          const cursorDoc = lastVisibleDocs[page - 2];
-          if (cursorDoc) {
-            attemptsQ = query(attemptsQ, startAfter(cursorDoc));
-          }
-        }
-
-        const snap = await getDocs(attemptsQ);
-        const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setAttempts(fetched);
-
-        if (snap.docs.length > 0) {
-          const lastDoc = snap.docs[snap.docs.length - 1];
-          setLastVisibleDocs(prev => {
-            const updated = [...prev];
-            updated[page - 1] = lastDoc;
-            return updated;
-          });
-        }
+        const result = await attemptsService.list({
+          studentId,
+          status: 'completed',
+          sortBy: 'endTime',
+          page,
+          pageSize
+        });
+        setTotalCount(result.total);
+        setAttempts(result.items.map((item) => ({ id: item.id, ...item.data })));
       } catch (err) {
         handleFirestoreError(err, OperationType.LIST, 'attempts');
         setError('Failed to load exam history.');
@@ -128,7 +103,9 @@ export const StudentExamHistory: React.FC = () => {
               <tr>
                 <th className="px-6 py-3.5 text-left font-sans text-xs uppercase font-black tracking-wider text-slate-500">Exam</th>
                 <th className="px-6 py-3.5 text-center font-sans text-xs uppercase font-black tracking-wider text-slate-500 w-28">Score</th>
-                <th className="px-6 py-3.5 text-center font-sans text-xs uppercase font-black tracking-wider text-slate-500 w-32">Percentage</th>
+                <th className="px-6 py-3.5 text-center font-sans text-xs uppercase font-black tracking-wider text-slate-500 w-32">
+                  Percentage
+                </th>
                 <th className="px-6 py-3.5 text-right font-sans text-xs uppercase font-black tracking-wider text-slate-500">Completed</th>
               </tr>
             </thead>
@@ -141,7 +118,9 @@ export const StudentExamHistory: React.FC = () => {
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-16 text-center text-rose-600 font-semibold text-sm">{error}</td>
+                  <td colSpan={4} className="px-6 py-16 text-center text-rose-600 font-semibold text-sm">
+                    {error}
+                  </td>
                 </tr>
               ) : attempts.length === 0 ? (
                 <tr>
@@ -151,17 +130,17 @@ export const StudentExamHistory: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                attempts.map((a) => (
-                  <tr key={a.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="px-6 py-3.5 font-sans font-bold text-slate-800 text-sm">{a.examTitle || 'Untitled Exam'}</td>
-                    <td className="px-6 py-3.5 text-center font-bold text-slate-900">{Math.round(a.score || 0)}</td>
+                attempts.map((attempt) => (
+                  <tr key={attempt.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="px-6 py-3.5 font-sans font-bold text-slate-800 text-sm">{attempt.examTitle || 'Untitled Exam'}</td>
+                    <td className="px-6 py-3.5 text-center font-bold text-slate-900">{Math.round(attempt.score || 0)}</td>
                     <td className="px-6 py-3.5 text-center">
                       <span className="text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full text-xs font-bold">
-                        {Math.round(a.accuracy !== undefined ? a.accuracy : (a.score || 0))}%
+                        {Math.round(attempt.accuracy !== undefined ? attempt.accuracy : attempt.score || 0)}%
                       </span>
                     </td>
                     <td className="px-6 py-3.5 text-right text-slate-400 font-sans text-xs">
-                      {a.endTime ? new Date(a.endTime).toLocaleString() : '—'}
+                      {attempt.endTime ? new Date(attempt.endTime).toLocaleString() : '—'}
                     </td>
                   </tr>
                 ))
@@ -175,7 +154,7 @@ export const StudentExamHistory: React.FC = () => {
             <span className="text-xs font-semibold text-slate-400">Rows per page:</span>
             <select
               value={pageSize}
-              onChange={e => setPageSize(Number(e.target.value))}
+              onChange={(e) => setPageSize(Number(e.target.value))}
               className="h-8 text-xs font-bold border border-slate-200 rounded-lg px-2 bg-white"
             >
               <option value={10}>10</option>
@@ -190,7 +169,7 @@ export const StudentExamHistory: React.FC = () => {
             </span>
             <button
               type="button"
-              onClick={() => setPage(p => Math.max(1, p - 1))}
+              onClick={() => setPage((prevPage) => Math.max(1, prevPage - 1))}
               disabled={page === 1 || loading}
               className="p-1.5 rounded-lg border border-slate-200 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 cursor-pointer"
             >
@@ -198,7 +177,7 @@ export const StudentExamHistory: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              onClick={() => setPage((prevPage) => Math.min(totalPages, prevPage + 1))}
               disabled={page >= totalPages || loading}
               className="p-1.5 rounded-lg border border-slate-200 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 cursor-pointer"
             >

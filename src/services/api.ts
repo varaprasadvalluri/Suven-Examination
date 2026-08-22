@@ -75,30 +75,30 @@ export interface LatencyRecord {
  */
 export const performanceInterceptor = {
   history: [] as LatencyRecord[],
-  
+
   getStats() {
     const totalRequests = this.history.length;
     if (totalRequests === 0) {
       return { totalRequests, avgDurationMs: 0, maxDurationMs: 0, routeBreakdown: {} };
     }
-    
+
     const sum = this.history.reduce((acc, curr) => acc + curr.durationMs, 0);
-    const max = Math.max(...this.history.map(r => r.durationMs));
-    
+    const max = Math.max(...this.history.map((record) => record.durationMs));
+
     const routeBreakdown: Record<string, { count: number; avgDurationMs: number }> = {};
-    this.history.forEach(r => {
-      const key = `${r.method} ${r.url.split('?')[0]}`;
+    this.history.forEach((record) => {
+      const key = `${record.method} ${record.url.split('?')[0]}`;
       if (!routeBreakdown[key]) {
         routeBreakdown[key] = { count: 0, avgDurationMs: 0 };
       }
       routeBreakdown[key].count++;
-      routeBreakdown[key].avgDurationMs += r.durationMs;
+      routeBreakdown[key].avgDurationMs += record.durationMs;
     });
-    
-    Object.keys(routeBreakdown).forEach(key => {
+
+    Object.keys(routeBreakdown).forEach((key) => {
       routeBreakdown[key].avgDurationMs = Number((routeBreakdown[key].avgDurationMs / routeBreakdown[key].count).toFixed(2));
     });
-    
+
     return {
       totalRequests,
       avgDurationMs: Number((sum / totalRequests).toFixed(2)),
@@ -106,11 +106,11 @@ export const performanceInterceptor = {
       routeBreakdown
     };
   },
-  
+
   clearHistory() {
     this.history = [];
   },
-  
+
   log(record: LatencyRecord) {
     this.history.push(record);
     // Keep history bounded to avoid memory footprint expansion
@@ -186,21 +186,21 @@ export const examAnswerQueue = {
   stats: {
     totalEnqueued: 0,
     totalBatchesProcessed: 0,
-    totalRequestsSaved: 0,
+    totalRequestsSaved: 0
   },
 
   addListener(fn: QueueStateListener) {
     this.listeners.push(fn);
     return () => {
-      this.listeners = this.listeners.filter(l => l !== fn);
+      this.listeners = this.listeners.filter((registeredListener) => registeredListener !== fn);
     };
   },
 
   notifyListeners() {
     const isSynced = this.queue.length === 0 && !this.isProcessing;
-    this.listeners.forEach(l => {
+    this.listeners.forEach((queueStateListener) => {
       try {
-        l({
+        queueStateListener({
           pendingCount: this.queue.length,
           isSynced
         });
@@ -212,9 +212,9 @@ export const examAnswerQueue = {
 
   enqueue(attemptId: string, answers: any[]) {
     this.stats.totalEnqueued++;
-    
+
     // De-duplicate: If there is already a pending write for this attempt, overwrite with the latest state
-    const existingIndex = this.queue.findIndex(item => item.attemptId === attemptId);
+    const existingIndex = this.queue.findIndex((item) => item.attemptId === attemptId);
     if (existingIndex !== -1) {
       this.stats.totalRequestsSaved++;
       this.queue[existingIndex] = {
@@ -235,7 +235,7 @@ export const examAnswerQueue = {
     // Lazy load the interval flush timer
     if (!this.timer) {
       this.timer = setInterval(() => {
-        this.flush().catch(err => {
+        this.flush().catch((err) => {
           console.warn('[Exam Answer Queue] Unhandled flush exception caught:', err);
         });
       }, this.flushIntervalMs);
@@ -260,8 +260,8 @@ export const examAnswerQueue = {
     try {
       console.log(`[Exam Answer Queue] Flushing batch of ${batchToProcess.length} student attempts...`);
       const batch = writeBatch(proxyDb);
-      
-      batchToProcess.forEach(item => {
+
+      batchToProcess.forEach((item) => {
         const attemptRef = doc(proxyDb, 'attempts', item.attemptId);
         batch.update(attemptRef, {
           answers: item.answers,
@@ -270,13 +270,13 @@ export const examAnswerQueue = {
       });
 
       await batch.commit();
-      
+
       this.stats.totalBatchesProcessed++;
       const savedCount = batchToProcess.length - 1;
       if (savedCount > 0) {
         this.stats.totalRequestsSaved += savedCount;
       }
-      
+
       console.log(`%c[Exam Answer Queue] Batch committed successfully. Stats:`, 'color: #8b5cf6; font-weight: bold;', {
         ...this.stats,
         currentQueueSize: this.queue.length
@@ -284,8 +284,8 @@ export const examAnswerQueue = {
     } catch (err) {
       console.error('[Exam Answer Queue] Batch commit failed, re-queueing attempts:', err);
       // Re-queue items that haven't been overwritten by newer updates in the meantime
-      batchToProcess.forEach(item => {
-        const exists = this.queue.some(q => q.attemptId === item.attemptId);
+      batchToProcess.forEach((item) => {
+        const exists = this.queue.some((queuedAnswer) => queuedAnswer.attemptId === item.attemptId);
         if (!exists) {
           this.queue.push(item);
         }
@@ -293,7 +293,7 @@ export const examAnswerQueue = {
     } finally {
       this.isProcessing = false;
       this.notifyListeners();
-      
+
       if (this.queue.length === 0 && this.timer) {
         clearInterval(this.timer);
         this.timer = null;
@@ -323,20 +323,20 @@ export const circuitBreaker = {
   consecutiveFailuresThreshold: 3, // Trip after 3 consecutive failures or slow requests
   cooldownPeriodMs: 15000, // Wait 15 seconds in OPEN state before trying HALF_OPEN probe
   lastStateChange: Date.now(),
-  
+
   onStateChangeListeners: [] as ((state: 'CLOSED' | 'OPEN' | 'HALF_OPEN') => void)[],
 
   registerListener(listener: (state: 'CLOSED' | 'OPEN' | 'HALF_OPEN') => void) {
     this.onStateChangeListeners.push(listener);
     return () => {
-      this.onStateChangeListeners = this.onStateChangeListeners.filter(l => l !== listener);
+      this.onStateChangeListeners = this.onStateChangeListeners.filter((registeredListener) => registeredListener !== listener);
     };
   },
 
   notifyListeners() {
-    this.onStateChangeListeners.forEach(l => {
+    this.onStateChangeListeners.forEach((stateChangeListener) => {
       try {
-        l(this.state);
+        stateChangeListener(this.state);
       } catch (err) {
         console.error('[Circuit Breaker] Listener notification error:', err);
       }
@@ -346,7 +346,10 @@ export const circuitBreaker = {
   recordSuccess(durationMs: number) {
     if (this.state === 'HALF_OPEN') {
       if (durationMs < this.latencyThresholdMs) {
-        console.log(`%c[Circuit Breaker] Health probe succeeded with low latency (${durationMs.toFixed(1)}ms). Resetting to CLOSED.`, 'color: #10b981; font-weight: bold;');
+        console.log(
+          `%c[Circuit Breaker] Health probe succeeded with low latency (${durationMs.toFixed(1)}ms). Resetting to CLOSED.`,
+          'color: #10b981; font-weight: bold;'
+        );
         this.transitionTo('CLOSED');
       } else {
         console.warn(`[Circuit Breaker] Health probe succeeded but latency (${durationMs.toFixed(1)}ms) remains too high. Remaining OPEN.`);
@@ -355,7 +358,9 @@ export const circuitBreaker = {
     } else if (this.state === 'CLOSED') {
       if (durationMs > this.latencyThresholdMs) {
         this.failureCount++;
-        console.warn(`[Circuit Breaker] Slow request detected (${durationMs.toFixed(1)}ms). Consecutive alerts: ${this.failureCount}/${this.consecutiveFailuresThreshold}`);
+        console.warn(
+          `[Circuit Breaker] Slow request detected (${durationMs.toFixed(1)}ms). Consecutive alerts: ${this.failureCount}/${this.consecutiveFailuresThreshold}`
+        );
         if (this.failureCount >= this.consecutiveFailuresThreshold) {
           this.transitionTo('OPEN');
         }
@@ -368,7 +373,9 @@ export const circuitBreaker = {
   recordFailure() {
     if (this.state === 'HALF_OPEN' || this.state === 'CLOSED') {
       this.failureCount++;
-      console.warn(`[Circuit Breaker] Request failure or network error detected. Consecutive alerts: ${this.failureCount}/${this.consecutiveFailuresThreshold}`);
+      console.warn(
+        `[Circuit Breaker] Request failure or network error detected. Consecutive alerts: ${this.failureCount}/${this.consecutiveFailuresThreshold}`
+      );
       if (this.failureCount >= this.consecutiveFailuresThreshold) {
         this.transitionTo('OPEN');
       }
@@ -381,7 +388,7 @@ export const circuitBreaker = {
       this.lastStateChange = Date.now();
       this.failureCount = 0;
       this.notifyListeners();
-      
+
       if (newState === 'OPEN') {
         toast.warning('Connection is slow right now.', {
           duration: 8000,
@@ -426,7 +433,7 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
   // Serve from cache if it is a read query
   if (isRead) {
     const cachedResponse = requestCache.get(cacheKey);
-    
+
     // If Circuit Breaker is OPEN, we MUST fail over to the read-only cache immediately
     if (circuitBreaker.checkState() === 'OPEN') {
       if (cachedResponse) {
@@ -434,7 +441,7 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
         return cachedResponse;
       } else {
         console.warn(`[Circuit Breaker OPEN - Failover] Cache miss for key: ${cacheKey}. Constructing graceful fallback response.`);
-        
+
         let fallbackJson = {};
         if (isQuery) {
           try {
@@ -448,7 +455,7 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
             fallbackJson = { data: [] };
           }
         }
-        
+
         return new Response(JSON.stringify(fallbackJson), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
@@ -459,8 +466,11 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
     // Normal non-tripped flow: serve from cache if it exists (standard cache optimization)
     if (cachedResponse) {
       const durationMs = performance.now() - startTime;
-      console.log(`%c[Cache Hit] ${method} ${url.split('?')[0]} - ${durationMs.toFixed(1)}ms (Served from In-Memory Cache)`, 'color: #3b82f6; font-weight: bold;');
-      
+      console.log(
+        `%c[Cache Hit] ${method} ${url.split('?')[0]} - ${durationMs.toFixed(1)}ms (Served from In-Memory Cache)`,
+        'color: #3b82f6; font-weight: bold;'
+      );
+
       performanceInterceptor.log({
         url,
         method,
@@ -468,7 +478,7 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
         status: 200,
         timestamp: new Date().toISOString()
       });
-      
+
       return cachedResponse;
     }
   } else {
@@ -481,14 +491,18 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
       });
     }
   }
-  
+
+  // Echoes the server's requestContext.ts traceId — same purpose as apiService.ts's
+  // safeFetchJson: correlate a failed call here with its matching backend log line.
+  const traceId = crypto.randomUUID();
   try {
-    const res = await fetch(url, {
+    const response = await fetch(url, {
       ...options,
-      headers: { ...authHeaders(), ...(options.headers || {}) }
+      headers: { ...authHeaders(), 'X-Request-Id': traceId, ...(options.headers || {}) }
     });
-    status = res.status;
-    
+    const responseTraceId = response.headers.get('X-Request-Id') || traceId;
+    status = response.status;
+
     const durationMs = performance.now() - startTime;
     logged = true;
     performanceInterceptor.log({
@@ -498,26 +512,26 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
       status,
       timestamp: new Date().toISOString()
     });
-    
+
     // Record success/failure metrics to Circuit Breaker
-    if (res.ok) {
+    if (response.ok) {
       circuitBreaker.recordSuccess(durationMs);
     } else {
       circuitBreaker.recordFailure();
     }
-    
-    if (!res.ok) {
-      let errorMessage = `Request failed with status ${res.status}`;
-      
+
+    if (!response.ok) {
+      let errorMessage = `Request failed with status ${response.status}`;
+
       try {
-        const clone = res.clone();
+        const clone = response.clone();
         const payload = await clone.json();
         if (payload && payload.error) {
           errorMessage = payload.error;
         }
       } catch (e) {
         try {
-          const clone = res.clone();
+          const clone = response.clone();
           const text = await clone.text();
           if (text && text.trim().length > 0 && text.length < 200) {
             errorMessage = text.trim();
@@ -528,19 +542,24 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
       }
 
       // Display consistent toast error notification
-      toast.error(`Server Error (${res.status}): ${errorMessage}`, {
+      toast.error(`Server Error (${response.status}): ${errorMessage}`, {
         description: `Endpoint: ${url.split('?')[0]}`
       });
-      
-      throw new Error(errorMessage);
+
+      // Attach the HTTP status so callers can react to auth failures (401) without
+      // string-matching the message — see StudentDashboard.tsx's session-expiry handling.
+      const httpError = new Error(errorMessage) as Error & { status?: number; traceId?: string };
+      httpError.status = response.status;
+      httpError.traceId = responseTraceId;
+      throw httpError;
     }
 
     // Cache successful reads
     if (isRead) {
-      requestCache.set(cacheKey, res);
+      requestCache.set(cacheKey, response);
     }
-    
-    return res;
+
+    return response;
   } catch (err: any) {
     circuitBreaker.recordFailure();
 
@@ -555,31 +574,28 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
       });
     }
     const msg = (err?.message || String(err)).toLowerCase();
-    const isNetworkError = err instanceof TypeError || 
-                           msg.includes('fetch') || 
-                           msg.includes('network') ||
-                           msg.includes('connect');
-                           
+    const isNetworkError = err instanceof TypeError || msg.includes('fetch') || msg.includes('network') || msg.includes('connect');
+
     if (isNetworkError) {
       toast.error('Network Error: Unable to connect to the backend server.', {
         description: 'Please check your internet connection or try again later.'
       });
     }
-    
+
     throw err;
   }
 }
 
 async function safeFetchJson(url: string, options: RequestInit = {}) {
   try {
-    const res = await fetchWithInterceptor(url, options);
-    const contentType = res.headers.get('content-type');
-    
+    const response = await fetchWithInterceptor(url, options);
+    const contentType = response.headers.get('content-type');
+
     if (!contentType || !contentType.includes('application/json')) {
-      throw new Error(`Non-JSON response received from ${url} (status: ${res.status})`);
+      throw new Error(`Non-JSON response received from ${url} (status: ${response.status})`);
     }
-    
-    return await res.json();
+
+    return await response.json();
   } catch (err: any) {
     console.error(`[API Gateway Error] Endpoint ${url} failed:`, err);
     throw err;
@@ -595,20 +611,20 @@ export const cloudinaryApi = {
   async upload(file: File): Promise<{ url: string; public_id: string }> {
     const formData = new FormData();
     formData.append('file', file);
-    
-    const res = await fetchWithInterceptor('/api/cloudinary/upload', {
+
+    const uploadResponse = await fetchWithInterceptor('/api/cloudinary/upload', {
       method: 'POST',
-      body: formData,
+      body: formData
     });
-    
-    return await res.json();
+
+    return await uploadResponse.json();
   },
 
   async sign(params: any): Promise<any> {
     return safeFetchJson('/api/cloudinary/sign', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
+      body: JSON.stringify(params)
     });
   },
 
@@ -616,7 +632,7 @@ export const cloudinaryApi = {
     return safeFetchJson('/api/cloudinary/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ public_id: publicId }),
+      body: JSON.stringify({ public_id: publicId })
     });
   }
 };
@@ -631,7 +647,7 @@ export const authApi = {
     return safeFetchJson('/api/auth/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ token })
     });
   },
 
@@ -639,7 +655,7 @@ export const authApi = {
     return safeFetchJson('/api/auth/create-profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(data)
     });
   },
 
@@ -658,8 +674,57 @@ export const gatekeeperApi = {
     return safeFetchJson('/api/gatekeeper/enroll', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ attemptId, imageBase64 }),
+      body: JSON.stringify({ attemptId, imageBase64 })
     });
+  },
+
+  // Direct student login from the main login page: name + roll/register number, plus an
+  // optional date of birth. DOB is checked when provided and on file, but isn't required —
+  // matches DOB being optional at student onboarding. Mints the same session token the
+  // link-entry flows use.
+  async studentLogin(
+    name: string,
+    rollNumber: string,
+    dob?: string
+  ): Promise<{ success: boolean; profileData: any; sessionToken: string }> {
+    return safeFetchJson('/api/gatekeeper/student-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, rollNumber, dob })
+    });
+  }
+};
+
+/**
+ * ============================================================================
+ * STUDENT DASHBOARD API WRAPPERS (DAO-backed v1 endpoints)
+ * ============================================================================
+ */
+export interface PagedResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export const studentDashboardApi = {
+  async getStatus(studentId: string): Promise<{ inProgress: { exam: any; attempt: any | null } | null }> {
+    const payload = await safeFetchJson(`/api/v1/students/${studentId}/exams/status`);
+    return payload.data;
+  },
+
+  // Item shape: { examId, subject, locked: false, exam, attempt } for triggered/attemptable
+  // exams, or { examId, subject, locked: true } for the locked "Soon" preview of exams
+  // published for the student's school but not yet triggered for them.
+  async getAccessibleExams(studentId: string, page = 1, pageSize = 10): Promise<PagedResult<any>> {
+    const payload = await safeFetchJson(`/api/v1/students/${studentId}/exams?page=${page}&pageSize=${pageSize}`);
+    return payload.data;
+  },
+
+  async getCompletedAttempts(studentId: string, page = 1, pageSize = 10): Promise<PagedResult<{ id: string; data: any }>> {
+    const payload = await safeFetchJson(`/api/v1/students/${studentId}/attempts?status=completed&page=${page}&pageSize=${pageSize}`);
+    return payload.data;
   }
 };
 
@@ -669,35 +734,43 @@ export const gatekeeperApi = {
  * ============================================================================
  */
 export const examsApi = {
+  // DAO-backed v1 route (server/routes/v1/ExamQuestionController.ts) — components should
+  // always go through this rather than querying the `questions` collection shape directly,
+  // so a future DB/backend swap only touches this file, not every call site.
+  async getQuestions(examId: string): Promise<{ id: string; data: any }[]> {
+    const payload = await safeFetchJson(`/api/v1/exams/${examId}/questions`);
+    return payload.data;
+  },
+
   async updateExam(examId: string, data: any): Promise<{ success: boolean }> {
     return safeFetchJson(`/api/exams/${examId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(data)
     });
   },
 
   async importDoc(examId: string, file: File): Promise<any> {
     const formData = new FormData();
     formData.append('file', file);
-    
-    const res = await fetchWithInterceptor(`/api/exams/${examId}/import-doc`, {
+
+    const importResponse = await fetchWithInterceptor(`/api/exams/${examId}/import-doc`, {
       method: 'POST',
-      body: formData,
+      body: formData
     });
-    
-    return await res.json();
+
+    return await importResponse.json();
   },
 
   async deleteExam(examId: string): Promise<{ success: boolean }> {
     return safeFetchJson(`/api/exams/${examId}`, {
-      method: 'DELETE',
+      method: 'DELETE'
     });
   },
 
   async deleteQuestion(questionId: string): Promise<{ success: boolean }> {
     return safeFetchJson(`/api/questions/${questionId}`, {
-      method: 'DELETE',
+      method: 'DELETE'
     });
   }
 };
@@ -713,7 +786,7 @@ export const schoolsService = {
   async fetchAll(): Promise<any[]> {
     const ref = collection(proxyDb, 'schools');
     const snapshot = await getDocs(ref);
-    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
   },
 
   subscribeList(onNext: (schools: any[]) => void, onError?: (err: any) => void) {
@@ -721,7 +794,7 @@ export const schoolsService = {
     return onSnapshot(
       ref,
       (snapshot) => {
-        const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const list = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
         onNext(list);
       },
       onError
@@ -737,11 +810,11 @@ export const schoolsService = {
 
   async create(schoolData: any): Promise<string> {
     const ref = collection(proxyDb, 'schools');
-    const res = await addDoc(ref, {
+    const newSchoolRef = await addDoc(ref, {
       ...schoolData,
       createdAt: serverTimestamp()
     });
-    return res.id;
+    return newSchoolRef.id;
   },
 
   async update(schoolId: string, data: any): Promise<void> {
@@ -763,7 +836,7 @@ export const examsService = {
   async fetchAll(): Promise<any[]> {
     const ref = collection(proxyDb, 'exams');
     const snapshot = await getDocs(ref);
-    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
   },
 
   subscribeList(onNext: (exams: any[]) => void, onError?: (err: any) => void) {
@@ -771,7 +844,7 @@ export const examsService = {
     return onSnapshot(
       ref,
       (snapshot) => {
-        const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const list = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
         onNext(list);
       },
       onError
@@ -783,7 +856,7 @@ export const examsService = {
     return onSnapshot(
       q,
       (snapshot) => {
-        const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const list = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
         onNext(list);
       },
       onError
@@ -799,11 +872,11 @@ export const examsService = {
 
   async create(examData: any): Promise<string> {
     const ref = collection(proxyDb, 'exams');
-    const res = await addDoc(ref, {
+    const newExamRef = await addDoc(ref, {
       ...examData,
       createdAt: serverTimestamp()
     });
-    return res.id;
+    return newExamRef.id;
   }
 };
 
@@ -831,11 +904,11 @@ export const attemptsService = {
 
   async create(attemptData: any): Promise<string> {
     const ref = collection(proxyDb, 'attempts');
-    const res = await addDoc(ref, {
+    const newAttemptRef = await addDoc(ref, {
       ...attemptData,
       createdAt: serverTimestamp()
     });
-    return res.id;
+    return newAttemptRef.id;
   },
 
   async update(attemptId: string, data: any): Promise<void> {
@@ -844,5 +917,85 @@ export const attemptsService = {
       ...data,
       updatedAt: serverTimestamp()
     });
+  },
+
+  // Direct call to GET /api/v1/attempts (server/routes/v1/AttemptController.ts) — bypasses
+  // the apiService Firestore-shim so `total` comes back in the same round trip as `items`,
+  // replacing the old getCountFromServer + separate getDocs sample pattern.
+  async list(params: {
+    examId?: string;
+    schoolId?: string;
+    studentId?: string;
+    status?: string;
+    sortBy?: 'startTime' | 'score' | 'endTime';
+    page?: number;
+    pageSize?: number;
+  }): Promise<PagedResult<{ id: string; data: any }>> {
+    const qs = new URLSearchParams();
+    if (params.examId) qs.set('examId', params.examId);
+    if (params.schoolId) qs.set('schoolId', params.schoolId);
+    if (params.studentId) qs.set('studentId', params.studentId);
+    if (params.status) qs.set('status', params.status);
+    if (params.sortBy) qs.set('sortBy', params.sortBy);
+    qs.set('page', String(params.page || 1));
+    qs.set('pageSize', String(params.pageSize || 10));
+    const payload = await safeFetchJson(`/api/v1/attempts?${qs.toString()}`);
+    return payload.data;
+  },
+
+  // POST /api/v1/schools/:schoolId/exams/:examId/attempts/trigger — runs the skip/re-enable/
+  // new-invite decision server-side for a batch of students. Replaces
+  // SchoolStudentOnboarding.tsx's client-built writeBatch for this operation.
+  async triggerLinks(
+    schoolId: string,
+    examId: string,
+    studentIds: string[]
+  ): Promise<{ success: boolean; triggered: number; reTriggered: number; skipped: number; failed: number }> {
+    return safeFetchJson(`/api/v1/schools/${schoolId}/exams/${examId}/attempts/trigger`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentIds })
+    });
   }
 };
+
+// --- Users Domain ---
+export const usersService = {
+  async updateProfile(uid: string, data: any): Promise<void> {
+    const ref = doc(proxyDb, 'users', uid);
+    await updateDoc(ref, data);
+  }
+};
+
+// --- Admin-managed named lists (Subject Categories, Academic Levels) ---
+// Both backed by server/routes/v1/createNamedListController.ts — same request/response shape,
+// just a different endpoint, so one factory here covers both instead of duplicating list/
+// create/remove twice.
+export interface NamedListItem {
+  id: string;
+  name: string;
+  createdAt?: string;
+}
+
+function createNamedListService(endpoint: string) {
+  return {
+    async list(): Promise<NamedListItem[]> {
+      const payload = await safeFetchJson(endpoint);
+      return (payload.data || []).map((d: any) => ({ id: d.id, name: d.data?.name, createdAt: d.data?.createdAt }));
+    },
+    async create(name: string): Promise<NamedListItem> {
+      const payload = await safeFetchJson(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      return payload.data;
+    },
+    async remove(id: string): Promise<void> {
+      await safeFetchJson(`${endpoint}/${id}`, { method: 'DELETE' });
+    }
+  };
+}
+
+export const subjectCategoriesService = createNamedListService('/api/v1/subject-categories');
+export const academicLevelsService = createNamedListService('/api/v1/academic-levels');

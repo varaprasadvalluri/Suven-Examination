@@ -1,52 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db, setDoc, doc, collection, getDocs, query, where } from '../lib/firebase';
+import { db, setDoc, getDoc, doc, collection, getDocs, query, where } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from './ui/select';
-import { 
-  UserPlus, 
-  User, 
-  Inbox, 
-  Calendar, 
-  Building2, 
-  Sparkles, 
-  CheckCircle2, 
-  ArrowLeft, 
-  Copy, 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import {
+  UserPlus,
+  User,
+  Inbox,
+  Calendar,
+  Building2,
+  Sparkles,
+  CheckCircle2,
+  ArrowLeft,
+  Copy,
   GraduationCap,
   ShieldCheck,
   Check
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
-
-const ACADEMIC_LEVELS = [
-  "Play Class",
-  "LKG",
-  "UKG",
-  "1st Grade",
-  "2nd Grade",
-  "3rd Grade",
-  "4th Grade",
-  "5th Grade",
-  "6th Grade",
-  "7th Grade",
-  "8th Grade",
-  "9th Grade",
-  "10th Grade",
-  "Intermediate 1st Year",
-  "Intermediate 2nd Year"
-];
+import { useAcademicLevels } from '../hooks/useNamedList';
+import { ManageNamedListDialog } from './ManageNamedListDialog';
 
 interface SchoolCandidateOnboardingProps {
   onBack?: () => void;
@@ -55,6 +33,7 @@ interface SchoolCandidateOnboardingProps {
 export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps> = ({ onBack }) => {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const { items: academicLevels, loading: loadingAcademicLevels, addItem: addAcademicLevel, removeItem: removeAcademicLevel } = useAcademicLevels();
 
   const [isSubmittingCandidate, setIsSubmittingCandidate] = useState(false);
   const [createdStudentData, setCreatedStudentData] = useState<any | null>(null);
@@ -69,20 +48,25 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
     rollNumber: `REG-${Math.floor(10000 + Math.random() * 90000)}`,
     dob: ''
   });
+  // Tracks whether the operator deliberately typed this roll number vs it still being the
+  // auto-generated default — governs collision behavior below: an auto-generated collision
+  // silently retries with a fresh one, but overwriting a roll number the operator explicitly
+  // chose is never done silently.
+  const [rollNumberEdited, setRollNumberEdited] = useState(false);
 
   // Fetch school details
   useEffect(() => {
     if (!profile?.schoolId) return;
     const fetchSchoolInfo = async () => {
       try {
-        const q = query(collection(db, 'schools'), where('id', '==', profile.schoolId));
-        const snap = await getDocs(q);
+        const schoolQuery = query(collection(db, 'schools'), where('id', '==', profile.schoolId));
+        const snap = await getDocs(schoolQuery);
         if (!snap.empty) {
-          const data = snap.docs[0].data();
-          if (data.name) setSchoolName(data.name);
+          const schoolData = snap.docs[0].data();
+          if (schoolData.name) setSchoolName(schoolData.name);
         }
       } catch (err) {
-        console.error("Error fetching school name:", err);
+        console.error('Error fetching school name:', err);
       }
     };
     fetchSchoolInfo();
@@ -90,7 +74,8 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
 
   const handleAutoGenerateRoll = () => {
     const newRoll = `REG-${Math.floor(10000 + Math.random() * 90000)}`;
-    setManualStudent(prev => ({ ...prev, rollNumber: newRoll }));
+    setManualStudent((prev) => ({ ...prev, rollNumber: newRoll }));
+    setRollNumberEdited(false);
     toast.info(`Generated new register code: ${newRoll}`);
   };
 
@@ -106,17 +91,17 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
     e.preventDefault();
 
     if (!profile?.schoolId) {
-      toast.error("School context missing. Please log in again.");
+      toast.error('School context missing. Please log in again.');
       return;
     }
 
     if (!manualStudent.name.trim()) {
-      toast.error("Validation failed: Candidate name field is required");
+      toast.error('Validation failed: Candidate name field is required');
       return;
     }
 
     if (manualStudent.name.trim().length < 3) {
-      toast.error("Validation failed: Candidate name must contain at least 3 letters");
+      toast.error('Validation failed: Candidate name must contain at least 3 letters');
       return;
     }
 
@@ -124,7 +109,7 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
     if (trimmedEmail) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(trimmedEmail)) {
-        toast.error("Validation failed: Invalid email format (e.g. child@school.com)");
+        toast.error('Validation failed: Invalid email format (e.g. child@school.com)');
         return;
       }
     }
@@ -132,8 +117,34 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
     setIsSubmittingCandidate(true);
 
     try {
-      const finalRoll = manualStudent.rollNumber.trim() || `REG-${Math.floor(10000 + Math.random() * 90000)}`;
-      const uid = `std_${profile.schoolId}_${finalRoll.replace(/\s+/g, '_').toLowerCase()}`;
+      let finalRoll = manualStudent.rollNumber.trim() || `REG-${Math.floor(10000 + Math.random() * 90000)}`;
+      let uid = `std_${profile.schoolId}_${finalRoll.replace(/\s+/g, '_').toLowerCase()}`;
+
+      // The roll number becomes the doc ID below (plain setDoc, which merges rather than
+      // rejecting an existing doc) — without this check, two students who end up with the
+      // same roll number at this school silently overwrite each other's profile. An
+      // auto-generated collision (only 90,000 possible values) retries with a fresh one; a
+      // roll number the operator deliberately typed is never silently changed or overwritten.
+      let existing = await getDoc(doc(db, 'users', uid));
+      if (existing.exists()) {
+        if (rollNumberEdited) {
+          toast.error(`Roll number "${finalRoll}" is already in use at this school. Please choose a different one.`);
+          setIsSubmittingCandidate(false);
+          return;
+        }
+        let attempts = 0;
+        while (existing.exists() && attempts < 5) {
+          finalRoll = `REG-${Math.floor(10000 + Math.random() * 90000)}`;
+          uid = `std_${profile.schoolId}_${finalRoll.replace(/\s+/g, '_').toLowerCase()}`;
+          existing = await getDoc(doc(db, 'users', uid));
+          attempts++;
+        }
+        if (existing.exists()) {
+          toast.error('Could not generate a unique register number. Please try again.');
+          setIsSubmittingCandidate(false);
+          return;
+        }
+      }
 
       const candidatePayload = {
         name: manualStudent.name.trim(),
@@ -161,9 +172,10 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
         rollNumber: `REG-${Math.floor(10000 + Math.random() * 90000)}`,
         dob: ''
       });
+      setRollNumberEdited(false);
     } catch (error) {
-      console.error("Failed to onboard student:", error);
-      toast.error("Failed to register candidate. Please check database permissions.");
+      console.error('Failed to onboard student:', error);
+      toast.error('Failed to register candidate. Please try again.');
     } finally {
       setIsSubmittingCandidate(false);
     }
@@ -174,17 +186,17 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
     const text = `Candidate Onboarding Pass\n------------------------\nName: ${createdStudentData.name}\nRegister No: ${createdStudentData.rollNumber}\nGrade: ${createdStudentData.class} - Sec ${createdStudentData.section}\nEmail: ${createdStudentData.email || 'N/A'}\nSchool: ${schoolName}\nUID: ${createdStudentData.uid}`;
     navigator.clipboard.writeText(text);
     setCopied(true);
-    toast.success("Candidate record summary copied to clipboard!");
+    toast.success('Candidate record summary copied to clipboard!');
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans -m-4 md:-m-6 lg:-m-10 p-4 md:p-8 lg:p-12 selection:bg-indigo-500 selection:text-white">
       {/* Top Header Bar */}
-      <div className="max-w-5xl mx-auto w-full flex items-center justify-between pb-6 border-b border-slate-200">
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
+      <div className="max-w-5xl mx-auto w-full flex flex-wrap items-center justify-between gap-3 pb-6 border-b border-slate-200">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
             onClick={handleBackToRoster}
             className="h-10 px-4 bg-white border-slate-200 hover:bg-slate-100 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-sm"
           >
@@ -206,7 +218,6 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
       <div className="max-w-5xl mx-auto w-full flex-1 pt-8">
         {!createdStudentData ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
             {/* Form Column (7 Cols) */}
             <div className="lg:col-span-7 bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
               <div className="space-y-1">
@@ -220,11 +231,12 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
               </div>
 
               <form onSubmit={handleSubmitCandidate} className="space-y-6 pt-2">
-                
                 {/* Step 1: Candidate Identity */}
                 <div className="space-y-4 pt-2 border-t border-slate-100">
                   <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">1</span>
+                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">
+                      1
+                    </span>
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">Candidate Identity</h3>
                   </div>
 
@@ -247,9 +259,7 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                     </div>
 
                     <div>
-                      <Label className="text-xs font-bold text-slate-700 mb-1.5 block">
-                        Secure Email Address (Optional)
-                      </Label>
+                      <Label className="text-xs font-bold text-slate-700 mb-1.5 block">Secure Email Address (Optional)</Label>
                       <div className="relative">
                         <Inbox className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-indigo-500 pointer-events-none" />
                         <Input
@@ -264,9 +274,7 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                     </div>
 
                     <div>
-                      <Label className="text-xs font-bold text-slate-700 mb-1.5 block">
-                        Date of Birth (DOB)
-                      </Label>
+                      <Label className="text-xs font-bold text-slate-700 mb-1.5 block">Date of Birth (DOB)</Label>
                       <div className="relative">
                         <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-indigo-500 pointer-events-none" />
                         <Input
@@ -284,25 +292,37 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                 {/* Step 2: Academic Classification */}
                 <div className="space-y-4 pt-4 border-t border-slate-100">
                   <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">2</span>
+                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">
+                      2
+                    </span>
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">Academic Placement</h3>
                   </div>
 
                   <div className="space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <Label className="text-xs font-bold text-slate-700 mb-1.5 block">Academic Grade</Label>
-                        <Select
-                          value={manualStudent.class}
-                          onValueChange={(val) => setManualStudent({ ...manualStudent, class: val })}
-                        >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <Label className="text-xs font-bold text-slate-700 block">Academic Grade</Label>
+                          {profile?.role === 'admin' && (
+                            <ManageNamedListDialog
+                              title="Manage Academic Levels"
+                              description="Add or remove class/grade entries (e.g. B.Tech, Degree)."
+                              items={academicLevels}
+                              loading={loadingAcademicLevels}
+                              onAdd={addAcademicLevel}
+                              onRemove={removeAcademicLevel}
+                              triggerLabel="Manage"
+                            />
+                          )}
+                        </div>
+                        <Select value={manualStudent.class} onValueChange={(val) => setManualStudent({ ...manualStudent, class: val })}>
                           <SelectTrigger className="h-11 bg-slate-50 border-slate-200 text-slate-900 rounded-xl text-xs font-medium focus:border-indigo-600 focus:bg-white">
                             <SelectValue placeholder="Select Grade" />
                           </SelectTrigger>
                           <SelectContent className="max-h-[220px] bg-white border border-slate-200 shadow-xl rounded-xl">
-                            {ACADEMIC_LEVELS.map((lvl) => (
-                              <SelectItem key={lvl} value={lvl} className="text-xs font-medium cursor-pointer">
-                                {lvl}
+                            {academicLevels.map((lvl) => (
+                              <SelectItem key={lvl.id} value={lvl.name} className="text-xs font-medium cursor-pointer">
+                                {lvl.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -335,7 +355,10 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                         <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-indigo-500 pointer-events-none" />
                         <Input
                           value={manualStudent.rollNumber}
-                          onChange={(e) => setManualStudent({ ...manualStudent, rollNumber: e.target.value })}
+                          onChange={(e) => {
+                            setManualStudent({ ...manualStudent, rollNumber: e.target.value });
+                            setRollNumberEdited(true);
+                          }}
                           placeholder="e.g. REG-78401"
                           className="h-11 pl-10 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-xs font-mono font-bold uppercase focus:border-indigo-600 focus:bg-white"
                         />
@@ -361,7 +384,6 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                     )}
                   </Button>
                 </div>
-
               </form>
             </div>
 
@@ -369,12 +391,8 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
             <div className="lg:col-span-5 space-y-4 sticky top-8">
               <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">
-                    Live Candidate Node Preview
-                  </span>
-                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">
-                    Active Profile
-                  </Badge>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Live Candidate Node Preview</span>
+                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">Active Profile</Badge>
                 </div>
 
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
@@ -383,9 +401,7 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                       {manualStudent.name.trim() ? manualStudent.name.trim()[0].toUpperCase() : 'C'}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-base font-black text-slate-900 truncate">
-                        {manualStudent.name.trim() || 'Candidate Name'}
-                      </h4>
+                      <h4 className="text-base font-black text-slate-900 truncate">{manualStudent.name.trim() || 'Candidate Name'}</h4>
                       <p className="text-xs text-slate-500 truncate">
                         {manualStudent.class || '10th Grade'} • Section {manualStudent.section || 'A'}
                       </p>
@@ -407,7 +423,7 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                     <span className="text-[10px] text-slate-400 uppercase block font-bold">Contact Email</span>
                     <p className="text-xs text-slate-800 truncate font-mono">{manualStudent.email || 'No email assigned'}</p>
                   </div>
-                  
+
                   <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
                     <span className="text-[10px] text-slate-400 uppercase block font-bold">Academic Institution</span>
                     <p className="text-xs text-slate-800 truncate font-bold">{schoolName}</p>
@@ -420,14 +436,13 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                 </div>
               </div>
             </div>
-
           </div>
         ) : (
           /* SUCCESS SCREEN */
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="max-w-2xl mx-auto bg-white border border-slate-200 rounded-3xl p-8 shadow-sm space-y-8 text-center"
+            className="max-w-2xl mx-auto bg-white border border-slate-200 rounded-3xl p-5 md:p-8 shadow-sm space-y-8 text-center"
           >
             <div className="w-16 h-16 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto shadow-sm">
               <CheckCircle2 size={36} />
@@ -452,7 +467,9 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                 </div>
                 <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1">
                   <span className="text-[10px] text-slate-400 font-sans uppercase block font-bold">Academic Grade</span>
-                  <span className="text-slate-900 font-bold block truncate">{createdStudentData.class} - Sec {createdStudentData.section}</span>
+                  <span className="text-slate-900 font-bold block truncate">
+                    {createdStudentData.class} - Sec {createdStudentData.section}
+                  </span>
                 </div>
               </div>
               <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1">

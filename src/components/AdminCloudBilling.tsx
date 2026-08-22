@@ -1,175 +1,87 @@
 import React, { useState, useEffect } from 'react';
-import { db, auth, googleProvider } from '../lib/firebase';
-import { collection, getDocs, getCountFromServer } from 'firebase/firestore';
+import { db, collection, getDocs, getCountFromServer } from '../lib/firebase';
 import { authHeaders } from '../lib/sessionStore';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
+import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
-import { 
-  ResponsiveContainer, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  CartesianGrid, 
-  Legend, 
-  PieChart, 
-  Pie, 
-  Cell 
-} from 'recharts';
-import { 
-  Cloud, 
-  DollarSign, 
-  CreditCard, 
-  TrendingUp, 
-  Database, 
-  Cpu, 
-  Sparkles, 
-  HardDrive, 
-  Wifi, 
-  AlertTriangle, 
-  CheckCircle2, 
-  RefreshCw, 
-  Download, 
-  Sliders, 
-  Activity, 
-  ShieldCheck, 
-  Bell, 
-  Zap, 
+import {
+  Cloud,
+  Database,
+  CheckCircle2,
+  RefreshCw,
+  Download,
+  ShieldCheck,
   Layers,
-  BarChart3,
   Server,
-  Clock,
   ExternalLink,
-  ChevronRight
+  AlertCircle,
+  ListChecks
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'motion/react';
 
-interface ServiceCost {
-  id: string;
-  name: string;
-  category: 'Database' | 'Compute' | 'AI / LLM' | 'Storage' | 'Network';
-  icon: any;
-  currentCost: number;
-  projectedCost: number;
-  unitRate: string;
-  usageMetric: string;
-  status: 'Healthy' | 'Moderate' | 'Spike';
-  color: string;
-}
-
-interface ActivityLog {
-  id: string;
-  timestamp: string;
-  service: string;
-  type: 'INFO' | 'WARN' | 'COST_EVENT';
-  message: string;
-  costImpact: string;
-}
-
+// Real GCP account/project/billing-account identity and the enabled-services list come from
+// /api/gcp/live-billing (server/routes/gcp.ts — real Cloud Billing/Resource Manager/Service
+// Usage API calls). This page used to also show itemized service costs, a 7-day cost trend
+// chart, a "live" audit log, and budget-threshold alerts — all of that was hardcoded/fabricated
+// (fixed fake dates, invented log lines, "80%: Armed"/"100%: Safeguard" text disconnected from
+// any real number) with no real backing data source; none of it is wired to Cloud Billing's
+// actual cost/budget APIs anywhere in this app. Removed rather than kept-but-labeled — an admin
+// making a spend decision needs the real number or an honest "not available here," not a
+// plausible-looking fake one. Real cost/budget tracking lives in the GCP Console (linked below).
 export const AdminCloudBilling: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [billingPeriod, setBillingPeriod] = useState<'current' | 'last_month' | 'ytd'>('current');
-  const [monthlyBudget, setMonthlyBudget] = useState<number>(350);
-  const [isSettingBudget, setIsSettingBudget] = useState(false);
-  const [tempBudget, setTempBudget] = useState('350');
 
-  // Real Firestore & GCP API state
   const [gcpApiData, setGcpApiData] = useState<any>(null);
-  const [dbStats, setDbStats] = useState({
-    userCount: 0,
-    schoolCount: 0,
-    examCount: 0,
-    resultCount: 0,
-    totalDocuments: 0,
-    estimatedReads24h: 18400,
-    estimatedWrites24h: 4200,
-    estimatedStorageMb: 24.5
-  });
+  const [dbStats, setDbStats] = useState({ userCount: 0, schoolCount: 0, examCount: 0, resultCount: 0, totalDocuments: 0 });
 
-  // Fetch real GCP project metrics & live API status from server
   const fetchRealGcpMetrics = async () => {
     setRefreshing(true);
     try {
       const response = await fetch('/api/gcp/live-billing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({
-          projectIdOverride: 'project-02bb6275-51ac-45e7-940',
-          userEmail: 'suveen2619@gmail.com'
-        })
+        body: JSON.stringify({})
       });
-
       if (response.ok) {
         const liveGcpData = await response.json();
         setGcpApiData(liveGcpData);
-        toast.success(`Connected to GCP Account: ${liveGcpData.userAccount || 'suveen2619@gmail.com'} (${liveGcpData.targetProjectId || 'project-02bb6275-51ac-45e7-940'})`);
+        if (liveGcpData?.userAccount) {
+          toast.success(`Connected to GCP account ${liveGcpData.userAccount}`);
+        }
+      } else {
+        setGcpApiData(null);
       }
     } catch (e) {
-      console.warn("Could not reach /api/gcp/live-billing endpoint:", e);
+      console.warn('Could not reach /api/gcp/live-billing endpoint:', e);
+      setGcpApiData(null);
     }
 
     try {
-      let users = 0;
-      let schools = 0;
-      let exams = 0;
-      let results = 0;
-
-      try {
-        const uSnap = await getCountFromServer(collection(db, 'users'));
-        users = uSnap.data().count;
-      } catch {
-        const uDocs = await getDocs(collection(db, 'users'));
-        users = uDocs.docs.length;
-      }
-
-      try {
-        const sSnap = await getCountFromServer(collection(db, 'schools'));
-        schools = sSnap.data().count;
-      } catch {
-        const sDocs = await getDocs(collection(db, 'schools'));
-        schools = sDocs.docs.length;
-      }
-
-      try {
-        const eSnap = await getCountFromServer(collection(db, 'exams'));
-        exams = eSnap.data().count;
-      } catch {
-        const eDocs = await getDocs(collection(db, 'exams'));
-        exams = eDocs.docs.length;
-      }
-
-      try {
-        const rSnap = await getCountFromServer(collection(db, 'results'));
-        results = rSnap.data().count;
-      } catch {
-        const rDocs = await getDocs(collection(db, 'results'));
-        results = rDocs.docs.length;
-      }
-
-      const totalDocs = users + schools + exams + results;
-      const estReads = Math.max(12000, totalDocs * 180 + 4500);
-      const estWrites = Math.max(2500, totalDocs * 35 + 800);
-      const estMb = parseFloat((totalDocs * 0.045 + 12.2).toFixed(2));
-
+      const countOrFallback = async (collectionName: string) => {
+        try {
+          const snap = await getCountFromServer(collection(db, collectionName));
+          return snap.data().count;
+        } catch {
+          const docs = await getDocs(collection(db, collectionName));
+          return docs.docs.length;
+        }
+      };
+      const [users, schools, exams, results] = await Promise.all([
+        countOrFallback('users'),
+        countOrFallback('schools'),
+        countOrFallback('exams'),
+        countOrFallback('results')
+      ]);
       setDbStats({
         userCount: users,
         schoolCount: schools,
         examCount: exams,
         resultCount: results,
-        totalDocuments: totalDocs,
-        estimatedReads24h: estReads,
-        estimatedWrites24h: estWrites,
-        estimatedStorageMb: estMb
+        totalDocuments: users + schools + exams + results
       });
     } catch (err) {
-      console.error("Error calculating GCP Firestore stats:", err);
+      console.error('Error counting Firestore collections:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -180,204 +92,82 @@ export const AdminCloudBilling: React.FC = () => {
     fetchRealGcpMetrics();
   }, []);
 
-  // Compute costs dynamically
-  const firestoreReadCost = (dbStats.estimatedReads24h * 30 / 100000) * 0.06;
-  const firestoreWriteCost = (dbStats.estimatedWrites24h * 30 / 100000) * 0.18;
-  const firestoreStorageCost = (dbStats.estimatedStorageMb / 1024) * 0.18;
-  const totalFirestoreCost = parseFloat((firestoreReadCost + firestoreWriteCost + firestoreStorageCost + 4.80).toFixed(2));
+  const billingApiWorking = !!gcpApiData?.apiStatus?.billingApiEnabled;
+  const enabledServices: { name: string; title: string; state: string }[] = gcpApiData?.enabledServices || [];
 
-  const cloudRunCost = 18.40;
-  const storageEgressCost = 3.60;
-  const cloudSqlCost = 9.20;
-
-  const currentTotalSpend = parseFloat((totalFirestoreCost + cloudRunCost + storageEgressCost + cloudSqlCost).toFixed(2));
-  const projectedMonthEndSpend = parseFloat((currentTotalSpend * 1.45).toFixed(2));
-  const budgetUsedPercentage = Math.min(100, Math.round((currentTotalSpend / monthlyBudget) * 100));
-
-  const servicesData: ServiceCost[] = [
-    {
-      id: 'firestore',
-      name: 'Cloud Firestore DB',
-      category: 'Database',
-      icon: Database,
-      currentCost: totalFirestoreCost,
-      projectedCost: parseFloat((totalFirestoreCost * 1.4).toFixed(2)),
-      unitRate: '$0.06 / 100k reads • $0.18 / 100k writes',
-      usageMetric: `${dbStats.totalDocuments} total docs • ~${(dbStats.estimatedReads24h/1000).toFixed(1)}k ops/day`,
-      status: 'Healthy',
-      color: '#4f46e5'
-    },
-    {
-      id: 'cloud_run',
-      name: 'Cloud Run Container Engine',
-      category: 'Compute',
-      icon: Cpu,
-      currentCost: cloudRunCost,
-      projectedCost: 26.50,
-      unitRate: '$0.00002400 / vCPU-second (0.5 vCPU, 512MB RAM)',
-      usageMetric: '3000 ingress port • 24,810 HTTP requests / mo',
-      status: 'Healthy',
-      color: '#0284c7'
-    },
-    {
-      id: 'cloud_sql',
-      name: 'Cloud SQL PostgreSQL (Developer)',
-      category: 'Database',
-      icon: Server,
-      currentCost: cloudSqlCost,
-      projectedCost: 14.50,
-      unitRate: 'Scale-to-Zero Developer Edition ($0.012/hr active)',
-      usageMetric: '1 Instance • Drizzle ORM Schema syncs',
-      status: 'Healthy',
-      color: '#059669'
-    },
-    {
-      id: 'storage_egress',
-      name: 'Cloud Storage & Network Egress',
-      category: 'Storage',
-      icon: HardDrive,
-      currentCost: storageEgressCost,
-      projectedCost: 5.20,
-      unitRate: '$0.020 / GB storage • $0.12 / GB egress',
-      usageMetric: '12.4 GB media assets & candidate proctor snapshots',
-      status: 'Healthy',
-      color: '#ec4899'
-    }
-  ];
-
-  // Daily cost trend mock data for Recharts
-  const dailyCostTrend = [
-    { day: 'Jul 15', Firestore: 0.45, CloudRun: 0.60, CloudSQL: 0.30, Other: 0.15 },
-    { day: 'Jul 16', Firestore: 0.52, CloudRun: 0.62, CloudSQL: 0.32, Other: 0.16 },
-    { day: 'Jul 17', Firestore: 0.48, CloudRun: 0.61, CloudSQL: 0.29, Other: 0.15 },
-    { day: 'Jul 18', Firestore: 0.78, CloudRun: 0.85, CloudSQL: 0.45, Other: 0.22 }, // exam day spike
-    { day: 'Jul 19', Firestore: 0.65, CloudRun: 0.70, CloudSQL: 0.38, Other: 0.18 },
-    { day: 'Jul 20', Firestore: 0.58, CloudRun: 0.64, CloudSQL: 0.31, Other: 0.16 },
-    { day: 'Jul 21', Firestore: 0.62, CloudRun: 0.65, CloudSQL: 0.33, Other: 0.17 },
-  ];
-
-  const pieChartData = servicesData.map(s => ({
-    name: s.name,
-    value: s.currentCost,
-    color: s.color
-  }));
-
-  // Activity Log feed
-  const activityLogs: ActivityLog[] = [
-    {
-      id: 'log-1',
-      timestamp: 'Just now',
-      service: 'Cloud Firestore',
-      type: 'INFO',
-      message: `Database query scan executed for ${dbStats.totalDocuments} total documents in collection 'suven-edu'`,
-      costImpact: '+$0.0002'
-    },
-    {
-      id: 'log-2',
-      timestamp: '12 mins ago',
-      service: 'Gemini AI API',
-      type: 'INFO',
-      message: 'Automated proctoring scan processed for Candidate Assessment ID #78401 (1,240 tokens)',
-      costImpact: '+$0.0001'
-    },
-    {
-      id: 'log-3',
-      timestamp: '45 mins ago',
-      service: 'Cloud Run Engine',
-      type: 'INFO',
-      message: 'Container HTTP ingress handling on port 3000 (0.25 vCPU instance allocated)',
-      costImpact: 'Standard Rate'
-    },
-    {
-      id: 'log-4',
-      timestamp: '2 hours ago',
-      service: 'Cloud SQL Postgres',
-      type: 'INFO',
-      message: 'Automated DB connection pool idle scale down to zero instance state',
-      costImpact: 'Cost Saved'
-    },
-    {
-      id: 'log-5',
-      timestamp: '5 hours ago',
-      service: 'Cloud Firestore',
-      type: 'WARN',
-      message: 'Batch candidate registration committed 18 records (Write throughput surge)',
-      costImpact: '+$0.0032'
-    },
-    {
-      id: 'log-6',
-      timestamp: '1 day ago',
-      service: 'Cloud Storage',
-      type: 'INFO',
-      message: 'Assessment proctoring image payload snapshot archived to GCS bucket',
-      costImpact: '+$0.0005'
-    }
-  ];
-
-  const handleUpdateBudget = () => {
-    const val = parseFloat(tempBudget);
-    if (isNaN(val) || val <= 0) {
-      toast.error("Please enter a valid positive budget amount.");
-      return;
-    }
-    setMonthlyBudget(val);
-    setIsSettingBudget(false);
-    toast.success(`Monthly GCP Budget updated to $${val.toFixed(2)}`);
-  };
-
-  const handleExportCsv = () => {
-    let csv = "GCP Service,Category,Current Cost ($),Projected Month End ($),Unit Rate,Usage Metric\n";
-    servicesData.forEach(s => {
-      csv += `"${s.name}","${s.category}",${s.currentCost},${s.projectedCost},"${s.unitRate}","${s.usageMetric}"\n`;
+  const handleExportSummary = () => {
+    let csv = 'Field,Value\n';
+    csv += `Project ID,"${gcpApiData?.targetProjectId || 'Unavailable'}"\n`;
+    csv += `Project Number,"${gcpApiData?.projectNumber || 'Unavailable'}"\n`;
+    csv += `Billing Account,"${gcpApiData?.billingInfo?.billingAccountName || 'Unavailable'}"\n`;
+    csv += `Billing Enabled,"${gcpApiData?.billingInfo?.billingEnabled ?? 'Unavailable'}"\n`;
+    csv += `Firestore Users,${dbStats.userCount}\n`;
+    csv += `Firestore Schools,${dbStats.schoolCount}\n`;
+    csv += `Firestore Exams,${dbStats.examCount}\n`;
+    csv += `Firestore Results,${dbStats.resultCount}\n`;
+    csv += `\nEnabled Service,Title,State\n`;
+    enabledServices.forEach((s) => {
+      csv += `"${s.name}","${s.title}","${s.state}"\n`;
     });
-    csv += `\nTotal Current Spend,,"$${currentTotalSpend}"\nProjected Month End,,"$${projectedMonthEndSpend}"\nMonthly Budget Target,,"$${monthlyBudget}"\n`;
 
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `SuvenEdu_GCP_Billing_Report_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    toast.success("GCP Billing Summary exported to CSV!");
+    const downloadLink = document.createElement('a');
+    downloadLink.href = url;
+    downloadLink.download = `SuvenEdu_GCP_Summary_${new Date().toISOString().split('T')[0]}.csv`;
+    downloadLink.click();
+    toast.success('GCP account summary exported to CSV.');
   };
+
+  const consoleUrl =
+    gcpApiData?.gcpConsoleUrl ||
+    (gcpApiData?.targetProjectId
+      ? `https://console.cloud.google.com/welcome?project=${gcpApiData.targetProjectId}`
+      : 'https://console.cloud.google.com/billing');
 
   return (
     <div className="space-y-8 font-sans pb-12">
-      
       {/* Page Banner Header */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/10 via-sky-500/5 to-transparent pointer-events-none" />
-        
+
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-2xl">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider flex items-center gap-1.5">
-                <Cloud size={12} className="text-sky-400" /> Project: {gcpApiData?.targetProjectId || "project-02bb6275-51ac-45e7-940"}
-              </Badge>
-              <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider flex items-center gap-1.5">
-                <CheckCircle2 size={12} className="text-emerald-400" /> Billing Account Active
-              </Badge>
-              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 px-2.5 py-1 rounded-full text-[10px] font-mono">
-                Account: {gcpApiData?.userAccount || "suveen2619@gmail.com"}
+              {gcpApiData?.targetProjectId && (
+                <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider flex items-center gap-1.5">
+                  <Cloud size={12} className="text-sky-400" /> Project: {gcpApiData.targetProjectId}
+                </Badge>
+              )}
+              <Badge
+                className={`px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider flex items-center gap-1.5 ${
+                  billingApiWorking
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                    : 'bg-slate-700/40 text-slate-300 border-slate-600/50'
+                }`}
+              >
+                {billingApiWorking ? (
+                  <CheckCircle2 size={12} className="text-emerald-400" />
+                ) : (
+                  <AlertCircle size={12} className="text-slate-400" />
+                )}
+                {billingApiWorking ? 'Billing API Connected' : 'Billing API Not Connected'}
               </Badge>
             </div>
 
             <h1 className="text-2xl md:text-3xl font-serif font-black tracking-tight text-white flex items-center gap-3">
-              <DollarSign className="text-emerald-400 h-8 w-8" />
-              GCP Infrastructure & Cloud Billing
+              <Cloud className="text-indigo-400 h-8 w-8" />
+              GCP Project Overview
             </h1>
 
             <p className="text-xs text-slate-300 leading-relaxed">
-              Live real-time resource telemetry, cost allocation, and Cloud Billing integration for your Google Cloud account <span className="font-bold text-white">{gcpApiData?.userAccount || "suveen2619@gmail.com"}</span> (Project: <span className="font-mono text-indigo-300">{gcpApiData?.targetProjectId || "project-02bb6275-51ac-45e7-940"}</span>).
+              Real account, billing, and API-enablement status for this project's Google Cloud account. Itemized cost breakdowns, spend
+              trends, and budget alerts aren't tracked inside this app — view those directly in the GCP Console.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <a 
-              href={gcpApiData?.gcpConsoleUrl || "https://console.cloud.google.com/welcome/new?authuser=1&project=project-02bb6275-51ac-45e7-940"} 
-              target="_blank" 
-              rel="noreferrer"
-            >
+            <a href={consoleUrl} target="_blank" rel="noreferrer">
               <Button
                 variant="outline"
                 className="h-10 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/40 text-xs font-bold rounded-xl flex items-center gap-2 cursor-pointer transition-all"
@@ -393,463 +183,182 @@ export const AdminCloudBilling: React.FC = () => {
               className="h-10 bg-slate-800/80 hover:bg-slate-800 text-slate-200 border-slate-700 text-xs font-bold rounded-xl flex items-center gap-2 cursor-pointer transition-all"
             >
               <RefreshCw size={14} className={refreshing ? 'animate-spin text-indigo-400' : ''} />
-              {refreshing ? 'Syncing GCP...' : 'Refresh Live Metrics'}
+              {refreshing ? 'Syncing...' : 'Refresh'}
             </Button>
 
             <Button
-              onClick={handleExportCsv}
+              onClick={handleExportSummary}
               className="h-10 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center gap-2 cursor-pointer shadow-md shadow-indigo-900/40"
             >
-              <Download size={14} /> Export Cost Statement
+              <Download size={14} /> Export Summary
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Live Connected GCP Account Card */}
+      {/* Connected Account Card — every field here is real (or explicitly "Unavailable") */}
       <Card className="bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border-indigo-900/60 shadow-lg text-white rounded-2xl p-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2 text-xs font-mono text-emerald-400 font-semibold">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              REAL-TIME GCP CLOUD BILLING API SYNCED
+            <div
+              className={`flex items-center gap-2 text-xs font-mono font-semibold ${billingApiWorking ? 'text-emerald-400' : 'text-slate-400'}`}
+            >
+              {billingApiWorking && (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              )}
+              {billingApiWorking ? 'CLOUD BILLING API LIVE' : 'CLOUD BILLING API UNAVAILABLE'}
             </div>
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               <ShieldCheck className="text-indigo-400 h-5 w-5" />
-              Connected GCP Account: <span className="text-indigo-300">{gcpApiData?.userAccount || "suveen2619@gmail.com"}</span>
+              Account: <span className="text-indigo-300">{gcpApiData?.userAccount || 'Not connected'}</span>
             </h2>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-300 font-mono pt-1">
-              <span>Project ID: <strong className="text-white">{gcpApiData?.targetProjectId || 'project-02bb6275-51ac-45e7-940'}</strong></span>
+              <span>
+                Project ID: <strong className="text-white">{gcpApiData?.targetProjectId || 'Unavailable'}</strong>
+              </span>
               <span>•</span>
-              <span>Project Number: <strong className="text-white">{gcpApiData?.projectNumber || '489976275182'}</strong></span>
+              <span>
+                Project Number: <strong className="text-white">{gcpApiData?.projectNumber || 'Unavailable'}</strong>
+              </span>
               <span>•</span>
-              <span>Billing Account: <strong className="text-emerald-300">{gcpApiData?.billingInfo?.billingAccountName || 'billingAccounts/01B5E8-SUVEN-EDU-01'}</strong></span>
+              <span>
+                Billing Account:{' '}
+                <strong className="text-emerald-300">{gcpApiData?.billingInfo?.billingAccountName || 'Unavailable'}</strong>
+              </span>
             </div>
-          </div>
-
-          <div className="flex items-center gap-3 shrink-0">
-            <a 
-              href="https://console.cloud.google.com/welcome/new?authuser=1&project=project-02bb6275-51ac-45e7-940" 
-              target="_blank" 
-              rel="noreferrer"
-              className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl font-bold transition-all shadow flex items-center gap-1.5"
-            >
-              Console Dashboard <ExternalLink size={13} />
-            </a>
           </div>
         </div>
       </Card>
 
-      {/* Top 4 Metric KPI Cards */}
+      {/* KPI cards — real fields only */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        
-        {/* Card 1: Total Spend */}
-        <Card className="bg-white border-slate-200/80 shadow-sm rounded-2xl relative overflow-hidden">
-          <CardContent className="p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Current Cycle Spend
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-                <CreditCard size={18} />
-              </div>
-            </div>
-
-            <div>
-              <div className="text-2xl md:text-3xl font-serif font-black text-slate-900">
-                ${currentTotalSpend.toFixed(2)}
-              </div>
-              <p className="text-[10px] font-medium text-slate-400 mt-0.5">
-                Target Budget: <span className="font-bold text-slate-700">${monthlyBudget.toFixed(2)}</span> / mo
-              </p>
-            </div>
-
-            {/* Budget Progress Bar */}
-            <div className="space-y-1 pt-1">
-              <div className="flex justify-between text-[10px] font-bold">
-                <span className="text-slate-500">Budget Consumed</span>
-                <span className={budgetUsedPercentage > 85 ? 'text-rose-600' : 'text-emerald-600'}>
-                  {budgetUsedPercentage}%
-                </span>
-              </div>
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full transition-all duration-500 ${
-                    budgetUsedPercentage > 85 
-                      ? 'bg-rose-500' 
-                      : budgetUsedPercentage > 60 
-                      ? 'bg-amber-500' 
-                      : 'bg-emerald-500'
-                  }`}
-                  style={{ width: `${budgetUsedPercentage}%` }}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 2: Firestore DB Activity */}
         <Card className="bg-white border-slate-200/80 shadow-sm rounded-2xl">
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Firestore DB Cost
-              </span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Firestore Documents</span>
               <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
                 <Database size={18} />
               </div>
             </div>
-
-            <div>
-              <div className="text-2xl md:text-3xl font-serif font-black text-slate-900">
-                ${totalFirestoreCost.toFixed(2)}
-              </div>
-              <p className="text-[10px] font-medium text-indigo-600 mt-0.5 font-mono font-bold">
-                {dbStats.totalDocuments} docs in suven-edu
-              </p>
-            </div>
-
-            <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-100 flex items-center justify-between">
-              <span>~{(dbStats.estimatedReads24h/1000).toFixed(1)}k reads/24h</span>
-              <Badge variant="outline" className="text-[9px] py-0 border-indigo-200 text-indigo-700 bg-indigo-50">
-                Multi-Region
-              </Badge>
-            </div>
+            <div className="text-2xl md:text-3xl font-serif font-black text-slate-900">{loading ? '—' : dbStats.totalDocuments}</div>
+            <p className="text-[10px] font-medium text-slate-400">
+              {dbStats.userCount} users • {dbStats.schoolCount} schools • {dbStats.examCount} exams • {dbStats.resultCount} results
+            </p>
           </CardContent>
         </Card>
 
-        {/* Card 3: Cloud Run Compute */}
         <Card className="bg-white border-slate-200/80 shadow-sm rounded-2xl">
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Cloud Run Compute
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
-                <Cpu size={18} />
-              </div>
-            </div>
-
-            <div>
-              <div className="text-2xl md:text-3xl font-serif font-black text-slate-900">
-                ${cloudRunCost.toFixed(2)}
-              </div>
-              <p className="text-[10px] font-medium text-slate-400 mt-0.5">
-                Port 3000 Ingress • 0.5 vCPU / 512MB RAM
-              </p>
-            </div>
-
-            <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-100 flex items-center justify-between">
-              <span>24,810 requests / mo</span>
-              <Badge variant="outline" className="text-[9px] py-0 border-sky-200 text-sky-700 bg-sky-50">
-                99.98% Uptime
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 4: Cloud SQL Postgres */}
-        <Card className="bg-white border-slate-200/80 shadow-sm rounded-2xl">
-          <CardContent className="p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Cloud SQL Database
-              </span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Billing Status</span>
               <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                <ShieldCheck size={18} />
+              </div>
+            </div>
+            <div className="text-lg font-serif font-black text-slate-900">
+              {gcpApiData?.billingInfo?.billingEnabled === true
+                ? 'Enabled'
+                : gcpApiData?.billingInfo?.billingEnabled === false
+                  ? 'Disabled'
+                  : 'Unavailable'}
+            </div>
+            <p className="text-[10px] font-medium text-slate-400">From the real Cloud Billing API response.</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white border-slate-200/80 shadow-sm rounded-2xl">
+          <CardContent className="p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Enabled APIs</span>
+              <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+                <ListChecks size={18} />
+              </div>
+            </div>
+            <div className="text-2xl md:text-3xl font-serif font-black text-slate-900">
+              {gcpApiData?.apiStatus?.serviceUsageEnabled ? enabledServices.length : '—'}
+            </div>
+            <p className="text-[10px] font-medium text-slate-400">
+              {gcpApiData?.apiStatus?.serviceUsageEnabled
+                ? 'Google Cloud services enabled on this project'
+                : 'Service Usage API unavailable'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white border-slate-200/80 shadow-sm rounded-2xl">
+          <CardContent className="p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Resource Manager</span>
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
                 <Server size={18} />
               </div>
             </div>
-
-            <div>
-              <div className="text-2xl md:text-3xl font-serif font-black text-slate-900">
-                ${cloudSqlCost.toFixed(2)}
-              </div>
-              <p className="text-[10px] font-medium text-slate-400 mt-0.5">
-                Developer PostgreSQL Instance
-              </p>
+            <div className="text-lg font-serif font-black text-slate-900">
+              {gcpApiData?.projectDetails?.lifecycleState || 'Unavailable'}
             </div>
-
-            <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-100 flex items-center justify-between">
-              <span>Scale-to-Zero Active</span>
-              <Badge variant="outline" className="text-[9px] py-0 border-emerald-200 text-emerald-700 bg-emerald-50">
-                Active Pool
-              </Badge>
-            </div>
+            <p className="text-[10px] font-medium text-slate-400">Project lifecycle state, real Resource Manager API.</p>
           </CardContent>
         </Card>
-
       </div>
 
-      {/* Main Content Grid: Charts & Budget Controls */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* Left Column (8 Cols): Recharts Visualizations */}
-        <div className="lg:col-span-8 space-y-6">
-          
-          {/* Daily Cost Bar Chart */}
-          <Card className="bg-white border-slate-200/80 shadow-sm rounded-3xl p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-6 border-b border-slate-100">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <BarChart3 className="text-indigo-600" size={20} />
-                  Daily GCP Service Cost Distribution ($)
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Daily financial expenditure across primary Google Cloud infrastructure components.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
-                <button
-                  onClick={() => setBillingPeriod('current')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
-                    billingPeriod === 'current' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  This Month
-                </button>
-                <button
-                  onClick={() => setBillingPeriod('last_month')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
-                    billingPeriod === 'last_month' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Last Month
-                </button>
-              </div>
-            </div>
-
-            <div className="h-72 w-full pt-6">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dailyCostTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(val) => `$${val}`} />
-                  <Tooltip 
-                    formatter={(value: any) => [`$${Number(value).toFixed(2)}`, 'Cost']}
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                  <Bar dataKey="Firestore" fill="#4f46e5" radius={[4, 4, 0, 0]} stackId="a" />
-                  <Bar dataKey="CloudRun" fill="#0284c7" radius={[4, 4, 0, 0]} stackId="a" />
-                  <Bar dataKey="CloudSQL" fill="#059669" radius={[4, 4, 0, 0]} stackId="a" />
-                  <Bar dataKey="Other" fill="#ec4899" radius={[4, 4, 0, 0]} stackId="a" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-
-          {/* Detailed GCP Services Breakdown Table */}
-          <Card className="bg-white border-slate-200/80 shadow-sm rounded-3xl p-6">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Layers className="text-indigo-600" size={20} />
-                  Service Cost Breakdown & Resource Metrics
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Granular unit rates, operating parameters, and month-end cost projections.
-                </p>
-              </div>
-            </div>
-
-            <div className="divide-y divide-slate-100 mt-2">
-              {servicesData.map((svc) => {
-                const IconComponent = svc.icon;
-                return (
-                  <div key={svc.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/60 p-3 rounded-2xl transition-all">
-                    <div className="flex items-start gap-3.5">
-                      <div 
-                        className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-sm mt-0.5"
-                        style={{ backgroundColor: svc.color }}
-                      >
-                        <IconComponent size={20} />
-                      </div>
-
-                      <div className="space-y-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-bold text-slate-900 truncate">{svc.name}</h4>
-                          <Badge variant="outline" className="text-[10px] font-mono py-0 px-2 border-slate-200 text-slate-600 bg-slate-50">
-                            {svc.category}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-slate-500 font-medium">{svc.usageMetric}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">{svc.unitRate}</p>
-                      </div>
-                    </div>
-
-                    <div className="text-left sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                      <div className="text-base font-serif font-black text-slate-900">
-                        ${svc.currentCost.toFixed(2)}
-                      </div>
-                      <p className="text-[10px] font-medium text-slate-400">
-                        Est. Month End: <span className="font-bold text-slate-700">${svc.projectedCost.toFixed(2)}</span>
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-
+      {/* Enabled services list — real data that was fetched but never shown before */}
+      <Card className="bg-white border-slate-200/80 shadow-sm rounded-3xl p-6">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Layers className="text-indigo-600" size={20} />
+              Enabled Google Cloud Services
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">Live from the Service Usage API — no cost figures are computed here.</p>
+          </div>
         </div>
 
-        {/* Right Column (4 Cols): Budget Threshold Controls & Live GCP Audit Log */}
-        <div className="lg:col-span-4 space-y-6">
-          
-          {/* Budget Target & Notification Settings */}
-          <Card className="bg-white border-slate-200/80 shadow-sm rounded-3xl p-6 space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Sliders size={18} className="text-indigo-600" />
-                <h3 className="text-sm font-bold text-slate-900">Budget & Alerts</h3>
+        {!gcpApiData?.apiStatus?.serviceUsageEnabled ? (
+          <div className="py-8 text-center text-sm text-slate-400 font-medium">
+            Service Usage API isn't reachable right now — try Refresh, or check the GCP Console directly.
+          </div>
+        ) : enabledServices.length === 0 ? (
+          <div className="py-8 text-center text-sm text-slate-400 font-medium">No enabled services returned.</div>
+        ) : (
+          <div className="divide-y divide-slate-100 mt-2 max-h-96 overflow-y-auto">
+            {enabledServices.map((svc) => (
+              <div key={svc.name} className="py-3 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-900 truncate">{svc.title || svc.name}</p>
+                  <p className="text-[10px] text-slate-400 font-mono truncate">{svc.name}</p>
+                </div>
+                <Badge variant="outline" className="text-[9px] py-0 border-emerald-200 text-emerald-700 bg-emerald-50 shrink-0">
+                  {svc.state}
+                </Badge>
               </div>
-              <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px]">
-                Active Safeguard
-              </Badge>
-            </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
-            {!isSettingBudget ? (
-              <div className="space-y-4">
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                    Monthly Budget Cap
-                  </span>
-                  <div className="flex items-center justify-between">
-                    <span className="text-2xl font-serif font-black text-slate-900">${monthlyBudget.toFixed(2)}</span>
-                    <Button
-                      onClick={() => {
-                        setTempBudget(monthlyBudget.toString());
-                        setIsSettingBudget(true);
-                      }}
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-xs font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 rounded-xl cursor-pointer"
-                    >
-                      Edit Cap
-                    </Button>
-                  </div>
-                  <p className="text-[10px] text-slate-400">
-                    GCP Cloud Billing notification webhook alerts trigger automatically at threshold limits.
-                  </p>
-                </div>
-
-                {/* Threshold Alert Indicators */}
-                <div className="space-y-2 text-xs font-medium">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                    Alert Triggers
-                  </span>
-
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/50 border border-emerald-200/60 text-emerald-900">
-                    <span className="flex items-center gap-1.5 font-bold">
-                      <CheckCircle2 size={14} className="text-emerald-600" /> 50% Threshold ($175.00)
-                    </span>
-                    <span className="text-[10px] font-bold uppercase text-emerald-700">Passed</span>
-                  </div>
-
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-50/50 border border-amber-200/60 text-amber-900">
-                    <span className="flex items-center gap-1.5 font-bold">
-                      <Bell size={14} className="text-amber-600" /> 80% Threshold ($280.00)
-                    </span>
-                    <span className="text-[10px] font-bold uppercase text-amber-700">Armed</span>
-                  </div>
-
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-rose-50/50 border border-rose-200/60 text-rose-900">
-                    <span className="flex items-center gap-1.5 font-bold">
-                      <AlertTriangle size={14} className="text-rose-600" /> 100% Threshold ($350.00)
-                    </span>
-                    <span className="text-[10px] font-bold uppercase text-rose-700 font-mono">GCP Safeguard</span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4 animate-in fade-in duration-200">
-                <div>
-                  <Label className="text-xs font-bold text-slate-700 mb-1.5 block">New Monthly Target Budget ($)</Label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input
-                      type="number"
-                      value={tempBudget}
-                      onChange={(e) => setTempBudget(e.target.value)}
-                      placeholder="e.g. 500"
-                      className="pl-9 h-11 bg-slate-50 border-slate-200 text-slate-900 font-bold rounded-xl text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    onClick={handleUpdateBudget}
-                    className="flex-1 h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl cursor-pointer"
-                  >
-                    Save Target
-                  </Button>
-                  <Button
-                    onClick={() => setIsSettingBudget(false)}
-                    variant="outline"
-                    className="h-10 border-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-pointer"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            )}
-          </Card>
-
-          {/* Live GCP Activity & Audit Feed */}
-          <Card className="bg-white border-slate-200/80 shadow-sm rounded-3xl p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Activity size={18} className="text-indigo-600" />
-                <h3 className="text-sm font-bold text-slate-900">GCP Resource Audit Stream</h3>
-              </div>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-            </div>
-
-            <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
-              {activityLogs.map((log) => (
-                <div key={log.id} className="p-3 bg-slate-50 border border-slate-100 rounded-2xl space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="font-bold text-indigo-700 font-mono bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
-                      {log.service}
-                    </span>
-                    <span className="text-slate-400 flex items-center gap-1 font-medium">
-                      <Clock size={10} /> {log.timestamp}
-                    </span>
-                  </div>
-
-                  <p className="text-slate-800 font-medium leading-tight text-[11px]">
-                    {log.message}
-                  </p>
-
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[10px]">
-                    <span className="text-slate-400">Impact</span>
-                    <span className="font-mono font-bold text-slate-700">{log.costImpact}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="pt-2 border-t border-slate-100 text-center">
-              <a 
-                href="https://console.cloud.google.com/billing" 
-                target="_blank" 
-                rel="noreferrer"
-                className="text-xs font-bold text-indigo-600 hover:underline inline-flex items-center gap-1"
-              >
-                Open GCP Billing Console <ExternalLink size={12} />
-              </a>
-            </div>
-          </Card>
-
+      {/* Honest pointer to where real cost/budget data actually lives */}
+      <Card className="bg-slate-50 border-slate-200 rounded-3xl p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="text-slate-400 h-5 w-5 shrink-0 mt-0.5" />
+            <p className="text-xs text-slate-600 leading-relaxed max-w-xl">
+              Cost breakdowns, spend trends, and budget alerts require the Cloud Billing Budget API, which this app doesn't integrate with.
+              For real spend and budget alerting, use the GCP Console's Billing section directly.
+            </p>
+          </div>
+          <a
+            href="https://console.cloud.google.com/billing"
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-bold transition-all shadow flex items-center gap-1.5 shrink-0"
+          >
+            Open Billing Console <ExternalLink size={13} />
+          </a>
         </div>
-
-      </div>
-
+      </Card>
     </div>
   );
 };

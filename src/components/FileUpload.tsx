@@ -21,14 +21,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   onUploadSuccess,
   onDeleteSuccess,
   disabled = false,
-  label = "Question Illustration / Diagram"
+  label = 'Question Illustration / Diagram'
 }) => {
   const [dragActive, setDragActive] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
   const [manualUrl, setManualUrl] = useState('');
   const [deleting, setDeleting] = useState(false);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync state or clean preview when imageUrl is updated externally or cleared
@@ -41,9 +41,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
+    if (e.type === 'dragenter' || e.type === 'dragover') {
       setDragActive(true);
-    } else if (e.type === "dragleave") {
+    } else if (e.type === 'dragleave') {
       setDragActive(false);
     }
   };
@@ -71,13 +71,13 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     // Check size limit (5MB)
     const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
-      toast.error("File is too large. Maximum size allowed is 5MB.");
+      toast.error('File is too large. Maximum size allowed is 5MB.');
       return;
     }
 
     // Check type limit
     if (!file.type.startsWith('image/')) {
-      toast.error("Invalid file type. Please upload an image (PNG, JPG, JPEG, GIF).");
+      toast.error('Invalid file type. Please upload an image (PNG, JPG, JPEG, GIF).');
       return;
     }
 
@@ -115,7 +115,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           try {
             const rawText = await response.text();
             if (rawText) errMsg = rawText;
-          } catch {}
+          } catch {
+            // Neither JSON nor text body readable — fall through with the generic errMsg above.
+          }
         }
         throw new Error(errMsg);
       }
@@ -142,25 +144,24 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       xhr.onload = () => {
         if (xhr.status === 200) {
           onUploadSuccess(signData.downloadUrl, signData.publicId);
-          toast.success("Image uploaded securely to Firebase Storage!");
+          toast.success('Image uploaded securely to Firebase Storage!');
         } else {
-          toast.error("Failed to upload: Firebase Storage rejected the upload (status " + xhr.status + ")");
+          toast.error('Failed to upload: Firebase Storage rejected the upload (status ' + xhr.status + ')');
           setLocalPreviewUrl(null); // Clear preview on upload failure
         }
         setUploadProgress(null);
       };
 
       xhr.onerror = () => {
-        toast.error("Network error occurred during image upload.");
+        toast.error('Network error occurred during image upload.');
         setUploadProgress(null);
         setLocalPreviewUrl(null);
       };
 
       xhr.send(file);
-
     } catch (err: any) {
-      toast.error("Upload error: " + err.message);
-      console.error("Direct upload error:", err);
+      toast.error('Upload error: ' + err.message);
+      console.error('Direct upload error:', err);
       setUploadProgress(null);
       setLocalPreviewUrl(null);
     }
@@ -184,14 +185,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       });
 
       if (!response.ok) {
-        throw new Error(await response.text() || 'Failed to delete image');
+        throw new Error((await response.text()) || 'Failed to delete image');
       }
 
       onDeleteSuccess();
       setLocalPreviewUrl(null);
-      toast.success("Image deleted from storage bucket");
+      toast.success('Image deleted from storage bucket');
     } catch (err: any) {
-      toast.error("Failed to delete image: " + err.message);
+      toast.error('Failed to delete image: ' + err.message);
       console.error(err);
     } finally {
       setDeleting(false);
@@ -200,16 +201,16 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
   const handleAddManualUrl = () => {
     if (!manualUrl) {
-      toast.error("Please enter a valid image URL first");
+      toast.error('Please enter a valid image URL first');
       return;
     }
     if (!manualUrl.startsWith('http://') && !manualUrl.startsWith('https://')) {
-      toast.error("URL must start with http:// or https://");
+      toast.error('URL must start with http:// or https://');
       return;
     }
     onUploadSuccess(manualUrl, 'external-url');
     setManualUrl('');
-    toast.success("Added external diagram image URL reference!");
+    toast.success('Added external diagram image URL reference!');
   };
 
   const triggerFileInput = () => {
@@ -228,35 +229,33 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       {displayUrl ? (
         <div className="space-y-3">
           <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white max-w-md mx-auto shadow-md group">
-            <img 
-              src={displayUrl} 
-              alt="Diagram preview" 
+            <img
+              src={displayUrl}
+              alt="Diagram preview"
               className="max-h-56 w-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.02]"
               referrerPolicy="no-referrer"
             />
-            
+
             {/* Upload progress overlay */}
             {uploadProgress !== null && (
               <div className="absolute inset-0 bg-slate-900/60 flex flex-col items-center justify-center p-4">
                 <div className="w-full max-w-xs bg-slate-200/30 rounded-full h-2.5 overflow-hidden shadow">
-                  <div 
-                    className="bg-indigo-500 h-full rounded-full transition-all duration-300 ease-out" 
+                  <div
+                    className="bg-indigo-500 h-full rounded-full transition-all duration-300 ease-out"
                     style={{ width: `${uploadProgress}%` }}
                   ></div>
                 </div>
-                <span className="text-xs font-bold text-white mt-2 animate-pulse drop-shadow">
-                  Uploading: {uploadProgress}%
-                </span>
+                <span className="text-xs font-bold text-white mt-2 animate-pulse drop-shadow">Uploading: {uploadProgress}%</span>
               </div>
             )}
 
             {/* Hover Actions Menu */}
             {uploadProgress === null && (
-              <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                <Button 
-                  type="button" 
-                  variant="destructive" 
-                  size="sm" 
+              <div className="absolute inset-0 bg-slate-900/40 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
                   onClick={handleDelete}
                   disabled={disabled || deleting}
                   className="font-bold flex items-center gap-1.5 shadow-lg cursor-pointer"
@@ -274,65 +273,51 @@ export const FileUpload: React.FC<FileUploadProps> = ({
               </div>
             )}
           </div>
-          
+
           <div className="text-center">
             {imagePublicId === 'external-url' ? (
-              <p className="text-[10px] text-slate-500 font-medium">
-                Using external direct image URL link reference
-              </p>
+              <p className="text-[10px] text-slate-500 font-medium">Using external direct image URL link reference</p>
             ) : (
               imagePublicId && (
                 <p className="text-[10px] text-slate-500 font-mono">
-                  {imagePublicId.startsWith('firebase:') ? 'Stored securely in Firebase Storage' : 'Stored securely on Cloudinary Cloud'} (ID: <code className="bg-slate-100 px-1 py-0.5 rounded font-bold text-indigo-600">{imagePublicId}</code>)
+                  {imagePublicId.startsWith('firebase:') ? 'Stored securely in Firebase Storage' : 'Stored securely on Cloudinary Cloud'}{' '}
+                  (ID: <code className="bg-slate-100 px-1 py-0.5 rounded font-bold text-indigo-600">{imagePublicId}</code>)
                 </p>
               )
             )}
           </div>
         </div>
       ) : (
-        <div 
+        <div
           className={`flex flex-col items-center justify-center py-6 bg-white rounded-xl border border-dashed transition-all p-4 ${
-            dragActive 
-              ? 'border-indigo-500 bg-indigo-50/40 scale-[0.99] shadow-inner' 
-              : 'border-slate-300 hover:border-slate-400'
+            dragActive ? 'border-indigo-500 bg-indigo-50/40 scale-[0.99] shadow-inner' : 'border-slate-300 hover:border-slate-400'
           }`}
           onDragEnter={handleDrag}
           onDragOver={handleDrag}
           onDragLeave={handleDrag}
           onDrop={handleDrop}
         >
-          <input 
-            type="file" 
-            accept="image/*" 
-            ref={fileInputRef}
-            className="hidden" 
-            onChange={handleFileChange}
-            disabled={disabled}
-          />
-          
+          <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleFileChange} disabled={disabled} />
+
           <div className="flex flex-col items-center gap-2 text-center pointer-events-none">
             <div className="p-3 bg-indigo-50 rounded-full text-indigo-600 mb-1">
               <UploadCloud size={24} className={dragActive ? 'animate-bounce' : ''} />
             </div>
-            <p className="text-xs font-bold text-slate-700">
-              Drag and drop diagram image here
-            </p>
-            <p className="text-[11px] text-slate-400">
-              or click below to search local files (max 5MB)
-            </p>
+            <p className="text-xs font-bold text-slate-700">Drag and drop diagram image here</p>
+            <p className="text-[11px] text-slate-400">or click below to search local files (max 5MB)</p>
           </div>
 
           <div className="mt-4 flex flex-col items-center gap-3 w-full">
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={triggerFileInput}
               disabled={disabled}
               className="h-10 px-5 rounded-xl border-indigo-200 text-indigo-950 hover:bg-indigo-50 font-bold flex items-center gap-2 cursor-pointer shadow-sm transition-all"
             >
               <ImagePlus size={16} className="text-indigo-600" /> Choose Diagram File
             </Button>
-            
+
             <div className="flex items-center gap-2 w-full max-w-xs px-4 mt-1">
               <div className="h-[1px] bg-slate-200 flex-1"></div>
               <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">or paste direct image URL</span>
@@ -340,15 +325,15 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             </div>
 
             <div className="flex gap-2 w-full max-w-md px-4">
-              <Input 
-                type="text" 
+              <Input
+                type="text"
                 placeholder="https://example.com/diagram.png"
                 value={manualUrl}
-                onChange={e => setManualUrl(e.target.value)}
+                onChange={(e) => setManualUrl(e.target.value)}
                 disabled={disabled}
                 className="flex-1 h-9 px-3 rounded-xl border border-slate-200 text-xs focus-visible:ring-indigo-500 bg-white"
               />
-              <Button 
+              <Button
                 type="button"
                 size="sm"
                 onClick={handleAddManualUrl}
@@ -359,7 +344,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
               </Button>
             </div>
           </div>
-          
+
           <p className="text-[10px] text-slate-400 mt-3 text-center font-medium">
             Supports PNG, JPG, JPEG, GIF. Paste direct image link if storage upload is not available.
           </p>

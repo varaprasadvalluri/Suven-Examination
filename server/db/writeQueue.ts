@@ -54,13 +54,13 @@ export async function processWriteBatch(batchToProcess: WriteTask[]): Promise<vo
     for (const task of batchToProcess) {
       impactedCollections.add(task.collectionName);
     }
-    impactedCollections.forEach(col => invalidateCache(col));
+    impactedCollections.forEach((col) => invalidateCache(col));
 
     for (const task of batchToProcess) {
       task.resolve({ success: true, id: task.docId });
     }
   } catch (err: any) {
-    console.error("[WRITE CUSHION WARNING] Batch write failed, falling back to sequential writes:", err);
+    console.error('[WRITE CUSHION WARNING] Batch write failed, falling back to sequential writes:', err);
     // Fallback to sequential execution so that non-failing individual writes can still succeed
     for (const task of batchToProcess) {
       try {
@@ -119,17 +119,14 @@ async function flushQueue(): Promise<void> {
   }
 }
 
-setInterval(() => { flushQueue().catch(err => console.error('[WRITE CUSHION] Flush error:', err)); }, 1200);
+setInterval(() => {
+  flushQueue().catch((err) => console.error('[WRITE CUSHION] Flush error:', err));
+}, 1200);
 
 // Enqueues a write task and returns a promise that resolves when the queue flush cycle
 // actually commits it (pure extraction of the inline pattern previously in the
 // /api/db/write route handler — same behavior, just callable from a route module).
-export function enqueueWrite(params: {
-  type: WriteTask['type'];
-  collectionName: string;
-  docId?: string;
-  data?: any;
-}): Promise<any> {
+export function enqueueWrite(params: { type: WriteTask['type']; collectionName: string; docId?: string; data?: any }): Promise<any> {
   return new Promise((resolve, reject) => {
     if (writeQueue.length >= MAX_QUEUE_SIZE) {
       reject(new Error('Write queue is saturated — server is falling behind on database writes. Please retry shortly.'));
@@ -144,6 +141,6 @@ export function enqueueWrite(params: {
       resolve,
       reject
     });
-    flushQueue().catch(err => console.error('[WRITE CUSHION] Flush error:', err));
+    flushQueue().catch((err) => console.error('[WRITE CUSHION] Flush error:', err));
   });
 }
