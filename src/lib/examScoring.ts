@@ -58,11 +58,11 @@ export function scoreExam(questions: Question[], answers: StudentAnswer[], meta:
       score += q.marks;
       correctCount++;
     } else if (studentAns !== null && studentAns !== undefined) {
-      // Negative marking deduction (-1) for incorrect single or multiple choice MCQs
-      if (qType !== 'numerical') {
-        score = Math.max(0, score - 1);
-      }
-
+      // No negative marking — a wrong answer contributes 0, never a deduction. (Previously
+      // deducted a flat -1 regardless of the question's own marks value, which over-penalized
+      // low-marks questions and was the cause of "accuracy nonzero, score zero" reports; removed
+      // entirely rather than rebalanced, per product decision.) Still logged to the error book
+      // either way, for the student's post-exam review.
       errorBookEntries.push({
         studentId: meta.studentId,
         examId: meta.examId,

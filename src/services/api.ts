@@ -917,6 +917,45 @@ export const attemptsService = {
       ...data,
       updatedAt: serverTimestamp()
     });
+  },
+
+  // Direct call to GET /api/v1/attempts (server/routes/v1/AttemptController.ts) — bypasses
+  // the apiService Firestore-shim so `total` comes back in the same round trip as `items`,
+  // replacing the old getCountFromServer + separate getDocs sample pattern.
+  async list(params: {
+    examId?: string;
+    schoolId?: string;
+    studentId?: string;
+    status?: string;
+    sortBy?: 'startTime' | 'score' | 'endTime';
+    page?: number;
+    pageSize?: number;
+  }): Promise<PagedResult<{ id: string; data: any }>> {
+    const qs = new URLSearchParams();
+    if (params.examId) qs.set('examId', params.examId);
+    if (params.schoolId) qs.set('schoolId', params.schoolId);
+    if (params.studentId) qs.set('studentId', params.studentId);
+    if (params.status) qs.set('status', params.status);
+    if (params.sortBy) qs.set('sortBy', params.sortBy);
+    qs.set('page', String(params.page || 1));
+    qs.set('pageSize', String(params.pageSize || 10));
+    const payload = await safeFetchJson(`/api/v1/attempts?${qs.toString()}`);
+    return payload.data;
+  },
+
+  // POST /api/v1/schools/:schoolId/exams/:examId/attempts/trigger — runs the skip/re-enable/
+  // new-invite decision server-side for a batch of students. Replaces
+  // SchoolStudentOnboarding.tsx's client-built writeBatch for this operation.
+  async triggerLinks(
+    schoolId: string,
+    examId: string,
+    studentIds: string[]
+  ): Promise<{ success: boolean; triggered: number; reTriggered: number; skipped: number; failed: number }> {
+    return safeFetchJson(`/api/v1/schools/${schoolId}/exams/${examId}/attempts/trigger`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentIds })
+    });
   }
 };
 

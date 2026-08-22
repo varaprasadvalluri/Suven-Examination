@@ -23,6 +23,7 @@ import {
 } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { authHeaders } from '../lib/sessionStore';
+import { attemptsService } from '../services/api';
 import { SchoolCandidateOnboarding } from './SchoolCandidateOnboarding';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -364,40 +365,31 @@ export const SchoolStudentOnboarding: React.FC = () => {
     };
   }, [students, profile?.schoolId]);
 
-  // Subscribe to ONLY the attempts of the students currently displayed on the page for the selected exam
+  // Subscribe to every attempt for this school+exam (all of this school's students, one
+  // query — replaces the old chunked `studentId in [...]` subscriptions, which needed
+  // chunking only because Firestore's `in` operator caps at 30 values; GET /api/v1/attempts
+  // has no such limit since it filters server-side by schoolId+examId directly). The
+  // component's own currentAttempts.find(studentId===...) matching below is unchanged.
   useEffect(() => {
     if (!profile?.schoolId || students.length === 0 || !selectedExamId || selectedExamId === 'none') {
       setCurrentAttempts([]);
       return;
     }
 
-    const studentIds = students.map((student) => student.uid || student.id);
-    const chunkSize = 30; // Firestore IN limit
-    const unsubscribes: (() => void)[] = [];
+    const qAttempts = query(collection(db, 'attempts'), where('examId', '==', selectedExamId), where('schoolId', '==', profile.schoolId));
 
-    for (let i = 0; i < studentIds.length; i += chunkSize) {
-      const chunk = studentIds.slice(i, i + chunkSize);
-      const qAttempts = query(collection(db, 'attempts'), where('examId', '==', selectedExamId), where('studentId', 'in', chunk));
+    const unsub = onSnapshot(
+      qAttempts,
+      (snap) => {
+        const fetched = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setCurrentAttempts(fetched);
+      },
+      (error) => {
+        console.error('Error reading attempts:', error);
+      }
+    );
 
-      const unsub = onSnapshot(
-        qAttempts,
-        (snap) => {
-          const fetched = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-          setCurrentAttempts((prev) => {
-            const filteredPrev = prev.filter((existingAttempt) => !chunk.includes(existingAttempt.studentId));
-            return [...filteredPrev, ...fetched];
-          });
-        },
-        (error) => {
-          console.error('Error reading attempts chunk:', error);
-        }
-      );
-      unsubscribes.push(unsub);
-    }
-
-    return () => {
-      unsubscribes.forEach((unsub) => unsub());
-    };
+    return () => unsub();
   }, [students, selectedExamId, profile?.schoolId]);
 
   // Dynamic secure exam link subscription
@@ -798,80 +790,22 @@ export const SchoolStudentOnboarding: React.FC = () => {
     setIsBulkTriggering(true);
     const toastId = toast.loading(`Triggering "${exam.title}" for ${targets.length} selected student(s)...`);
 
-    let newCount = 0;
-    let reTriggerCount = 0;
-    let skippedCount = 0;
-
     try {
-      const batch = writeBatch(db);
-      const now = new Date().toISOString();
+      // POST /api/v1/schools/:schoolId/exams/:examId/attempts/trigger runs the whole
+      // skip/re-enable/new-invite decision server-side, per student, via Promise.allSettled —
+      // replaces the old client-built writeBatch, which committed as a sequential loop of
+      // /api/db/write calls with no real atomicity and trusted the client's own decision tree.
+      const studentIds = targets.map((student) => student.uid || student.id);
+      const result = await attemptsService.triggerLinks(profile?.schoolId || '', selectedExamId, studentIds);
 
-      targets.forEach((student) => {
-        const studentId = student.uid || student.id;
-        const attempt = currentAttempts.find((attempt) => attempt.studentId === studentId && attempt.examId === selectedExamId);
-        const existingInvite = invitations.find((inv) => inv.studentId === studentId && inv.examId === selectedExamId);
-
-        if (
-          attempt?.status === 'started' ||
-          attempt?.status === 'in-progress' ||
-          (attempt?.status === 'completed' && attempt.canReattempt)
-        ) {
-          // Already mid-exam, or already re-enabled and waiting on the student — nothing to do.
-          skippedCount++;
-          return;
-        }
-
-        if (attempt?.status === 'completed' && !attempt.canReattempt) {
-          batch.update(doc(db, 'attempts', attempt.id), { canReattempt: true });
-          if (existingInvite) {
-            batch.update(doc(db, 'invitations', existingInvite.id), { status: 'sent' });
-          } else {
-            const secureToken = crypto.randomUUID();
-            batch.set(doc(db, 'invitations', secureToken), {
-              id: secureToken,
-              studentId,
-              studentName: student.name,
-              studentEmail: student.email || '',
-              examId: exam.id,
-              examTitle: exam.title,
-              schoolId: profile?.schoolId || null,
-              status: 'sent',
-              createdAt: now
-            });
-          }
-          reTriggerCount++;
-          return;
-        }
-
-        if (existingInvite) {
-          // Already has an untouched pending link for this exam — nothing new to send.
-          skippedCount++;
-          return;
-        }
-
-        const secureToken = crypto.randomUUID();
-        batch.set(doc(db, 'invitations', secureToken), {
-          id: secureToken,
-          studentId,
-          studentName: student.name,
-          studentEmail: student.email || '',
-          examId: exam.id,
-          examTitle: exam.title,
-          schoolId: profile?.schoolId || null,
-          status: 'sent',
-          createdAt: now
-        });
-        newCount++;
-      });
-
-      if (newCount + reTriggerCount === 0) {
+      if (result.triggered + result.reTriggered === 0) {
         toast.info('Nothing to trigger — every selected student already has an active link or is mid-exam.', { id: toastId });
       } else {
-        await batch.commit();
         const parts: string[] = [];
-        if (newCount) parts.push(`${newCount} triggered`);
-        if (reTriggerCount) parts.push(`${reTriggerCount} re-triggered`);
-        if (skippedCount) parts.push(`${skippedCount} already active (skipped)`);
+        if (result.triggered) parts.push(`${result.triggered} triggered`);
+        if (result.reTriggered) parts.push(`${result.reTriggered} re-triggered`);
+        if (result.skipped) parts.push(`${result.skipped} already active (skipped)`);
+        if (result.failed) parts.push(`${result.failed} failed`);
         toast.success(parts.join(', ') + '.', { id: toastId });
       }
       setSelectedStudentIds(new Set());

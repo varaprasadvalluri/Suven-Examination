@@ -233,7 +233,49 @@ function isExactWhere(c: any, field: string, op: string, value?: any) {
   return c && c.type === 'where' && c.field === field && c.op === op && (value === undefined || c.value === value);
 }
 
+const ATTEMPTS_FILTER_FIELDS = new Set(['examId', 'schoolId', 'studentId', 'status']);
+// Must match server/dao/pagination.ts's MAX_PAGE_SIZE — a limit() above this would silently
+// get truncated server-side (normalizePageParams caps it), which is exactly the "near-match
+// routed to the wrong result" case this matcher is deliberately narrow to avoid. A caller
+// asking for more than this (e.g. RankingEngine's 5000-row display cap) falls through to the
+// generic proxy unchanged rather than risk a silent truncation regression.
+const ATTEMPTS_MAX_LIMIT = 200;
+
+// True only if every constraint is either an `==` where on one of the fixed attempts filter
+// fields, a single orderBy, or a single limit within ATTEMPTS_MAX_LIMIT — i.e. exactly the
+// shape GET /api/v1/attempts supports. Anything else (startAfter-based cursor pagination, an
+// unsupported field, a second orderBy, an oversized limit) falls through to the generic
+// proxy unchanged.
+function isAttemptsListShape(constraints: any[]): boolean {
+  let orderByCount = 0;
+  let limitCount = 0;
+  for (const c of constraints) {
+    if (c.type === 'where') {
+      if (c.op !== '==' || !ATTEMPTS_FILTER_FIELDS.has(c.field)) return false;
+    } else if (c.type === 'orderBy') {
+      orderByCount++;
+      if (orderByCount > 1 || !['startTime', 'score', 'endTime'].includes(c.field)) return false;
+    } else if (c.type === 'limit') {
+      limitCount++;
+      if (limitCount > 1 || c.value > ATTEMPTS_MAX_LIMIT) return false;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
 async function tryNamedGetDocs(collectionName: string, constraints: any[]): Promise<any | null> {
+  if (collectionName === 'attempts' && isAttemptsListShape(constraints)) {
+    const params = new URLSearchParams();
+    for (const c of constraints) {
+      if (c.type === 'where') params.set(c.field, c.value);
+      else if (c.type === 'orderBy') params.set('sortBy', c.field);
+      else if (c.type === 'limit') params.set('pageSize', String(c.value));
+    }
+    const payload = await safeFetchJson(`/api/v1/attempts?${params.toString()}`);
+    return wrapDocsResult((payload.data?.items || []).map((item: any) => ({ id: item.id, data: item.data })));
+  }
   if (collectionName === 'schools' && constraints.length === 0) {
     const payload = await safeFetchJson('/api/v1/schools');
     return wrapDocsResult(payload.data || []);
@@ -330,14 +372,26 @@ export async function setDoc(docRef: any, data: any, options?: any) {
 
 // Core standard UPDATE document write
 export async function updateDoc(docRef: any, data: any) {
-  // Named-route fast path: the final exam-submission write only (attempts + status:'completed').
-  // Every other attempts write (autosave, timePerQuestion ticks, status:'in-progress',
-  // proctoring/violation updates) stays on the generic proxy below, unchanged — those aren't
-  // what server/routes/attempts.ts's submit endpoint implements, and force-fitting them would
-  // risk the dup-submission lock / ownership check firing on writes it was never meant to gate.
+  // Named-route fast path: the final exam-submission write (attempts + status:'completed')
+  // goes through /submit specifically — that's the only path with the dup-submission lock
+  // and server-side score recomputation. Every other attempts write falls to the PATCH
+  // fast path just below instead.
   if (docRef.collectionName === 'attempts' && data && data.status === 'completed') {
     await safeFetchJson(`/api/v1/attempts/${encodeURIComponent(docRef.id)}/submit`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    dispatchDbWrite(docRef.collectionName, 'update', docRef.id);
+    return { success: true };
+  }
+
+  // Every other attempts write (autosave, timePerQuestion ticks, status:'in-progress',
+  // proctoring/violation counts, canReattempt) — PATCH /api/v1/attempts/:id rejects
+  // status:'completed' itself, so the fast path above always wins for that case.
+  if (docRef.collectionName === 'attempts') {
+    await safeFetchJson(`/api/v1/attempts/${encodeURIComponent(docRef.id)}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });

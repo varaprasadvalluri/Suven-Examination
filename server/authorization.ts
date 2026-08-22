@@ -43,7 +43,6 @@ export const COLLECTION_ACCESS: Record<string, { read: ProxyRole[]; write: Proxy
   invitations: { read: ['admin', 'school'], write: ['admin', 'school'] },
   notifications_queue: { read: ['admin'], write: ['admin'] },
   proctoring_logs: { read: ['admin', 'school'], write: ['admin', 'school', 'student'] },
-  error_book: { read: ['admin', 'school'], write: ['admin', 'school'] },
   error_books: { read: ['admin', 'school', 'student'], write: ['admin', 'school', 'student'] },
   benchmarks: { read: ['admin'], write: ['admin'] },
   secure_exam_links: { read: ['admin', 'school', 'student'], write: ['admin', 'school'] },
@@ -275,9 +274,9 @@ class AuthorizationService {
 
     // Generic tenant-scoped collections: attempts, invitations, proctoring_logs, error_books,
     // secure_exam_links, report_jobs, syllabus. school scoped by schoolId, student by studentId.
-    // Collections allowed in COLLECTION_ACCESS but with no scope field defined (e.g. error_book,
-    // singular — deleted by studentId+examId, not schoolId) are trusted as-is: the caller
-    // already had to reach a specific docId/query through a properly-scoped read elsewhere.
+    // Collections allowed in COLLECTION_ACCESS but with no scope field defined (e.g. benchmarks,
+    // notifications_queue) are trusted as-is: the caller already had to reach a specific
+    // docId/query through a properly-scoped read elsewhere.
     const scopeField = this.scopeFieldFor(collectionName, auth.role as ProxyRole);
     if (!scopeField) {
       return { ok: true, data };

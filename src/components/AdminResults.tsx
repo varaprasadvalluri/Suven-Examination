@@ -1,20 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
-import {
-  db,
-  doc,
-  getDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-  limit,
-  startAfter,
-  getCountFromServer,
-  orderBy,
-  deleteDoc
-} from '../lib/firebase';
+import { db, doc, getDoc, collection, query, where, getDocs, deleteDoc } from '../lib/firebase';
+import { attemptsService } from '../services/api';
 import { Attempt, Exam } from '../types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Button } from './ui/button';
@@ -41,7 +29,6 @@ export const AdminResults: React.FC = () => {
 
   // Additional states for millions scale pagination and sample analytics
   const [totalAttemptsCount, setTotalAttemptsCount] = useState<number>(0);
-  const [lastVisibleDocs, setLastVisibleDocs] = useState<any[]>([]);
   const [analyticsAttempts, setAnalyticsAttempts] = useState<Attempt[]>([]);
   const [loadingList, setLoadingList] = useState(false);
 
@@ -70,25 +57,19 @@ export const AdminResults: React.FC = () => {
         const qsSnap = await getDocs(qQs);
         setQuestions(qsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
 
-        // Build base attempts query
-        let baseQ = query(collection(db, 'attempts'), where('examId', '==', examId), where('status', '==', 'completed'));
-        if (profile?.schoolId) {
-          baseQ = query(
-            collection(db, 'attempts'),
-            where('examId', '==', examId),
-            where('status', '==', 'completed'),
-            where('schoolId', '==', profile.schoolId)
-          );
-        }
-
-        // 1. Get exact total count for participants badge and pagination
-        const countSnap = await getCountFromServer(baseQ);
-        setTotalAttemptsCount(countSnap.data().count);
-
-        // 2. Fetch a statistical subset (limit 200) for calculating high-fidelity question analytics and average scores
-        const sampleQ = query(baseQ, orderBy('score', 'desc'), limit(200));
-        const sampleSnap = await getDocs(sampleQ);
-        setAnalyticsAttempts(sampleSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Attempt));
+        // One call gets both the exact total (for the participants badge/pagination) and a
+        // 200-row sample (sorted by score) for question-analytics/average-score calculations —
+        // replaces the old separate getCountFromServer + getDocs(limit(200)) round trips.
+        const sample = await attemptsService.list({
+          examId,
+          status: 'completed',
+          schoolId: profile?.schoolId || undefined,
+          sortBy: 'score',
+          page: 1,
+          pageSize: 200
+        });
+        setTotalAttemptsCount(sample.total);
+        setAnalyticsAttempts(sample.items.map((item) => ({ id: item.id, ...item.data }) as Attempt));
       } catch (error) {
         console.error('Error loading exam statistics: ', error);
         toast.error('Failed to load results metadata and metrics');
@@ -106,43 +87,15 @@ export const AdminResults: React.FC = () => {
     const fetchListPage = async () => {
       setLoadingList(true);
       try {
-        let listQ = query(
-          collection(db, 'attempts'),
-          where('examId', '==', examId),
-          where('status', '==', 'completed'),
-          orderBy('score', 'desc'),
-          limit(pageSize)
-        );
-        if (profile?.schoolId) {
-          listQ = query(
-            collection(db, 'attempts'),
-            where('examId', '==', examId),
-            where('status', '==', 'completed'),
-            where('schoolId', '==', profile.schoolId),
-            orderBy('score', 'desc'),
-            limit(pageSize)
-          );
-        }
-
-        if (page > 1) {
-          const cursorDoc = lastVisibleDocs[page - 2];
-          if (cursorDoc) {
-            listQ = query(listQ, startAfter(cursorDoc));
-          }
-        }
-
-        const listSnap = await getDocs(listQ);
-        const fetched = listSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Attempt);
-        setAttempts(fetched);
-
-        if (listSnap.docs.length > 0) {
-          const lastDoc = listSnap.docs[listSnap.docs.length - 1];
-          setLastVisibleDocs((prev) => {
-            const updated = [...prev];
-            updated[page - 1] = lastDoc;
-            return updated;
-          });
-        }
+        const listPage = await attemptsService.list({
+          examId,
+          status: 'completed',
+          schoolId: profile?.schoolId || undefined,
+          sortBy: 'score',
+          page,
+          pageSize
+        });
+        setAttempts(listPage.items.map((item) => ({ id: item.id, ...item.data }) as Attempt));
       } catch (error) {
         console.error('Error fetching list page:', error);
         toast.error('Failed to load page of results');
@@ -194,12 +147,16 @@ export const AdminResults: React.FC = () => {
         await deleteDoc(doc(db, 'proctoring_logs', logDoc.id));
       }
 
-      // 3. Delete related error book entries for this student & exam
+      // 3. Delete related error book entries for this student & exam. Collection is
+      // 'error_books' (plural) — everywhere else in the app (ExamInterface.tsx's writer,
+      // idGenerator.ts, StudentController/SchoolController's cascade-delete) already agrees on
+      // that name; this read+delete previously targeted the singular 'error_book', which no
+      // writer ever used, so reset-attempt cleanup silently never deleted the real entries.
       if (studentId && examId) {
-        const errorBookQuery = query(collection(db, 'error_book'), where('studentId', '==', studentId), where('examId', '==', examId));
+        const errorBookQuery = query(collection(db, 'error_books'), where('studentId', '==', studentId), where('examId', '==', examId));
         const errorBookSnap = await getDocs(errorBookQuery);
         for (const ebDoc of errorBookSnap.docs) {
-          await deleteDoc(doc(db, 'error_book', ebDoc.id));
+          await deleteDoc(doc(db, 'error_books', ebDoc.id));
         }
       }
 

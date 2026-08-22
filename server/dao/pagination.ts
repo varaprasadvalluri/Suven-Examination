@@ -16,7 +16,10 @@ export interface PagedResult<T> {
 }
 
 export const DEFAULT_PAGE_SIZE = 10;
-export const MAX_PAGE_SIZE = 100;
+// 200 (not 100) so the analytics "sample" fetches used by AdminResults/SchoolDashboard/
+// RankingEngine (each request a 200-row sample in one page) don't need to be split into two
+// requests just to stay under the cap.
+export const MAX_PAGE_SIZE = 200;
 
 export function normalizePageParams(raw: { page?: any; pageSize?: any }): PageParams {
   let page = parseInt(raw.page, 10);

@@ -1,20 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import {
-  db,
-  doc,
-  getDoc,
-  collection,
-  query,
-  where,
-  orderBy,
-  limit,
-  startAfter,
-  getDocs,
-  getCountFromServer,
-  handleFirestoreError,
-  OperationType
-} from '../lib/firebase';
+import { db, doc, getDoc, handleFirestoreError, OperationType } from '../lib/firebase';
+import { attemptsService } from '../services/api';
 import { useAuth } from '../lib/AuthContext';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
@@ -36,7 +23,6 @@ export const StudentExamHistory: React.FC = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [lastVisibleDocs, setLastVisibleDocs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,7 +38,6 @@ export const StudentExamHistory: React.FC = () => {
   useEffect(() => {
     if (!studentId) return;
     setPage(1);
-    setLastVisibleDocs([]);
   }, [studentId, pageSize]);
 
   useEffect(() => {
@@ -62,37 +47,15 @@ export const StudentExamHistory: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const countQ = query(collection(db, 'attempts'), where('studentId', '==', studentId), where('status', '==', 'completed'));
-        const countSnap = await getCountFromServer(countQ);
-        setTotalCount(countSnap.data().count);
-
-        let attemptsQ = query(
-          collection(db, 'attempts'),
-          where('studentId', '==', studentId),
-          where('status', '==', 'completed'),
-          orderBy('endTime', 'desc'),
-          limit(pageSize)
-        );
-
-        if (page > 1) {
-          const cursorDoc = lastVisibleDocs[page - 2];
-          if (cursorDoc) {
-            attemptsQ = query(attemptsQ, startAfter(cursorDoc));
-          }
-        }
-
-        const snap = await getDocs(attemptsQ);
-        const fetched = snap.docs.map((attemptDoc) => ({ id: attemptDoc.id, ...attemptDoc.data() }));
-        setAttempts(fetched);
-
-        if (snap.docs.length > 0) {
-          const lastDoc = snap.docs[snap.docs.length - 1];
-          setLastVisibleDocs((prev) => {
-            const updated = [...prev];
-            updated[page - 1] = lastDoc;
-            return updated;
-          });
-        }
+        const result = await attemptsService.list({
+          studentId,
+          status: 'completed',
+          sortBy: 'endTime',
+          page,
+          pageSize
+        });
+        setTotalCount(result.total);
+        setAttempts(result.items.map((item) => ({ id: item.id, ...item.data })));
       } catch (err) {
         handleFirestoreError(err, OperationType.LIST, 'attempts');
         setError('Failed to load exam history.');

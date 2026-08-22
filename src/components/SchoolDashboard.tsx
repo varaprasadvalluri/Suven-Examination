@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { db, handleFirestoreError, OperationType, collection, query, where, doc, getDoc, getDocs, limit, orderBy, getCountFromServer } from '../lib/firebase';
+import { attemptsService } from '../services/api';
 import { useAuth } from '../lib/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AdminExams } from './AdminExams';
@@ -115,9 +116,8 @@ export const SchoolDashboard: React.FC = () => {
         const invitesCountSnap = await getCountFromServer(invitesCountQuery);
         setInvitationsCount(invitesCountSnap.data().count);
 
-        const attemptsCountQuery = query(collection(db, 'attempts'), where('schoolId', '==', schoolId));
-        const attemptsCountSnap = await getCountFromServer(attemptsCountQuery);
-        setAttemptsCount(attemptsCountSnap.data().count);
+        // attempts count + sample come from one call now (GET /api/v1/attempts) instead of a
+        // separate getCountFromServer + getDocs(limit(200)) pair — see attemptsService.list.
 
         // 3. Fetch statistical samples (up to 200 records each for rapid dashboard trend calculation)
         const studentsSampleQuery = query(
@@ -133,9 +133,9 @@ export const SchoolDashboard: React.FC = () => {
         const invitesSnap = await getDocs(invitesSampleQuery);
         setInvitations(invitesSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
 
-        const attemptsSampleQuery = query(collection(db, 'attempts'), where('schoolId', '==', schoolId), limit(200));
-        const attemptsSnap = await getDocs(attemptsSampleQuery);
-        setAttempts(attemptsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+        const attemptsSample = await attemptsService.list({ schoolId, page: 1, pageSize: 200 });
+        setAttemptsCount(attemptsSample.total);
+        setAttempts(attemptsSample.items.map((item) => ({ id: item.id, ...item.data })));
 
         const examsQuery = query(collection(db, 'exams'), limit(150));
         const examsSnap = await getDocs(examsQuery);
