@@ -3,18 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useDbObserver, GlobalDbSubject } from '../lib/observerPattern';
 import {
   db,
-  handleFirestoreError,
   setDoc,
-  OperationType,
   collection,
   query,
   orderBy,
-  onSnapshot,
-  addDoc,
   updateDoc,
-  deleteDoc,
   doc,
-  serverTimestamp,
   getDocs,
   limit,
   startAfter,
@@ -30,26 +24,18 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';
-import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from './ui/sheet';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { useAcademicLevels } from '../hooks/useNamedList';
 import { ManageNamedListDialog } from './ManageNamedListDialog';
 import {
   Plus,
   Building2,
-  Mail,
-  Globe,
   Search,
-  Shield,
   X,
-  Check,
-  MoreVertical,
   LayoutGrid,
   List as ListIcon,
   ShieldCheck,
   MailCheck,
-  Fingerprint,
   Edit,
   Trash,
   MapPin
@@ -152,29 +138,6 @@ export const AdminSchoolManagement: React.FC = () => {
   const setPage = setSchoolPage;
   const pageSize = schoolPageSize;
   const setPageSize = setSchoolPageSize;
-
-  // Create School Form Data State
-  const [formData, setFormData] = useState<{
-    name: string;
-    adminEmail: string;
-    allowedDomains: string[];
-    status: 'active' | 'inactive';
-    authPolicy: AuthPolicy;
-    region: string;
-    totalStudents: string;
-    attendanceRate: string;
-    avgScore: string;
-  }>({
-    name: '',
-    adminEmail: '',
-    allowedDomains: [],
-    status: 'active',
-    authPolicy: 'both',
-    region: '',
-    totalStudents: '',
-    attendanceRate: '',
-    avgScore: ''
-  });
 
   // Edit School States
   const [editSchool, setEditSchool] = useState<School | null>(null);
@@ -352,58 +315,6 @@ export const AdminSchoolManagement: React.FC = () => {
 
     fetchRealScores();
   }, [schools]);
-
-  // CRUD Operation: CREATE (Onboard School)
-  const handleCreateSchool = async () => {
-    if (!formData.name || !formData.adminEmail) {
-      toast.error('Validation failed: School name and admin email are required');
-      return;
-    }
-
-    if (formData.name.trim().length < 3) {
-      toast.error('Validation failed: School center name must be at least 3 characters long');
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.adminEmail)) {
-      toast.error('Validation failed: Administrator email is not of a valid format');
-      return;
-    }
-
-    try {
-      // Create Doc Query
-      await addDoc(collection(db, 'schools'), {
-        name: formData.name,
-        adminEmail: formData.adminEmail,
-        allowedDomains: formData.allowedDomains,
-        status: formData.status,
-        authPolicy: formData.authPolicy,
-        region: formData.region.trim() || 'Central Zone',
-        totalStudents: Number(formData.totalStudents) || 120,
-        attendanceRate: Number(formData.attendanceRate) || 97.4,
-        avgScore: Number(formData.avgScore) || 75.8,
-        createdAt: new Date().toISOString()
-      });
-
-      toast.success('School onboarded successfully');
-      setIsSheetOpen(false);
-      setFormData({
-        name: '',
-        adminEmail: '',
-        allowedDomains: [],
-        status: 'active',
-        authPolicy: 'both',
-        region: '',
-        totalStudents: '',
-        attendanceRate: '',
-        avgScore: ''
-      });
-      setPage(1); // Reset to first page
-    } catch (error) {
-      toast.error('Failed to onboard school');
-    }
-  };
 
   // CRUD Operation: UPDATE
   const handleUpdateSchool = async () => {

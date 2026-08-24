@@ -1,4 +1,5 @@
 import express from 'express';
+import { randomUUID } from 'node:crypto';
 import { verifyFirebaseIdToken, signSessionToken } from '../auth/tokens';
 import { requireSession } from '../auth/middleware';
 import {
@@ -232,11 +233,18 @@ router.post(
       finalProfile = updatedProfile;
     }
 
+    // One-device-at-a-time: this fresh login becomes the only valid session for this user —
+    // see server/auth/middleware.ts's resolveAuth, which checks a token's sessionId against
+    // this same field on every subsequent request.
+    const sessionId = randomUUID();
+    await clientUpdateDoc(userRef, { activeSessionId: sessionId });
+
     const sessionToken = signSessionToken({
       uid,
       role: finalProfile.role,
       schoolId: finalProfile.schoolId || null,
-      email: emailLower
+      email: emailLower,
+      sessionId
     });
 
     return res.status(200).json({
@@ -382,6 +390,7 @@ router.post(
           : ['take_exams'];
 
     const userRef = clientDoc(clientDb, 'users', uid);
+    const sessionId = randomUUID();
     const newProfile = {
       uid,
       name,
@@ -389,6 +398,7 @@ router.post(
       role,
       permissions,
       createdAt: new Date().toISOString(),
+      activeSessionId: sessionId,
       ...(validSchoolId ? { schoolId: validSchoolId } : {})
     };
 
@@ -398,7 +408,8 @@ router.post(
       uid,
       role,
       schoolId: validSchoolId || null,
-      email: emailLower
+      email: emailLower,
+      sessionId
     });
 
     return res.status(200).json({

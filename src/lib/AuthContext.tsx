@@ -78,7 +78,7 @@ const runWithRetry = async <T,>(
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
     try {
-      const local = localStorage.getItem('invite_student_profile');
+      const local = sessionStorage.getItem('invite_student_profile');
       if (local) {
         const parsed = JSON.parse(local);
         if (parsed && parsed.uid) {
@@ -86,31 +86,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     } catch (e) {
-      console.warn('Failed to parse invite_student_profile from localStorage:', e);
-      localStorage.removeItem('invite_student_profile');
+      console.warn('Failed to parse invite_student_profile from sessionStorage:', e);
+      sessionStorage.removeItem('invite_student_profile');
     }
     return null;
   });
   const [profile, setProfile] = useState<UserProfile | null>(() => {
     try {
-      const local = localStorage.getItem('invite_student_profile');
+      const local = sessionStorage.getItem('invite_student_profile');
       if (local) {
         return JSON.parse(local);
       }
     } catch (e) {
-      console.warn('Failed to parse invite_student_profile from localStorage:', e);
-      localStorage.removeItem('invite_student_profile');
+      console.warn('Failed to parse invite_student_profile from sessionStorage:', e);
+      sessionStorage.removeItem('invite_student_profile');
     }
     return null;
   });
   const [loading, setLoading] = useState(() => {
     try {
-      const local = localStorage.getItem('invite_student_profile');
+      const local = sessionStorage.getItem('invite_student_profile');
       if (local && JSON.parse(local)) {
         return false;
       }
     } catch {
-      // Malformed localStorage value — fall through to the default `loading: true` below.
+      // Malformed sessionStorage value — fall through to the default `loading: true` below.
     }
     return true;
   });
@@ -159,7 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    if (localStorage.getItem('invite_student_profile')) {
+    if (sessionStorage.getItem('invite_student_profile')) {
       setLoading(false);
       return;
     }
@@ -191,7 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const signInWithGoogle = async (remember: boolean = true) => {
+  const signInWithGoogle = async (remember: boolean = false) => {
     try {
       await firebaseSignInWithGoogle(remember);
     } catch (err: any) {
@@ -201,7 +201,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signInWithEmail = async (email: string, pass: string, remember: boolean = true) => {
+  const signInWithEmail = async (email: string, pass: string, remember: boolean = false) => {
     await runWithRetry(async () => {
       await firebaseSignInWithEmail(email, pass, remember);
     });

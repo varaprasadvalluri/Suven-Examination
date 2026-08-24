@@ -79,7 +79,11 @@ export const LoginPage: React.FC = () => {
   const [signUpEmailTouched, setSignUpEmailTouched] = useState(false);
   const [signUpPasswordTouched, setSignUpPasswordTouched] = useState(false);
 
-  const [rememberMe, setRememberMe] = useState(true);
+  // Default OFF: a closed app/browser should log the user out, not silently stay signed in.
+  // Checking this explicitly opts into Firebase's browserLocalPersistence (survives close);
+  // unchecked (the default) uses browserSessionPersistence instead — see signInWithGoogle/
+  // signInWithEmail in src/lib/firebase.ts.
+  const [rememberMe, setRememberMe] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Direct student login (no exam link/invite): name + roll/register number + date of
@@ -318,12 +322,12 @@ export const LoginPage: React.FC = () => {
     }
 
     const {
-      matchedStudentId,
       matchedStudentData,
       finalSchoolId,
       finalExamId,
       examTitle: targetExamTitle,
-      isFallback
+      isFallback,
+      verificationTicket
     } = inviteVerifiedPayload;
 
     setIsVerifyingDetails(true);
@@ -339,7 +343,6 @@ export const LoginPage: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          matchedStudentId,
           matchedStudentData,
           username: enteredName.trim(),
           rollNumber: enteredRoll.trim(),
@@ -348,14 +351,15 @@ export const LoginPage: React.FC = () => {
           examTitle: targetExamTitle,
           clientFootprint,
           inviteToken,
-          inviteIsFallback: isFallback
+          inviteIsFallback: isFallback,
+          verificationTicket
         })
       });
       const enrollPayload = await enrollRes.json();
 
       if (!enrollRes.ok || !enrollPayload.success) {
         if (enrollPayload.code === 'EXAM_ALREADY_COMPLETED' && enrollPayload.attemptIdRaw) {
-          localStorage.setItem('invite_student_profile', JSON.stringify(matchedStudentData));
+          sessionStorage.setItem('invite_student_profile', JSON.stringify(matchedStudentData));
           toast.success(`Welcome back, ${matchedStudentData.name}! This assessment was already submitted. Redirecting to results...`, {
             id: toastId
           });
@@ -370,7 +374,7 @@ export const LoginPage: React.FC = () => {
       if (enrollPayload.sessionToken) {
         setSessionToken(enrollPayload.sessionToken);
       }
-      localStorage.setItem('invite_student_profile', JSON.stringify(enrollPayload.finalStudentProfile || matchedStudentData));
+      sessionStorage.setItem('invite_student_profile', JSON.stringify(enrollPayload.finalStudentProfile || matchedStudentData));
 
       const name = (enrollPayload.finalStudentProfile || matchedStudentData)?.name;
       if (enrollPayload.attemptAction === 'reattempted') {
@@ -465,10 +469,10 @@ export const LoginPage: React.FC = () => {
     try {
       const payload = await gatekeeperApi.studentLogin(studentLoginName.trim(), studentLoginRoll.trim(), studentLoginDob.trim());
       setSessionToken(payload.sessionToken);
-      localStorage.setItem('invite_student_profile', JSON.stringify(payload.profileData));
+      sessionStorage.setItem('invite_student_profile', JSON.stringify(payload.profileData));
       toast.success(`Welcome back, ${payload.profileData?.name}!`, { id: toastId });
       // Full reload (not client-side navigate) so AuthContext re-hydrates `profile` from the
-      // localStorage entry just written above — same pattern the invite/link-entry flows use.
+      // sessionStorage entry just written above — same pattern the invite/link-entry flows use.
       window.location.href = '/student/dashboard';
     } catch (err: any) {
       toast.error(err?.message || 'Student login failed', { id: toastId });

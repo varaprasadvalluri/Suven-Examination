@@ -91,7 +91,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-export const signInWithGoogle = async (remember: boolean = true) => {
+export const signInWithGoogle = async (remember: boolean = false) => {
   try {
     await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
     const credential = await signInWithPopup(auth, googleProvider);
@@ -102,7 +102,7 @@ export const signInWithGoogle = async (remember: boolean = true) => {
   }
 };
 
-export const signInWithEmail = async (email: string, pass: string, remember: boolean = true) => {
+export const signInWithEmail = async (email: string, pass: string, remember: boolean = false) => {
   await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
   const credential = await signInWithEmailAndPassword(auth, email, pass);
   return credential.user;

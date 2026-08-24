@@ -352,17 +352,20 @@ export const SchoolDashboard: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 bg-white/5 border border-white/10 p-4 rounded-3xl backdrop-blur-md self-stretch md:self-auto justify-between sm:justify-start">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-500/25 border border-indigo-400/30 text-[#FFE28A]">
+          <div className="flex items-center gap-3 bg-white/5 border border-white/10 p-4 rounded-3xl backdrop-blur-md self-stretch md:self-auto justify-between sm:justify-start flex-wrap">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-500/25 border border-indigo-400/30 text-[#FFE28A] shrink-0">
               <Building2 className="h-5 w-5" />
             </div>
-            <div>
+            {/* min-w-0 lets this shrink below its content's natural width — without it, a long
+                schoolInfo.code value (unlike the capped substring(0,8) fallback) refused to
+                shrink as a flex child and pushed the whole card wider than the viewport. */}
+            <div className="min-w-0">
               <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Hub ID Code</p>
-              <p className="text-sm font-mono font-bold text-white uppercase mt-0.5">
+              <p className="text-sm font-mono font-bold text-white uppercase mt-0.5 truncate max-w-[160px]">
                 {schoolInfo?.code || profile?.schoolId?.substring(0, 8) || 'CORE_1'}
               </p>
             </div>
-            <Badge className="bg-emerald-500/10 text-emerald-400 border-0 font-bold text-[10px] uppercase px-3 py-1 rounded-md self-center ml-2">
+            <Badge className="bg-emerald-500/10 text-emerald-400 border-0 font-bold text-[10px] uppercase px-3 py-1 rounded-md self-center ml-2 shrink-0">
               Verified Center
             </Badge>
           </div>

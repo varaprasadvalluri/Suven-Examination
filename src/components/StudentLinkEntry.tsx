@@ -38,6 +38,9 @@ export const StudentLinkEntry: React.FC = () => {
   const [isLaunching, setIsLaunching] = useState(false);
   const [step, setStep] = useState<'login' | 'instructions'>('login');
   const [matchedStudentProfile, setMatchedStudentProfile] = useState<any | null>(null);
+  // Proof that /api/gatekeeper/verify-identity actually checked this identity server-side —
+  // required by /api/gatekeeper/enroll instead of trusting a client-asserted student id.
+  const [verificationTicket, setVerificationTicket] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [questions, setQuestions] = useState<any[]>([]);
 
@@ -266,6 +269,7 @@ export const StudentLinkEntry: React.FC = () => {
       const profileData = verifyPayload.profileData;
 
       setMatchedStudentProfile(profileData);
+      setVerificationTicket(verifyPayload.verificationTicket);
 
       toast.success('Identity verified! Please read and agree to the instructions to proceed.', { id: toastId });
       setStep('instructions');
@@ -316,14 +320,14 @@ export const StudentLinkEntry: React.FC = () => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            matchedStudentId: resolvedStudentId,
             matchedStudentData: matchedStudentProfile,
             username: matchedStudentProfile.name,
             rollNumber: matchedStudentProfile.rollNumber,
             finalSchoolId,
             finalExamId,
             examTitle: exam?.title,
-            clientFootprint
+            clientFootprint,
+            verificationTicket
           })
         });
 
@@ -448,7 +452,7 @@ export const StudentLinkEntry: React.FC = () => {
         }
       }
 
-      localStorage.setItem('invite_student_profile', JSON.stringify(finalStudentProfile || matchedStudentProfile));
+      sessionStorage.setItem('invite_student_profile', JSON.stringify(finalStudentProfile || matchedStudentProfile));
       toast.success('Gatekeeper synchronized! Redirecting to your dashboard...', { id: toastId });
 
       // Land on the dashboard (triggered exam shows there as In Progress) instead of

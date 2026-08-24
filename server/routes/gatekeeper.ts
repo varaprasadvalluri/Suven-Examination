@@ -1,6 +1,7 @@
 import express from 'express';
+import { randomUUID } from 'node:crypto';
 import { EduKeyFactory } from '../../src/lib/idGenerator';
-import { signSessionToken } from '../auth/tokens';
+import { signSessionToken, signGatekeeperTicket, verifyGatekeeperTicket } from '../auth/tokens';
 import { gatekeeperLookupLimiter, gatekeeperEnrollLimiter } from '../middleware/rateLimit';
 import { LOAD_TEST_SECRET } from '../config';
 import { asyncHandler } from '../middleware/errorHandler';
@@ -120,7 +121,13 @@ router.post(
       await clientSetDoc(clientDoc(clientDb, 'users', newStudentId), profileData);
     }
 
-    return res.status(200).json({ success: true, profileData });
+    const verificationTicket = signGatekeeperTicket({
+      uid: profileData.uid,
+      schoolId: profileData.schoolId,
+      rollNumber: profileData.rollNumber
+    });
+
+    return res.status(200).json({ success: true, profileData, verificationTicket });
   })
 );
 
@@ -345,6 +352,12 @@ router.post(
       await clientSetDoc(clientDoc(clientDb, 'users', newStudentId), resolvedStudentProfile);
     }
 
+    const verificationTicket = signGatekeeperTicket({
+      uid: resolvedStudentProfile.uid,
+      schoolId: targetSchoolId,
+      rollNumber: resolvedStudentProfile.rollNumber
+    });
+
     return res.status(200).json({
       success: true,
       matchedStudentId: resolvedStudentProfile.uid,
@@ -352,7 +365,8 @@ router.post(
       finalSchoolId: targetSchoolId,
       finalExamId: targetExamId,
       examTitle: targetExamTitle,
-      isFallback: false
+      isFallback: false,
+      verificationTicket
     });
   })
 );
@@ -455,11 +469,16 @@ router.post(
       name: matchedData.name || trimmedName
     };
 
+    // One-device-at-a-time: see server/auth/middleware.ts's resolveAuth.
+    const sessionId = randomUUID();
+    await clientUpdateDoc(clientDoc(clientDb, 'users', matchedDoc.id), { activeSessionId: sessionId });
+
     const sessionToken = signSessionToken({
       uid: profileData.uid,
       role: 'student',
       schoolId: profileData.schoolId || null,
-      email: profileData.email || null
+      email: profileData.email || null,
+      sessionId
     });
 
     return res.status(200).json({ success: true, profileData, sessionToken });
@@ -474,10 +493,14 @@ router.post(
  *     description: >
  *       Pre-session route — mints the session token itself, so it is intentionally public.
  *       Runs an atomic Firestore transaction covering student onboarding, attempt
- *       creation/resume/reattempt, and exam-window expiry. Supports an internal load-test
- *       bypass gated on a server-side secret (`x-load-test-secret` header must match
- *       LOAD_TEST_SECRET, which is unset/disabled in normal deployments — fail-closed, not
- *       merely unauthenticated). Rate-limited (gatekeeperEnrollLimiter).
+ *       creation/resume/reattempt, and exam-window expiry. The caller's identity is NOT
+ *       trusted from the request body — verificationTicket (issued by verify-identity or
+ *       verify-invite, which do the real name/roll/invite match server-side) is required and
+ *       must resolve to a uid/schoolId that matches finalSchoolId, or the request is rejected.
+ *       Supports an internal load-test bypass gated on a server-side secret (`x-load-test-secret`
+ *       header must match LOAD_TEST_SECRET, which is unset/disabled in normal deployments —
+ *       fail-closed, not merely unauthenticated); that path alone still self-computes its uid,
+ *       since it never has a real ticket. Rate-limited (gatekeeperEnrollLimiter).
  *     tags: [Gatekeeper]
  *     security: []
  *     requestBody:
@@ -486,10 +509,10 @@ router.post(
  *         application/json:
  *           schema:
  *             type: object
- *             required: [finalSchoolId, finalExamId, rollNumber]
+ *             required: [finalSchoolId, finalExamId, rollNumber, verificationTicket]
  *             properties:
- *               matchedStudentId: { type: string }
- *               matchedStudentData: { type: object }
+ *               verificationTicket: { type: string, description: "Signed ticket from verify-identity/verify-invite proving this caller's identity was actually checked server-side. Required except for the load-test bypass." }
+ *               matchedStudentData: { type: object, description: "Non-authoritative display fallback only — identity itself comes from verificationTicket, not this." }
  *               username: { type: string }
  *               rollNumber: { type: string }
  *               finalSchoolId: { type: string }
@@ -503,8 +526,10 @@ router.post(
  *         description: Attempt created/resumed/reattempted, with session token and resolved profile
  *       400:
  *         description: Missing finalSchoolId, finalExamId, or rollNumber
+ *       401:
+ *         description: Missing, invalid, or expired verificationTicket
  *       403:
- *         description: SESSION_HIJACK_BLOCKED — device footprint mismatch against the attempt's registered device
+ *         description: SESSION_HIJACK_BLOCKED (device footprint mismatch), or verificationTicket's schoolId does not match finalSchoolId
  *       409:
  *         description: EXAM_ALREADY_COMPLETED — attempt already submitted and not eligible for reattempt
  *       410:
@@ -518,7 +543,6 @@ router.post(
   gatekeeperEnrollLimiter,
   asyncHandler(async (req, res) => {
     const {
-      matchedStudentId,
       matchedStudentData,
       username,
       rollNumber,
@@ -527,7 +551,8 @@ router.post(
       examTitle,
       clientFootprint,
       inviteToken,
-      inviteIsFallback
+      inviteIsFallback,
+      verificationTicket
     } = req.body;
 
     if (!finalSchoolId || !finalExamId || !rollNumber) {
@@ -535,11 +560,6 @@ router.post(
     }
 
     const now = new Date();
-    const resolvedStudentId = matchedStudentId || `std_${finalSchoolId}_${rollNumber.trim().replace(/\s+/g, '_').toLowerCase()}`;
-    const studentDocRef = clientDoc(clientDb, 'users', resolvedStudentId);
-    const attemptIdRaw = `att_${finalExamId}_${resolvedStudentId}`;
-    const attemptDocRef = clientDoc(clientDb, 'attempts', attemptIdRaw);
-    const examDocRef = clientDoc(clientDb, 'exams', finalExamId);
 
     // Gated on a server-side secret (never client-suppliable) rather than the header alone —
     // this branch mints a real, verifiable session token, so trusting a bare client-sent
@@ -550,6 +570,8 @@ router.post(
       !!LOAD_TEST_SECRET && req.headers['x-load-test'] === 'true' && req.headers['x-load-test-secret'] === LOAD_TEST_SECRET;
 
     if (isLoadTestRequest) {
+      const resolvedStudentId = `std_${finalSchoolId}_${rollNumber.trim().replace(/\s+/g, '_').toLowerCase()}`;
+      const attemptIdRaw = `att_${finalExamId}_${resolvedStudentId}`;
       const mockProfile = {
         uid: resolvedStudentId,
         name: username?.trim() || `Simulated Student ${rollNumber}`,
@@ -579,12 +601,16 @@ router.post(
       mockLoadTestStore.set(`attempts_${attemptIdRaw}`, mockAttempt);
 
       // A signed JWT needs no Firestore write/lookup either way, so the load-test path now
-      // gets a real session token for free — no more special-cased in-memory session map.
+      // gets a real session token for free — no more special-cased in-memory session map. No
+      // real users/{uid} doc exists for a load-test uid, so resolveAuth's activeSessionId
+      // check naturally no-ops for it (missing field = allowed) — this sessionId is just here
+      // for a consistent token shape, not enforced against anything.
       const loadTestSessionToken = signSessionToken({
         uid: resolvedStudentId,
         role: 'student',
         schoolId: finalSchoolId,
-        email: null
+        email: null,
+        sessionId: randomUUID()
       });
 
       return res.status(200).json({
@@ -596,6 +622,28 @@ router.post(
         isSimulatedLoadTest: true
       });
     }
+
+    // The identity for every real (non-load-test) enrollment must come from a ticket signed
+    // by verify-identity or verify-invite — those are the only places that actually check a
+    // roll-number/name/invite match server-side. Without this, a caller could POST any
+    // matchedStudentId (or the guessable `std_{schoolId}_{rollNumber}` fallback id) directly
+    // to this endpoint and get a real signed session for a student they never verified as.
+    if (!verificationTicket) {
+      throw new UnauthorizedError('Missing identity verification ticket. Please verify your details again.');
+    }
+    const ticketClaims = verifyGatekeeperTicket(verificationTicket);
+    if (!ticketClaims) {
+      throw new UnauthorizedError('Identity verification has expired or is invalid. Please verify your details again.');
+    }
+    if (ticketClaims.schoolId !== finalSchoolId) {
+      throw new ForbiddenError('Verified identity does not match the requested school.');
+    }
+
+    const resolvedStudentId = ticketClaims.uid;
+    const studentDocRef = clientDoc(clientDb, 'users', resolvedStudentId);
+    const attemptIdRaw = `att_${finalExamId}_${resolvedStudentId}`;
+    const attemptDocRef = clientDoc(clientDb, 'attempts', attemptIdRaw);
+    const examDocRef = clientDoc(clientDb, 'exams', finalExamId);
 
     let finalStudentProfile: any = null;
     let isNewAttempt = false;
@@ -727,11 +775,23 @@ router.post(
     // Invite-link students never go through Firebase Auth, so this is the only place that
     // can mint their session — without it, every subsequent /api/db/write during the exam
     // (autosave, proctoring logs, final submit) would 401.
+    // One-device-at-a-time: see server/auth/middleware.ts's resolveAuth. Note this endpoint
+    // can be re-called on the same device (resuming/reloading an in-progress attempt) — each
+    // call mints a fresh sessionId, which is self-consistent (the new token is what the page
+    // uses going forward) but means a very old still-open tab from an earlier reload of the
+    // same link would itself now read as "another device" and stop working, same as intended
+    // for a genuinely different device.
+    // clientSetDoc(merge:true), not clientUpdateDoc — the matchedStudentData branch above
+    // doesn't guarantee studentDocRef already exists, and update() fails on a missing doc.
+    const sessionId = randomUUID();
+    await clientSetDoc(studentDocRef, { activeSessionId: sessionId }, { merge: true });
+
     const sessionToken = signSessionToken({
       uid: resolvedStudentId,
       role: 'student',
       schoolId: finalSchoolId,
-      email: finalStudentProfile?.email || `${rollNumber.trim().toLowerCase()}@school.com`
+      email: finalStudentProfile?.email || `${rollNumber.trim().toLowerCase()}@school.com`,
+      sessionId
     });
 
     // Best-effort: mark a per-student invitation link as consumed once it has actually

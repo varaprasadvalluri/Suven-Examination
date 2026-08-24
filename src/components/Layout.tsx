@@ -573,7 +573,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </header>
 
         {/* Page Content viewport wrapper - with gorgeous minimum padding to keep components balanced */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 lg:p-10 bg-transparent">
+        {/* overflow-x-hidden is required here, not just cosmetic: setting only overflow-y-auto
+            leaves overflow-x at its default, and per the CSS spec a non-visible overflow-y
+            forces the other axis to compute as auto too — so this div silently became its own
+            horizontal-scroll container and could rest scrolled sideways, clipping the left
+            edge of every header/heading inside it (seen on the native app: "Global Overview"
+            rendering as "lobal Overview"). */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 lg:p-10 bg-transparent">
           <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="max-w-[1440px] mx-auto w-full">
             {children}
           </motion.div>

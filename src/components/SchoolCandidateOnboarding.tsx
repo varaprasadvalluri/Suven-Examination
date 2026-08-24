@@ -17,7 +17,6 @@ import {
   CheckCircle2,
   ArrowLeft,
   Copy,
-  GraduationCap,
   ShieldCheck,
   Check
 } from 'lucide-react';
@@ -25,6 +24,7 @@ import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import { useAcademicLevels } from '../hooks/useNamedList';
 import { ManageNamedListDialog } from './ManageNamedListDialog';
+import { isValidEmail } from '../lib/utils';
 
 interface SchoolCandidateOnboardingProps {
   onBack?: () => void;
@@ -106,12 +106,9 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
     }
 
     const trimmedEmail = manualStudent.email ? manualStudent.email.trim().toLowerCase() : '';
-    if (trimmedEmail) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(trimmedEmail)) {
-        toast.error('Validation failed: Invalid email format (e.g. child@school.com)');
-        return;
-      }
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+      toast.error('Validation failed: Invalid email format (e.g. child@school.com)');
+      return;
     }
 
     setIsSubmittingCandidate(true);

@@ -7,6 +7,7 @@ import { db, collection, query, where, onSnapshot, getDocs, limit as fbLimit } f
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { authHeaders } from '../lib/sessionStore';
+import { SearchableDropdown } from './SearchableDropdown';
 import { toast } from 'sonner';
 import {
   Trophy,
@@ -19,15 +20,13 @@ import {
   Medal,
   Crown,
   Award,
-  ChevronsUp,
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
   ChevronRight,
   ChevronDown,
   Loader2,
-  AlertTriangle,
-  Check
+  AlertTriangle
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -39,7 +38,6 @@ export const RankingEngine: React.FC = () => {
   const [attempts, setAttempts] = useState<any[]>([]);
   const [schools, setSchools] = useState<any[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>('all');
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [sortField, setSortField] = useState<'rank' | 'percentile' | 'rollNumber'>('rank');
@@ -53,8 +51,6 @@ export const RankingEngine: React.FC = () => {
   // it's computed fresh server-side directly from Firestore, independent of this cap.
   const DISPLAY_FETCH_CAP = 5000;
   const [isTruncated, setIsTruncated] = useState(false);
-  const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false);
-  const [schoolSearchText, setSchoolSearchText] = useState('');
 
   // Load schools to map branch names dynamically for everyone
   useEffect(() => {
@@ -69,7 +65,6 @@ export const RankingEngine: React.FC = () => {
   useEffect(() => {
     if (!profile) return;
 
-    setLoading(true);
     setIsTruncated(false);
 
     let studentsQuery;
@@ -119,12 +114,10 @@ export const RankingEngine: React.FC = () => {
           ...doc.data()
         }));
         setAttempts(atts);
-        setLoading(false);
         if (atts.length >= DISPLAY_FETCH_CAP) setIsTruncated(true);
       },
       (err) => {
         console.error('Error subscribing to attempts: ', err);
-        setLoading(false);
       }
     );
 
@@ -565,105 +558,41 @@ export const RankingEngine: React.FC = () => {
           </div>
           <div className="flex flex-wrap gap-4 items-center">
             {profile?.role === 'admin' && schools.length > 0 && (
-              <div className="relative w-56">
-                <button
-                  type="button"
-                  onClick={() => setSchoolDropdownOpen(!schoolDropdownOpen)}
-                  className="w-full h-12 bg-white border-2 border-slate-300 rounded-xl font-bold text-sm text-slate-900 px-4 flex items-center justify-between shadow-sm hover:border-indigo-500 transition-all cursor-pointer"
-                >
-                  <span className="truncate">
-                    {selectedSchoolId === 'all' ? 'All Schools' : schools.find((s) => s.id === selectedSchoolId)?.name || 'All Schools'}
-                  </span>
-                  <ChevronDown className="h-4 w-4 ml-2 text-slate-500 shrink-0" />
-                </button>
-
-                {schoolDropdownOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-[100]"
-                      onClick={() => {
-                        setSchoolDropdownOpen(false);
-                        setSchoolSearchText('');
-                      }}
-                    />
-                    <div className="absolute left-0 right-0 mt-1.5 bg-white border-2 border-slate-300 shadow-2xl rounded-2xl p-3 z-[110] flex flex-col gap-2 max-h-[320px] overflow-hidden">
-                      <div className="relative flex items-center shrink-0">
-                        <Search className="absolute left-3 h-3.5 w-3.5 text-slate-400" />
-                        <input
-                          type="text"
-                          value={schoolSearchText}
-                          onChange={(e) => setSchoolSearchText(e.target.value)}
-                          placeholder="Search schools..."
-                          className="w-full h-9 pl-9 pr-3 bg-slate-50 border-2 border-slate-100 focus:border-indigo-400 focus:bg-white text-xs font-bold text-slate-800 rounded-lg outline-none transition-all"
-                          autoFocus
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </div>
-                      <div className="flex-1 overflow-y-auto space-y-1 pr-1">
-                        {(() => {
-                          const queryFiltered = schools.filter((s) =>
-                            (s.name || '').toLowerCase().includes(schoolSearchText.toLowerCase())
-                          );
-                          const sliced = queryFiltered.slice(0, 50);
-                          const allMatchesLabel = 'all schools'.includes(schoolSearchText.toLowerCase());
-
-                          if (sliced.length === 0 && !allMatchesLabel) {
-                            return <div className="text-center py-6 text-xs text-slate-400 font-bold">No matching schools found</div>;
-                          }
-
-                          return (
-                            <>
-                              {allMatchesLabel && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedSchoolId('all');
-                                    setSchoolDropdownOpen(false);
-                                    setSchoolSearchText('');
-                                  }}
-                                  className={`w-full text-left font-black text-xs cursor-pointer py-2 px-3 rounded-lg flex items-center justify-between transition-colors ${
-                                    selectedSchoolId === 'all'
-                                      ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                      : 'text-slate-900 hover:bg-indigo-50'
-                                  }`}
-                                >
-                                  All Schools
-                                  {selectedSchoolId === 'all' && <Check className="h-3.5 w-3.5 shrink-0 text-white" />}
-                                </button>
-                              )}
-                              {sliced.map((s) => {
-                                const isSelected = s.id === selectedSchoolId;
-                                return (
-                                  <button
-                                    key={s.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedSchoolId(s.id);
-                                      setSchoolDropdownOpen(false);
-                                      setSchoolSearchText('');
-                                    }}
-                                    className={`w-full text-left font-black text-xs cursor-pointer py-2 px-3 rounded-lg flex items-center justify-between transition-colors ${
-                                      isSelected ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'text-slate-900 hover:bg-indigo-50'
-                                    }`}
-                                  >
-                                    <span className="truncate pr-2">{s.name}</span>
-                                    {isSelected && <Check className="h-3.5 w-3.5 shrink-0 text-white" />}
-                                  </button>
-                                );
-                              })}
-                              {queryFiltered.length > 50 && (
-                                <div className="text-center py-2 text-[10px] text-slate-400 font-bold">
-                                  {queryFiltered.length - 50} more — refine your search
-                                </div>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </>
+              <SearchableDropdown
+                containerClassName="relative w-56"
+                selectedId={selectedSchoolId}
+                onSelect={(id) => setSelectedSchoolId(id)}
+                searchPlaceholder="Search schools..."
+                searchInputClassName="w-full h-9 pl-9 pr-3 bg-slate-50 border-2 border-slate-100 focus:border-indigo-400 focus:bg-white text-xs font-bold text-slate-800 rounded-lg outline-none transition-all"
+                emptyText="No matching schools found"
+                panelClassName="absolute left-0 right-0 mt-1.5 bg-white border-2 border-slate-300 shadow-2xl rounded-2xl p-3 z-[110] flex flex-col gap-2 max-h-[320px] overflow-hidden"
+                renderMore={(hidden) => (
+                  <div className="text-center py-2 text-[10px] text-slate-400 font-bold">{hidden} more — refine your search</div>
                 )}
-              </div>
+                optionClassName={(isSelected) =>
+                  `w-full text-left font-black text-xs cursor-pointer py-2 px-3 rounded-lg flex items-center justify-between transition-colors ${
+                    isSelected ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'text-slate-900 hover:bg-indigo-50'
+                  }`
+                }
+                extraOption={{ id: 'all', searchText: 'all schools', label: 'All Schools' }}
+                options={schools.map((s) => ({
+                  id: s.id,
+                  searchText: s.name || '',
+                  label: <span className="truncate pr-2">{s.name}</span>
+                }))}
+                trigger={({ toggle }) => (
+                  <button
+                    type="button"
+                    onClick={toggle}
+                    className="w-full h-12 bg-white border-2 border-slate-300 rounded-xl font-bold text-sm text-slate-900 px-4 flex items-center justify-between shadow-sm hover:border-indigo-500 transition-all cursor-pointer"
+                  >
+                    <span className="truncate">
+                      {selectedSchoolId === 'all' ? 'All Schools' : schools.find((s) => s.id === selectedSchoolId)?.name || 'All Schools'}
+                    </span>
+                    <ChevronDown className="h-4 w-4 ml-2 text-slate-500 shrink-0" />
+                  </button>
+                )}
+              />
             )}
             {profile?.role === 'school' && (
               <div className="bg-indigo-50 border border-indigo-100 px-4 py-2 rounded-xl flex flex-col justify-center text-left">

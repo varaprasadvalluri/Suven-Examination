@@ -205,16 +205,18 @@ test.describe('SuvenEdu QA Automation - Pipeline & Auth Verification Suite', () 
     // Navigate using the secure magic link
     await page.goto(magicLinkUrl);
 
-    // Verify localStorage & cookie population post navigation
-    const getLocalStorageProfile = await page.evaluate(() => {
-      const profile = localStorage.getItem('invite_student_profile');
+    // Verify sessionStorage & cookie population post navigation. Session state is
+    // sessionStorage-backed (not localStorage) so it clears on tab/browser/app close — see
+    // src/lib/sessionStore.ts and src/lib/AuthContext.tsx.
+    const getSessionStorageProfile = await page.evaluate(() => {
+      const profile = sessionStorage.getItem('invite_student_profile');
       return profile ? JSON.parse(profile) : null;
     });
 
-    console.log(`[LOCAL STORAGE INSPECTION] Credential Object:`, getLocalStorageProfile);
+    console.log(`[SESSION STORAGE INSPECTION] Credential Object:`, getSessionStorageProfile);
 
     // Assert local state token is populated
-    expect(getLocalStorageProfile).toBeDefined();
+    expect(getSessionStorageProfile).toBeDefined();
 
     // --- COGNITIVE EXPIRED/INVALID SECURITY HANDLERS ---
     console.log(`[VALIDATION] Instantiating Error-State test with expired security token...`);

@@ -105,6 +105,15 @@
   }
   body {
     @apply bg-background text-foreground font-sans;
+    /* index.html's viewport-fit=cover tells iOS to render edge-to-edge under the notch/
+       Dynamic Island/home indicator, but nothing was actually padding content away from
+       those areas — header text was rendering right under the status bar. env() resolves to
+       0 on any browser/device without safe-area insets, so this is a no-op on desktop/normal
+       phones and only does anything inside the native app shell. */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
   h1,
   h2,

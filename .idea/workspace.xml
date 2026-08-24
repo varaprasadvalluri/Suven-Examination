@@ -1,14 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="AutoImportSettings">
-    <option name="autoReloadType" value="SELECTIVE" />
+    <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0e9b9843-9a4f-4008-ad81-d9c8bc8db582" name="Changes" comment="" />
+    <list default="true" id="0e9b9843-9a4f-4008-ad81-d9c8bc8db582" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/capacitor.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/capacitor.config.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/auth/middleware.ts" beforeDir="false" afterPath="$PROJECT_DIR$/server/auth/middleware.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/auth/tokens.ts" beforeDir="false" afterPath="$PROJECT_DIR$/server/auth/tokens.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/authorization.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/server/authorization.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/routes/authRoutes.ts" beforeDir="false" afterPath="$PROJECT_DIR$/server/routes/authRoutes.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/routes/gatekeeper.ts" beforeDir="false" afterPath="$PROJECT_DIR$/server/routes/gatekeeper.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/Layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/Layout.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/LoginPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/LoginPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/SchoolDashboard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/SchoolDashboard.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/StudentLinkEntry.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/StudentLinkEntry.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/index.css" beforeDir="false" afterPath="$PROJECT_DIR$/src/index.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/AuthContext.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/AuthContext.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/firebase.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/firebase.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/sessionStore.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/sessionStore.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/tests/qa-automation.spec.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/tests/qa-automation.spec.ts" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -36,9 +57,14 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "com.google.cloudcode.ide_session_index": "20260821_0002",
-    "git-widget-placeholder": "<unknown>",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "com.google.cloudcode.ide_session_index": "20260823_0000",
+    "git-widget-placeholder": "mobile-responsive-fixes",
     "kotlin-language-version-configured": "true",
     "last_opened_file_path": "/Users/varaprasadvalluri/Documents/MeasureProject/MyProjects/suvenedu-tech-newrepo"
   }

@@ -17,11 +17,13 @@
     "db:migrate": "tsx --tsconfig tsconfig.server.json migrate-db.ts",
     "test": "vitest run",
     "android:sync": "vite build && npx cap sync android",
+    "android:sync:local": "./scripts/android-sync-local.sh",
     "android:open": "npx cap open android",
     "android:keystore": "./scripts/android-generate-keystore.sh",
     "android:build:apk": "./scripts/android-build.sh apk",
     "android:build:aab": "./scripts/android-build.sh aab",
     "ios:sync": "vite build && npx cap sync ios",
+    "ios:sync:local": "CAP_ENV=local vite build && CAP_ENV=local npx cap sync ios",
     "ios:open": "npx cap open ios",
     "ios:build": "./scripts/ios-archive.sh"
   },

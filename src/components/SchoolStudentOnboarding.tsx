@@ -12,8 +12,6 @@ import {
   query,
   where,
   onSnapshot,
-  deleteDoc,
-  getDoc,
   getDocs,
   limit,
   startAfter,
@@ -42,25 +40,23 @@ import {
   Copy,
   Link,
   Search,
-  Building2,
   Eye,
   ShieldAlert,
   Sparkles,
   Send,
-  Inbox,
   Edit,
   Trash2,
   BarChart3,
-  GraduationCap,
-  Calendar
+  GraduationCap
 } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useAcademicLevels } from '../hooks/useNamedList';
 import { ManageNamedListDialog } from './ManageNamedListDialog';
+import { SearchableDropdown } from './SearchableDropdown';
 
 export const SchoolStudentOnboarding: React.FC = () => {
   const { profile } = useAuth();
@@ -72,8 +68,6 @@ export const SchoolStudentOnboarding: React.FC = () => {
   const [students, setStudents] = useState<any[]>([]);
   const [exams, setExams] = useState<any[]>([]);
   const [selectedExamId, setSelectedExamId] = useState<string>('');
-  const [examDropdownOpen, setExamDropdownOpen] = useState(false);
-  const [examSearchText, setExamSearchText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
@@ -83,9 +77,6 @@ export const SchoolStudentOnboarding: React.FC = () => {
 
   // Validation Warnings
   const [duplicateWarnings, setDuplicateWarnings] = useState<string[]>([]);
-
-  // School Name display
-  const [schoolName, setSchoolName] = useState('Active Academic Center');
 
   // Invitation Dialog state
   const [activeInvite, setActiveInvite] = useState<{ url: string; studentName: string; examTitle: string } | null>(null);
@@ -109,15 +100,6 @@ export const SchoolStudentOnboarding: React.FC = () => {
   const [isAnalyticsDialogOpen, setIsAnalyticsDialogOpen] = useState(false);
   const [studentAttempts, setStudentAttempts] = useState<any[]>([]);
 
-  const [manualStudent, setManualStudent] = useState({
-    name: '',
-    email: '',
-    class: '',
-    section: '',
-    rollNumber: '',
-    dob: ''
-  });
-
   const [invitations, setInvitations] = useState<any[]>([]);
   const [currentAttempts, setCurrentAttempts] = useState<any[]>([]);
   const [isGeneratingBatch, setIsGeneratingBatch] = useState(false);
@@ -136,19 +118,9 @@ export const SchoolStudentOnboarding: React.FC = () => {
   const [retryTrigger, setRetryTrigger] = useState(0);
   const handleRetry = () => setRetryTrigger((prev) => prev + 1);
 
-  // Fetch School Name Details & Published Exams
+  // Fetch Published Exams
   useEffect(() => {
     if (!profile?.schoolId) return;
-
-    getDoc(doc(db, 'schools', profile.schoolId))
-      .then((snap) => {
-        if (snap.exists()) {
-          setSchoolName(snap.data().name || 'Authorized Academic Hub');
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to read school details: ', err);
-      });
 
     // Two scoped queries instead of one unbounded platform-wide listener: (A) exams
     // explicitly targeted at this school (array-contains, naturally small per school) and
@@ -588,62 +560,6 @@ export const SchoolStudentOnboarding: React.FC = () => {
       toast.error('Failed to import students');
     } finally {
       setIsUploading(false);
-    }
-  };
-
-  const handleManualAdd = async () => {
-    if (!profile?.schoolId) return;
-    if (!manualStudent.name) {
-      toast.error('Validation failed: Candidate name field is required');
-      return;
-    }
-
-    if (manualStudent.name.trim().length < 3) {
-      toast.error('Validation failed: Candidate name must contain at least 3 letters');
-      return;
-    }
-
-    const trimmedEmail = manualStudent.email ? manualStudent.email.trim() : '';
-    if (trimmedEmail) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(trimmedEmail)) {
-        toast.error('Validation failed: Invalid structural email format (e.g. child@school.com)');
-        return;
-      }
-
-      const dbDuplicateEmail = students.find((ds) => ds.email && ds.email.toLowerCase() === trimmedEmail.toLowerCase());
-      if (dbDuplicateEmail) {
-        toast.error(`Duplicate Email address "${trimmedEmail}" is already registered.`);
-        return;
-      }
-    }
-
-    // Check pre-existing duplicate checks for manual addition
-    const dbDuplicateRoll = students.find((ds) => ds.rollNumber?.toString().trim() === manualStudent.rollNumber?.trim());
-    if (dbDuplicateRoll && manualStudent.rollNumber) {
-      toast.error(`Duplicate Register number "${manualStudent.rollNumber}" detected. Maps to resident student "${dbDuplicateRoll.name}".`);
-      return;
-    }
-
-    try {
-      const trimmedRoll = manualStudent.rollNumber ? manualStudent.rollNumber.trim() : '';
-      const uid = trimmedRoll ? `std_${profile.schoolId}_${trimmedRoll.replace(/\s+/g, '_').toLowerCase()}` : crypto.randomUUID();
-
-      await setDoc(doc(db, 'users', uid), {
-        ...manualStudent,
-        email: trimmedEmail,
-        uid: uid,
-        role: 'student',
-        schoolId: profile.schoolId,
-        permissions: ['take_exams'],
-        createdAt: new Date().toISOString()
-      });
-
-      toast.success('Student added successfully');
-      setIsManualOpen(false);
-      setManualStudent({ name: '', email: '', class: '', section: '', rollNumber: '', dob: '' });
-    } catch (error) {
-      toast.error('Failed to onboard student');
     }
   };
 
@@ -1242,96 +1158,49 @@ export const SchoolStudentOnboarding: React.FC = () => {
             {/* Global Target Exam Selection */}
             <div className="bg-white/10 p-4 rounded-3xl border border-white/10 max-w-sm w-full relative">
               <Label className="text-[10px] font-black uppercase text-indigo-300 tracking-wider">Select Assessment Context</Label>
-              <div className="relative mt-2">
-                <button
-                  type="button"
-                  onClick={() => setExamDropdownOpen(!examDropdownOpen)}
-                  className="w-full h-12 bg-white text-slate-950 rounded-xl font-black text-xs border-2 border-indigo-400 hover:border-indigo-600 shadow-sm focus:ring-4 focus:ring-indigo-500/20 transition-all px-4 flex items-center justify-between cursor-pointer"
-                >
-                  <span className="flex-1 text-left block truncate text-slate-900 font-bold">
-                    {exams.find((e) => e.id === selectedExamId) ? exams.find((e) => e.id === selectedExamId)?.title : 'Assessments Library'}
-                  </span>
-                  <ChevronDown className="h-4 w-4 ml-2 text-indigo-600 shrink-0" />
-                </button>
-
-                {examDropdownOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-[100]"
-                      onClick={() => {
-                        setExamDropdownOpen(false);
-                        setExamSearchText('');
-                      }}
-                    />
-                    <div className="absolute left-0 right-0 mt-1.5 bg-white border-2 border-indigo-400 shadow-2xl rounded-2xl p-3 z-[110] flex flex-col gap-2 max-h-[320px] overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                      <div className="relative flex items-center shrink-0">
-                        <Search className="absolute left-3 h-3.5 w-3.5 text-indigo-500" />
-                        <input
-                          type="text"
-                          value={examSearchText}
-                          onChange={(e) => setExamSearchText(e.target.value)}
-                          placeholder="Search assessments..."
-                          className="w-full h-9 pl-9 pr-3 bg-indigo-50/50 border-2 border-indigo-100 focus:border-indigo-400 focus:bg-white text-xs font-bold text-slate-800 rounded-lg outline-none transition-all"
-                          autoFocus
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </div>
-                      <div className="flex-1 overflow-y-auto space-y-1 pr-1">
-                        {(() => {
-                          const queryFiltered = exams.filter(
-                            (e) =>
-                              (e.title || '').toLowerCase().includes(examSearchText.toLowerCase()) ||
-                              (e.subject || '').toLowerCase().includes(examSearchText.toLowerCase())
-                          );
-                          const sliced = queryFiltered.slice(0, 50);
-
-                          if (queryFiltered.length === 0) {
-                            return <div className="text-center py-6 text-xs text-slate-400 font-bold">No matching assessments found</div>;
-                          }
-
-                          return (
-                            <>
-                              {sliced.map((e) => {
-                                const isSelected = e.id === selectedExamId;
-                                return (
-                                  <button
-                                    key={e.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedExamId(e.id);
-                                      setExamDropdownOpen(false);
-                                      setExamSearchText('');
-                                    }}
-                                    className={`w-full text-left font-black text-xs cursor-pointer py-2 px-3 rounded-lg flex items-center justify-between transition-colors ${
-                                      isSelected
-                                        ? 'bg-indigo-600 text-white hover:bg-indigo-700 font-black'
-                                        : 'text-slate-900 hover:bg-indigo-50 font-black'
-                                    }`}
-                                  >
-                                    <span className="truncate pr-2">
-                                      {e.title} -{' '}
-                                      <span className={`text-[10px] font-bold ${isSelected ? 'text-indigo-200' : 'text-slate-450'}`}>
-                                        ({e.subject})
-                                      </span>
-                                    </span>
-                                    {isSelected && <Check className="h-3.5 w-3.5 shrink-0 text-white" />}
-                                  </button>
-                                );
-                              })}
-
-                              {queryFiltered.length > 50 && (
-                                <div className="text-[10px] text-center text-slate-500 font-bold pt-1.5 border-t border-slate-100 italic">
-                                  Showing top 50 matches of {queryFiltered.length}.
-                                </div>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </>
+              <SearchableDropdown
+                containerClassName="relative mt-2"
+                selectedId={selectedExamId}
+                onSelect={(id) => setSelectedExamId(id)}
+                searchPlaceholder="Search assessments..."
+                searchInputClassName="w-full h-9 pl-9 pr-3 bg-indigo-50/50 border-2 border-indigo-100 focus:border-indigo-400 focus:bg-white text-xs font-bold text-slate-800 rounded-lg outline-none transition-all"
+                emptyText="No matching assessments found"
+                panelClassName="absolute left-0 right-0 mt-1.5 bg-white border-2 border-indigo-400 shadow-2xl rounded-2xl p-3 z-[110] flex flex-col gap-2 max-h-[320px] overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+                renderMore={(hidden, total) => (
+                  <div className="text-[10px] text-center text-slate-500 font-bold pt-1.5 border-t border-slate-100 italic">
+                    Showing top {total - hidden} matches of {total}.
+                  </div>
                 )}
-              </div>
+                optionClassName={(isSelected) =>
+                  `w-full text-left font-black text-xs cursor-pointer py-2 px-3 rounded-lg flex items-center justify-between transition-colors ${
+                    isSelected ? 'bg-indigo-600 text-white hover:bg-indigo-700 font-black' : 'text-slate-900 hover:bg-indigo-50 font-black'
+                  }`
+                }
+                options={exams.map((e) => ({
+                  id: e.id,
+                  searchText: `${e.title || ''} ${e.subject || ''}`,
+                  label: (
+                    <span className="truncate pr-2">
+                      {e.title} -{' '}
+                      <span className={`text-[10px] font-bold ${e.id === selectedExamId ? 'text-indigo-200' : 'text-slate-450'}`}>
+                        ({e.subject})
+                      </span>
+                    </span>
+                  )
+                }))}
+                trigger={({ toggle }) => (
+                  <button
+                    type="button"
+                    onClick={toggle}
+                    className="w-full h-12 bg-white text-slate-950 rounded-xl font-black text-xs border-2 border-indigo-400 hover:border-indigo-600 shadow-sm focus:ring-4 focus:ring-indigo-500/20 transition-all px-4 flex items-center justify-between cursor-pointer"
+                  >
+                    <span className="flex-1 text-left block truncate text-slate-900 font-bold">
+                      {exams.find((e) => e.id === selectedExamId)?.title || 'Assessments Library'}
+                    </span>
+                    <ChevronDown className="h-4 w-4 ml-2 text-indigo-600 shrink-0" />
+                  </button>
+                )}
+              />
             </div>
           </div>
         </CardHeader>
@@ -1564,7 +1433,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                   key={student.id}
                   className={`px-8 py-5 flex flex-col md:flex-row md:items-center justify-between transition-colors gap-4 ${isRowSelected ? 'bg-indigo-50/40' : 'hover:bg-slate-50/70'}`}
                 >
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-4 min-w-0 w-full md:w-auto">
                     <input
                       type="checkbox"
                       checked={isRowSelected}
@@ -1578,12 +1447,12 @@ export const SchoolStudentOnboarding: React.FC = () => {
                       }}
                       className="h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600 cursor-pointer"
                     />
-                    <div className="h-12 w-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 border border-indigo-100 font-bold text-base shadow-sm">
+                    <div className="h-12 w-12 shrink-0 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 border border-indigo-100 font-bold text-base shadow-sm">
                       {student.name?.substring(0, 1).toUpperCase()}
                     </div>
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-base font-black text-slate-900 leading-none">{student.name}</span>
+                        <span className="text-base font-black text-slate-900 leading-none break-words">{student.name}</span>
                         <Badge
                           variant="outline"
                           className="text-[9px] px-2 py-0.5 rounded bg-slate-50 font-black text-slate-400 border-slate-200"
@@ -1609,7 +1478,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                             </Badge>
                           ))}
                       </div>
-                      <p className="text-xs font-semibold text-slate-400 mt-1">{student.email}</p>
+                      <p className="text-xs font-semibold text-slate-400 mt-1 break-words">{student.email}</p>
                     </div>
                   </div>
 

@@ -23,10 +23,10 @@ function found(data: any) {
   return { exists: () => true, data: () => data };
 }
 
-const admin: RequestAuth = { uid: 'admin-1', email: 'admin@x.com', role: 'admin', schoolId: null };
-const schoolA: RequestAuth = { uid: 'school-uid-a', email: 'a@school.com', role: 'school', schoolId: 'school-A' };
-const schoolB: RequestAuth = { uid: 'school-uid-b', email: 'b@school.com', role: 'school', schoolId: 'school-B' };
-const studentA: RequestAuth = { uid: 'student-a', email: 's@a.com', role: 'student', schoolId: 'school-A' };
+const admin: RequestAuth = { uid: 'admin-1', email: 'admin@x.com', role: 'admin', schoolId: null, sessionId: 'sess-admin' };
+const schoolA: RequestAuth = { uid: 'school-uid-a', email: 'a@school.com', role: 'school', schoolId: 'school-A', sessionId: 'sess-school-a' };
+const schoolB: RequestAuth = { uid: 'school-uid-b', email: 'b@school.com', role: 'school', schoolId: 'school-B', sessionId: 'sess-school-b' };
+const studentA: RequestAuth = { uid: 'student-a', email: 's@a.com', role: 'student', schoolId: 'school-A', sessionId: 'sess-student-a' };
 
 beforeEach(() => {
   mockGetDoc.mockReset();
