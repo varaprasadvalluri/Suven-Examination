@@ -15,21 +15,21 @@ vi.mock('../firestoreClient', () => ({
   clientGetDocs: vi.fn()
 }));
 
-vi.mock('../../src/lib/examScoring', () => ({
+vi.mock('../../shared/examScoring', () => ({
   scoreExam: vi.fn()
 }));
 
 import { clientGetDoc, clientGetDocs } from '../firestoreClient';
-import { scoreExam } from '../../src/lib/examScoring';
-import { orderQuestionsForAttempt } from '../../src/lib/examQuestionOrder';
-import { scoreVerificationService } from './scoreVerification';
+import { scoreExam } from '../../shared/examScoring';
+import { orderQuestionsForAttempt } from '../../shared/examQuestionOrder';
+import { recomputeAttemptScore } from './scoreVerification';
 
 const mockGetDoc = clientGetDoc as unknown as ReturnType<typeof vi.fn>;
 const mockGetDocs = clientGetDocs as unknown as ReturnType<typeof vi.fn>;
 const mockScoreExam = scoreExam as unknown as ReturnType<typeof vi.fn>;
 
 function notFound() {
-  return { exists: () => false, data: () => null };
+  return { exists: () => false, data: (): any => null };
 }
 
 function found(data: any) {
@@ -50,7 +50,7 @@ describe('recomputeAttemptScore', () => {
   it('throws without calling scoreExam when the attempt does not exist', async () => {
     mockGetDoc.mockResolvedValue(notFound());
 
-    await expect(scoreVerificationService.recomputeAttemptScore('missing_attempt', [])).rejects.toThrow(
+    await expect(recomputeAttemptScore('missing_attempt', [])).rejects.toThrow(
       'Cannot verify score: attempt does not exist'
     );
     expect(mockScoreExam).not.toHaveBeenCalled();
@@ -65,11 +65,11 @@ describe('recomputeAttemptScore', () => {
         { id: 'q2', data: { text: 'Q2', correctAnswerIndex: 0 } }
       ])
     );
-    const scoringResult = { score: 8, correctCount: 2, accuracy: 100, errorBookEntries: [] };
+    const scoringResult = { score: 8, correctCount: 2, accuracy: 100, errorBookEntries: [] as any[] };
     mockScoreExam.mockReturnValue(scoringResult);
 
     const answers = [1, 0];
-    const result = await scoreVerificationService.recomputeAttemptScore('att_1', answers);
+    const result = await recomputeAttemptScore('att_1', answers);
 
     // Query must be scoped to this attempt's own exam, not a platform-wide questions scan.
     expect(mockGetDocs).toHaveBeenCalledWith(

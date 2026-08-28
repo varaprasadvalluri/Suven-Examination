@@ -1,12 +1,29 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    // Was NodeNext, which demands explicit `.js` extensions on every relative import and so
+    // reported 255 errors against source that builds and runs perfectly well. Nothing in the
+    // pipeline actually resolves modules this way: `npm run build` bundles with esbuild
+    // (which sets --format=cjs --platform=node on the command line) and `npm run dev` runs
+    // through tsx. The config now matches how the code is really consumed, which makes it a
+    // usable typecheck instead of a wall of noise nobody could run.
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "skipLibCheck": true,
     "allowJs": true,
+    // First step toward full `strict`, enabled here because the server side is now clean
+    // under it (21 errors, all trivial annotations, fixed rather than suppressed). The client
+    // is not ready for this yet — see tsconfig.json — so the boundary moves one config and
+    // one flag at a time instead of in a single sweep that would be reverted.
+    "noImplicitAny": true,
     "paths": {
       "@/*": ["./src/*"]
     }
-  }
+  },
+  // Without an explicit include, this config swept in src/**/*.tsx as well — typechecking
+  // React components against a Node config with no DOM lib, which produces thousands of
+  // meaningless errors and made the server's real type health impossible to read. The server
+  // build only ever compiles server.ts and what it imports; `shared/` is in scope because
+  // server code imports from it, `src/types.ts` because `shared/` does.
+  "include": ["server.ts", "server/**/*", "shared/**/*", "src/types.ts"]
 }

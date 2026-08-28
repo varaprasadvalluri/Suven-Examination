@@ -10,7 +10,7 @@ import { ArrowLeft, Download, Users, TrendingUp, Award, Brain, AlertTriangle, Sh
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { ConfirmationDialog } from './ConfirmationDialog';
-import { orderQuestionsForAttempt } from '../lib/examQuestionOrder';
+import { orderQuestionsForAttempt } from '../../shared/examQuestionOrder';
 
 export const AdminResults: React.FC = () => {
   const { examId } = useParams<{ examId: string }>();

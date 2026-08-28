@@ -57,7 +57,7 @@ const MAX_RETRY_BEFORE_GIVING_UP = 5;
  *         description: Cloud Tasks not configured on this deployment
  */
 router.post(
-  '/api/internal/grade-attempt',
+  ['/api/v1/internal/grading-tasks', '/api/internal/grade-attempt'],
   verifyCloudTasksAuth,
   asyncHandler(async (req: any, res) => {
     const dto = req.body as GradingTaskDto;

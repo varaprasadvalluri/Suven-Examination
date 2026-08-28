@@ -506,7 +506,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
         setPreviewData(parsedStudentRows);
         performValidationPreflight(parsedStudentRows);
         toast.info(`Successfully loaded ${parsedStudentRows.length} student rows.`);
-      } catch (err) {
+      } catch (_err) {
         toast.error("Failed to parse file. Make sure it's valid Excel/CSV.");
       }
     };
@@ -556,7 +556,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
       toast.success(`Onboarded ${previewData.length} students successfully!`);
       setPreviewData([]);
       setDuplicateWarnings([]);
-    } catch (error) {
+    } catch (_error) {
       toast.error('Failed to import students');
     } finally {
       setIsUploading(false);
@@ -610,7 +610,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
       });
 
       toast.success(`Email & SMS delivery gateway triggered for "${student.name}"! Single-use secure token issued.`);
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to generate secure invitation link');
     }
   };

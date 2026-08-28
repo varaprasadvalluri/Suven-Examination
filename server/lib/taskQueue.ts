@@ -2,6 +2,8 @@ import { CloudTasksClient } from '@google-cloud/tasks';
 import { firebaseConfig, CLOUD_TASKS_LOCATION, CLOUD_TASKS_QUEUE, CLOUD_TASKS_INVOKER_SA, CLOUD_RUN_SERVICE_URL } from '../config';
 import { recomputeAttemptScore } from './scoreVerification';
 import { enqueueWrite } from '../db/writeQueue';
+import { clientDb, clientDoc, clientGetDoc } from '../firestoreClient';
+import { logger } from './logger';
 
 // The DTO a submission is turned into before grading — deliberately just plain data (no
 // Firestore doc references, no class instances), so it survives being serialized into a
@@ -43,7 +45,7 @@ class TaskQueueService {
 
     const client = this.getClient();
     const parent = client.queuePath(firebaseConfig.projectId, CLOUD_TASKS_LOCATION!, CLOUD_TASKS_QUEUE!);
-    const url = `${CLOUD_RUN_SERVICE_URL}/api/internal/grade-attempt`;
+    const url = `${CLOUD_RUN_SERVICE_URL}/api/v1/internal/grading-tasks`;
 
     await client.createTask({
       parent,
@@ -65,6 +67,29 @@ class TaskQueueService {
   // dispatch, or directly by enqueueGradingTask's local-dev fallback above. Reuses
   // recomputeAttemptScore and enqueueWrite unchanged; this class only orchestrates.
   async gradeAttempt(dto: GradingTaskDto): Promise<void> {
+    // Grade-and-write is only valid while the attempt is still the one that was submitted.
+    // Two ways it might not be by the time this runs:
+    //   - A school re-triggered the attempt (SchoolStudentOnboarding / the attempts-trigger
+    //     route) during the grading window, resetting it to status='started' with empty
+    //     answers. Writing the old grade over that would resurrect a stale score on an attempt
+    //     the student is actively retaking.
+    //   - Cloud Tasks redelivered a task that already succeeded (at-least-once delivery).
+    // Checking the current status first makes this write idempotent and ordering-safe. One
+    // extra read per grading task, on a path that is already off the request thread.
+    const attemptSnap = await clientGetDoc(clientDoc(clientDb, 'attempts', dto.attemptId));
+    if (!attemptSnap.exists()) {
+      logger.warn('Skipping grading: attempt no longer exists', { attemptId: dto.attemptId });
+      return;
+    }
+    const currentStatus = (attemptSnap.data() as any)?.status;
+    if (currentStatus !== 'submitted') {
+      logger.warn('Skipping grading: attempt is no longer awaiting grading', {
+        attemptId: dto.attemptId,
+        currentStatus
+      });
+      return;
+    }
+
     const verified = await recomputeAttemptScore(dto.attemptId, dto.answers);
     await enqueueWrite({
       type: 'update',

@@ -1,6 +1,6 @@
 import express from 'express';
 import { randomUUID } from 'node:crypto';
-import { EduKeyFactory } from '../../src/lib/idGenerator';
+import { generateEduKey } from '../../shared/idGenerator';
 import { signSessionToken, signGatekeeperTicket, verifyGatekeeperTicket } from '../auth/tokens';
 import { gatekeeperLookupLimiter, gatekeeperEnrollLimiter } from '../middleware/rateLimit';
 import { LOAD_TEST_SECRET } from '../config';
@@ -14,6 +14,7 @@ import {
   GoneError,
   UnprocessableEntityError
 } from '../lib/errors';
+import { isAttemptFinished } from '../../shared/attemptStatus';
 import {
   clientDb,
   clientCollection,
@@ -67,7 +68,7 @@ export const mockLoadTestStore = new Map<string, any>();
  *         description: Server/Firestore error
  */
 router.post(
-  '/api/gatekeeper/verify-identity',
+  ['/api/v1/exam-entry/identity/verify', '/api/gatekeeper/verify-identity'],
   gatekeeperLookupLimiter,
   asyncHandler(async (req, res) => {
     const { rollNumber, schoolId: finalSchoolId, username } = req.body;
@@ -106,7 +107,7 @@ router.post(
       };
     } else {
       // Auto-onboard student for seamless link entry
-      const newStudentId = EduKeyFactory.getInstance().generateKey('users');
+      const newStudentId = generateEduKey('users');
       profileData = {
         uid: newStudentId,
         id: newStudentId,
@@ -164,7 +165,7 @@ router.post(
  *         description: Server/Firestore error
  */
 router.post(
-  '/api/gatekeeper/invite-metadata',
+  ['/api/v1/exam-entry/invitations/lookup', '/api/gatekeeper/invite-metadata'],
   gatekeeperLookupLimiter,
   asyncHandler(async (req, res) => {
     const { inviteToken } = req.body;
@@ -231,7 +232,7 @@ router.post(
       try {
         const schoolSnap = await clientGetDoc(clientDoc(clientDb, 'schools', iData.schoolId));
         if (schoolSnap.exists()) school = { id: schoolSnap.id, ...schoolSnap.data() };
-      } catch (e) {
+      } catch (_e) {
         /* non-fatal */
       }
     }
@@ -277,7 +278,7 @@ router.post(
  *         description: Server/Firestore error
  */
 router.post(
-  '/api/gatekeeper/verify-invite',
+  ['/api/v1/exam-entry/invitations/verify', '/api/gatekeeper/verify-invite'],
   gatekeeperLookupLimiter,
   asyncHandler(async (req, res) => {
     const { inviteToken, enteredName, enteredRoll } = req.body;
@@ -338,7 +339,7 @@ router.post(
         await clientSetDoc(clientDoc(clientDb, 'users', matchId), resolvedStudentProfile);
       }
     } else {
-      const newStudentId = EduKeyFactory.getInstance().generateKey('users');
+      const newStudentId = generateEduKey('users');
       resolvedStudentProfile = {
         uid: newStudentId,
         name: trimmedName,
@@ -411,7 +412,7 @@ router.post(
  *         description: Server/Firestore error
  */
 router.post(
-  '/api/gatekeeper/student-login',
+  ['/api/v1/exam-entry/student-login', '/api/gatekeeper/student-login'],
   gatekeeperLookupLimiter,
   asyncHandler(async (req, res) => {
     const { name, rollNumber, dob } = req.body;
@@ -539,7 +540,7 @@ router.post(
  */
 // 2. BACKEND API FOR HEAVY WRITES: THE GATEKEEPER TRANSACTION
 router.post(
-  '/api/gatekeeper/enroll',
+  ['/api/v1/exam-entry/enrollments', '/api/gatekeeper/enroll'],
   gatekeeperEnrollLimiter,
   asyncHandler(async (req, res) => {
     const {
@@ -589,7 +590,7 @@ router.post(
         studentName: mockProfile.name,
         studentEmail: `${rollNumber.trim().toLowerCase()}@school.com`,
         schoolId: finalSchoolId,
-        answers: [],
+        answers: [] as any[],
         score: 0,
         startTime: now.toISOString(),
         status: 'started',
@@ -687,13 +688,17 @@ router.post(
         // a completed one. Without 'expired' here, a re-triggered student would hit the
         // resume branch below, immediately re-expire again, and canReattempt would never
         // even be consulted.
-        if (attemptData.status === 'completed' || attemptData.status === 'expired') {
+        // isAttemptFinished covers 'submitted' and 'grading_failed' too, not just
+        // 'completed' — grading is asynchronous, so an attempt that has been handed in sits in
+        // 'submitted' for a while. Testing 'completed' alone let a student re-enter and retake
+        // the exam they had just submitted, for as long as grading took.
+        if (isAttemptFinished(attemptData.status) || attemptData.status === 'expired') {
           if (attemptData.canReattempt) {
             attemptAction = 'reattempted';
             transaction.update(attemptDocRef, {
               status: 'started',
               score: 0,
-              answers: [],
+              answers: [] as any[],
               startTime: now.toISOString(),
               canReattempt: false
             });
@@ -751,7 +756,7 @@ router.post(
           studentName: finalStudentProfile.name,
           studentEmail: finalStudentProfile.email || `${rollNumber.trim().toLowerCase()}@school.com`,
           schoolId: finalSchoolId,
-          answers: [],
+          answers: [] as any[],
           score: 0,
           startTime: now.toISOString(),
           status: 'started',

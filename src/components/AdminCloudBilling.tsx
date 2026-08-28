@@ -20,7 +20,7 @@ import {
 import { toast } from 'sonner';
 
 // Real GCP account/project/billing-account identity and the enabled-services list come from
-// /api/gcp/live-billing (server/routes/gcp.ts — real Cloud Billing/Resource Manager/Service
+// /api/v1/admin/cloud/billing (server/routes/gcp.ts — real Cloud Billing/Resource Manager/Service
 // Usage API calls). This page used to also show itemized service costs, a 7-day cost trend
 // chart, a "live" audit log, and budget-threshold alerts — all of that was hardcoded/fabricated
 // (fixed fake dates, invented log lines, "80%: Armed"/"100%: Safeguard" text disconnected from
@@ -38,7 +38,7 @@ export const AdminCloudBilling: React.FC = () => {
   const fetchRealGcpMetrics = async () => {
     setRefreshing(true);
     try {
-      const response = await fetch('/api/gcp/live-billing', {
+      const response = await fetch('/api/v1/admin/cloud/billing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({})
@@ -53,7 +53,7 @@ export const AdminCloudBilling: React.FC = () => {
         setGcpApiData(null);
       }
     } catch (e) {
-      console.warn('Could not reach /api/gcp/live-billing endpoint:', e);
+      console.warn('Could not reach /api/v1/admin/cloud/billing endpoint:', e);
       setGcpApiData(null);
     }
 

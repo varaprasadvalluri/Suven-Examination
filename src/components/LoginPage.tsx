@@ -2,10 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import {
   Lock,
-  ArrowRight,
   Loader2,
-  Award,
-  Building2,
   User2,
   BookOpen,
   AlertCircle,
@@ -14,20 +11,14 @@ import {
   Check,
   Key,
   Mail,
-  ChevronDown,
   CheckCircle,
   Eye,
   EyeOff,
-  Sparkles,
-  Shield,
-  Trophy,
   Settings,
   ClipboardList,
-  Database,
   Calendar
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { DatabaseMigrator } from './DatabaseMigrator';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, doc, getDoc, collection, query, where, getDocs, onSnapshot } from '../lib/firebase';
@@ -211,7 +202,7 @@ export const LoginPage: React.FC = () => {
       try {
         // Resolved server-side now (invitations/users require a session the student
         // doesn't have yet at this point) — same result shape as the old direct lookup.
-        const inviteMetadataResponse = await fetch('/api/gatekeeper/invite-metadata', {
+        const inviteMetadataResponse = await fetch('/api/v1/exam-entry/invitations/lookup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ inviteToken })
@@ -263,8 +254,8 @@ export const LoginPage: React.FC = () => {
     try {
       // Identity + target-exam resolution now happens server-side (users/invitations
       // require a session the student doesn't have yet at this point) — same lookup/
-      // auto-onboard logic as before, just moved behind /api/gatekeeper/verify-invite.
-      const verifyRes = await fetch('/api/gatekeeper/verify-invite', {
+      // auto-onboard logic as before, just moved behind /api/v1/exam-entry/invitations/verify.
+      const verifyRes = await fetch('/api/v1/exam-entry/invitations/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -339,7 +330,7 @@ export const LoginPage: React.FC = () => {
       // Attempt creation/resume/reattempt — reuses the same transaction-backed logic as
       // the roll-number/link exam entry flow, and mints the session this passwordless
       // student needs for every subsequent exam-taking API call.
-      const enrollRes = await fetch('/api/gatekeeper/enroll', {
+      const enrollRes = await fetch('/api/v1/exam-entry/enrollments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

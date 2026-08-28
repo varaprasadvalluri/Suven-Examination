@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Clipboard, Search } from 'lucide-react';
-import { Button } from './ui/button';
+import { Sparkles, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ChemElement {

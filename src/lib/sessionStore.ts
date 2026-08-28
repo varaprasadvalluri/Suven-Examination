@@ -1,6 +1,6 @@
 /**
- * Holds the server-issued session token (minted by /api/auth/validate,
- * /api/auth/create-profile, or /api/gatekeeper/enroll) that authorizes every
+ * Holds the server-issued session token (minted by /api/v1/auth/sessions,
+ * /api/v1/auth/profiles, or /api/v1/exam-entry/enrollments) that authorizes every
  * /api/db/query and /api/db/write call.
  *
  * Backed by sessionStorage, not localStorage — deliberately: sessionStorage is spec'd to

@@ -15,14 +15,10 @@ import {
   Plus,
   Trash2,
   Edit,
-  Save,
-  X,
   Loader2,
-  Calendar,
-  Check,
-  ChevronRight
+  Calendar
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import {
   db,
   handleFirestoreError,
@@ -36,7 +32,6 @@ import {
   query,
   orderBy,
   serverTimestamp,
-  setDoc,
   getDocs
 } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';

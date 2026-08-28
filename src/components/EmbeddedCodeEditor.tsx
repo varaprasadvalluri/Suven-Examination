@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Terminal, RefreshCw, FileCode, CheckCircle } from 'lucide-react';
+import { Terminal, RefreshCw, CheckCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
 

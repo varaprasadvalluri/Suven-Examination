@@ -34,7 +34,7 @@ class QueryCacheService {
         if (parsed.collectionName === collectionName) {
           this.store.delete(key);
         }
-      } catch (e) {
+      } catch (_e) {
         // Ignore parse issues
       }
     }
@@ -45,3 +45,32 @@ export const queryCache = new QueryCacheService();
 
 // Backward-compatible named export — every existing call site keeps working unchanged.
 export const invalidateCache = queryCache.invalidate.bind(queryCache);
+
+/**
+ * Read-through cache for a whole-collection list.
+ *
+ * The build-key / check-TTL / return-fromCache / fetch / store sequence was duplicated
+ * verbatim in SchoolController, LoginOptionsController and createNamedListController —
+ * ten near-identical lines each, differing only in the collection name and the DAO call.
+ * Any change to caching policy (a stampede guard, key versioning, moving to Redis) had to be
+ * made in three places and would eventually have been made in two.
+ *
+ * Deliberately NOT used by /api/db/query: that path keys on arbitrary query constraints, has
+ * a separate countOnly branch, and re-sanitizes the cached payload per caller before
+ * returning it. Forcing it through this signature would make both call sites worse.
+ */
+export async function readThrough<T>(collectionName: string, fetch: () => Promise<T>): Promise<{ data: T; fromCache: boolean }> {
+  const cacheKey = JSON.stringify({ collectionName, constraints: [] });
+  const ttl = CACHE_TTLS[collectionName] || 0;
+
+  const cached = queryCache.get(cacheKey);
+  if (ttl > 0 && cached && Date.now() - cached.timestamp < ttl) {
+    return { data: cached.data as T, fromCache: true };
+  }
+
+  const data = await fetch();
+  if (ttl > 0) {
+    queryCache.set(cacheKey, { timestamp: Date.now(), data });
+  }
+  return { data, fromCache: false };
+}

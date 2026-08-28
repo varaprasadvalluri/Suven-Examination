@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, doc, getDoc, collection, query, where, getDocs, onSnapshot } from '../lib/firebase';
 import { Attempt, Exam, Question } from '../types';
-import { orderQuestionsForAttempt } from '../lib/examQuestionOrder';
+import { orderQuestionsForAttempt } from '../../shared/examQuestionOrder';
 import { MathRenderer } from './MathRenderer';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
@@ -12,20 +12,18 @@ import {
   XCircle,
   ArrowLeft,
   RotateCcw,
-  Award,
   Clock,
   ShieldAlert,
   Zap,
   TrendingUp,
   BrainCircuit,
-  BarChart3,
   Timer,
   LogOut
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { useAuth } from '../lib/AuthContext';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export const ResultDetails: React.FC = () => {
   const { attemptId } = useParams<{ attemptId: string }>();

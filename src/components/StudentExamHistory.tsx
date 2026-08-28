@@ -3,8 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { db, doc, getDoc, handleFirestoreError, OperationType } from '../lib/firebase';
 import { attemptsService } from '../services/api';
 import { useAuth } from '../lib/AuthContext';
-import { Card, CardContent } from './ui/card';
-import { Badge } from './ui/badge';
+import { Card } from './ui/card';
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, FileQuestion, Trophy } from 'lucide-react';
 
 // Dedicated per-student exam history — split out from the ranking table's old inline

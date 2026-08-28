@@ -13,8 +13,8 @@
  */
 
 import './server/loadEnv';
-import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, writeBatch, setDoc, DocumentData } from 'firebase/firestore';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, getDocs, doc, writeBatch } from 'firebase/firestore';
 // --- CONFIGURATION ---
 
 // This is a one-off manual migration tool (npm run db:migrate), not part of the running

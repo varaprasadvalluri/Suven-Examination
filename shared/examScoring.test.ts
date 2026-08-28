@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { scoreExam } from './examScoring';
-import type { Question } from '../types';
+import type { Question } from '../src/types';
 
 function q(overrides: Partial<Question> & { id: string }): Question {
   return {

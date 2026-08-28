@@ -62,7 +62,7 @@ const router = express.Router();
  *         description: Server/Firestore error
  */
 router.put(
-  '/api/exams/:examId',
+  ['/api/v1/exams/:examId', '/api/exams/:examId'],
   requireSession,
   asyncHandler(async (req: any, res) => {
     const { examId } = req.params;
@@ -100,7 +100,7 @@ router.put(
 
       if (schoolsToProvision.length === 0) {
         const schoolsSnap = await clientGetDocs(clientCollection(clientDb, 'schools'));
-        schoolsToProvision = schoolsSnap.docs.map((d) => d.id);
+        schoolsToProvision = schoolsSnap.docs.map((d: any) => d.id);
       }
 
       const expiresAt = endTime || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -181,7 +181,7 @@ router.put(
  *         description: Parser execution failed, or its output couldn't be parsed/saved, or an unhandled error in the upload handler itself
  */
 router.post(
-  '/api/exams/:examId/import-doc',
+  ['/api/v1/exams/:examId/questions/import', '/api/exams/:examId/import-doc'],
   requireSession,
   asyncHandler(async (req: any, res) => {
     const { examId } = req.params;
@@ -268,7 +268,7 @@ router.post(
               count: savedCount,
               message: `Successfully imported ${savedCount} questions to assessment.`
             });
-          } catch (parseErr) {
+          } catch (_parseErr) {
             console.error('Failed to parse Python parser output or save questions:', stdout);
             return res.status(500).json({
               error: 'Invalid response from document parser or save questions failure.',

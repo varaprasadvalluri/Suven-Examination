@@ -47,7 +47,7 @@ const router = express.Router();
  *         description: Firestore users scan failed
  */
 router.post(
-  '/api/gcp/sync-iam',
+  ['/api/v1/admin/cloud/iam-sync', '/api/gcp/sync-iam'],
   requireSession,
   requireRole('admin'),
   asyncHandler(async (req, res) => {
@@ -197,7 +197,7 @@ router.post(
  *       403:
  *         description: Caller is not an admin
  */
-router.post('/api/gcp/live-billing', requireSession, requireRole('admin'), async (req, res) => {
+router.post(['/api/v1/admin/cloud/billing', '/api/gcp/live-billing'], requireSession, requireRole('admin'), async (req, res) => {
   const { userAccessToken, projectIdOverride, userEmail } = req.body || {};
   const targetProjectId = projectIdOverride || detectedContainerProjectId || 'project-02bb6275-51ac-45e7-940';
   const projectNumber = '489976275182';

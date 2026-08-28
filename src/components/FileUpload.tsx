@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { UploadCloud, Image, Trash2, Link as LinkIcon, AlertCircle, Sparkles, Loader2, ImagePlus } from 'lucide-react';
+import { UploadCloud, Trash2, Link as Loader2, ImagePlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { authHeaders } from '../lib/sessionStore';
 
@@ -95,7 +95,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       // 1. Ask the backend to mint a short-lived signed PUT URL for this exact content type.
       // No image bytes touch our server or Firestore — same "server signs, client uploads
       // straight to the provider" shape the previous Cloudinary flow used.
-      const response = await fetch('/api/storage/sign-upload', {
+      const response = await fetch('/api/v1/media/firebase/signature', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -175,7 +175,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       // else (legacy Cloudinary public_ids, the 'external-url' sentinel) keeps hitting the
       // original endpoint, preserving its existing behavior for those cases unchanged.
       const isFirebaseStorageAsset = imagePublicId.startsWith('firebase:');
-      const response = await fetch(isFirebaseStorageAsset ? '/api/storage/delete' : '/api/cloudinary/delete', {
+      const response = await fetch(isFirebaseStorageAsset ? '/api/v1/media/firebase/deletions' : '/api/v1/media/cloudinary/deletions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

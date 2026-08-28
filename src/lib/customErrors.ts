@@ -133,14 +133,14 @@ export function mapToCustomException(error: any, actionContext: string): CustomA
 
 /**
  * Best-effort report of a client-side exception to the server's centralized logger
- * (POST /api/client-errors — see server/routes/clientErrors.ts), so it lands in the same
+ * (POST /api/v1/client-errors — see server/routes/clientErrors.ts), so it lands in the same
  * structured Cloud Logging stream as backend errors instead of only ever existing in one
  * user's browser console. Never throws, never blocks, never retries — this is diagnostics,
  * not a feature request.
  */
 export function reportClientCrash(payload: { message: string; stack?: string; code?: string; action?: string; traceId?: string }): void {
   try {
-    fetch('/api/client-errors', {
+    fetch('/api/v1/client-errors', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       // Survives a reload/navigation happening right after the crash (e.g. the

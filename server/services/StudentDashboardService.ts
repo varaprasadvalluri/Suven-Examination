@@ -1,4 +1,5 @@
 import { attemptDao, examDao, invitationDao, secureExamLinkDao } from '../dao';
+import { isAttemptFinished } from '../../shared/attemptStatus';
 
 export type ExamCandidate = { exam: any; attempt: any | null };
 export type UpcomingListItem =
@@ -47,7 +48,10 @@ class StudentDashboardService {
     const candidates: ExamCandidate[] = [];
     for (const examId of examIds.keys()) {
       const attempt = attemptsByExamId.get(examId) || null;
-      const isLockedComplete = attempt && attempt.status === 'completed' && !attempt.canReattempt;
+      // 'submitted' and 'grading_failed' lock the exam out of the dashboard's candidate list
+      // exactly like 'completed' does — otherwise an exam the student just handed in pops back
+      // up as available to start while grading is still running.
+      const isLockedComplete = attempt && isAttemptFinished(attempt.status) && !attempt.canReattempt;
       if (isLockedComplete) continue;
 
       const examResult = await examDao.findById(examId);
@@ -103,8 +107,8 @@ class StudentDashboardService {
   }
 }
 
+// The service object is the only export. The two `.bind()` shims that used to sit here
+// published a second, un-substitutable API alongside it — callers bound to a bare function
+// that could never be swapped for a fake, which is the cost of a class with none of the
+// benefit. Callers now go through the object.
 export const studentDashboardService = new StudentDashboardService();
-
-// Backward-compatible named exports — every existing call site keeps working unchanged.
-export const getAccessibleExamCandidates = studentDashboardService.getAccessibleExamCandidates.bind(studentDashboardService);
-export const getUpcomingListItems = studentDashboardService.getUpcomingListItems.bind(studentDashboardService);

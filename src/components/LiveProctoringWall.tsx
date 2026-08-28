@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType, collection, query, where, limit, onSnapshot, orderBy } from '../lib/firebase';
-import { Attempt, ProctoringLog } from '../types';
+import { Attempt } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { ShieldAlert, Eye, Users, Monitor, Terminal, AlertTriangle, Radio, Maximize2, Bell } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { ShieldAlert, Eye, Monitor, Terminal, Radio, Maximize2, Bell } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useAuth } from '../lib/AuthContext';
-import { toast } from 'sonner';
 
 export const LiveProctoringWall: React.FC = () => {
   const { profile } = useAuth();

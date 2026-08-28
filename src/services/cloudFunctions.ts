@@ -1,4 +1,4 @@
-import { db, doc, runTransaction, serverTimestamp, collection, addDoc } from '../lib/firebase';
+import { db, doc, runTransaction, serverTimestamp } from '../lib/firebase';
 
 /**
  * ============================================================================

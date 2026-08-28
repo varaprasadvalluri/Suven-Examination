@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bold, Italic, Quote, List, Sparkles, Languages, CheckSquare, AlertCircle } from 'lucide-react';
-import { Button } from './ui/button';
-import { toast } from 'sonner';
+import { Bold, Italic, Quote, List, Languages, CheckSquare, AlertCircle } from 'lucide-react';
 
 interface RichTextKeyboardEditorProps {
   value: string;

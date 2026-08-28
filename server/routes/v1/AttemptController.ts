@@ -4,10 +4,11 @@ import { authorizeWrite, scopeFieldFor, scopeValueFor, ProxyRole } from '../../a
 import { checkDuplicateSubmission } from '../../middleware/duplicateSubmission';
 import { asyncHandler } from '../../middleware/errorHandler';
 import { attemptDao, invitationDao, studentDao, examDao } from '../../dao';
-import { recomputeAttemptScore } from '../../lib/scoreVerification';
+import { attemptSubmissionService } from '../../services/AttemptSubmissionService';
 import { normalizePageParams } from '../../dao/pagination';
 import { BadRequestError } from '../../lib/errors';
 import { randomUUID } from 'node:crypto';
+import { isAttemptFinished } from '../../../shared/attemptStatus';
 
 const router = express.Router();
 
@@ -140,10 +141,14 @@ router.get(
  *   post:
  *     summary: Submit (complete) an exam attempt
  *     description: >
- *       Requires a valid session. Score/accuracy in the request body are ignored — the
- *       server recomputes them from the real answer key (recomputeAttemptScore) before the
- *       write is authorized, so a client can never submit a forged score. Guarded against
- *       duplicate submission by checkDuplicateSubmission.
+ *       Requires a valid session. Score/accuracy in the request body are ignored — they are
+ *       stripped before anything is written and recomputed server-side from the real answer
+ *       key by the grading worker, so a client can never submit a forged score. The answers
+ *       are persisted immediately as status='submitted' and grading is queued, so the
+ *       response returns without waiting for the recompute; the attempt then flips to
+ *       'completed' (or 'grading_failed'). Guarded against duplicate submission by
+ *       checkDuplicateSubmission. Shares its implementation with the /api/db/write
+ *       submission branch (server/services/AttemptSubmissionService.ts).
  *     tags: [Attempts]
  *     security:
  *       - bearerAuth: []
@@ -176,6 +181,12 @@ router.get(
 router.post(
   '/api/v1/attempts/:attemptId/submit',
   requireSession,
+  // Reshapes the body into the { type, collectionName, docId, data } envelope that
+  // checkDuplicateSubmission reads. status:'completed' here is what marks this as a
+  // SUBMISSION for the duplicate-lock check — it is not the status that gets persisted:
+  // AttemptSubmissionService overwrites it with 'submitted' and lets the grading worker
+  // write 'completed'. Don't "simplify" this to 'submitted' or the duplicate-submission
+  // lock stops firing on this route.
   (req: any, _res, next) => {
     req.body = {
       type: 'update',
@@ -188,18 +199,18 @@ router.post(
   checkDuplicateSubmission,
   asyncHandler(async (req: any, res) => {
     const { docId, data } = req.body;
-    // Never trust a client-submitted score/accuracy — recompute from the real answer key
-    // before this write is authorized or queued. See server/lib/scoreVerification.ts.
-    const verified = await recomputeAttemptScore(docId, data.answers || []);
-    data.score = verified.score;
-    data.accuracy = verified.accuracy;
-
-    const decision = await authorizeWrite(req.auth, 'update', 'attempts', docId, data);
-    if (decision.ok === false) {
-      return res.status(decision.status).json({ error: decision.error });
+    // Single shared implementation with the /api/db/write submission branch — see
+    // server/services/AttemptSubmissionService.ts. This route previously recomputed the score
+    // inline and wrote status='completed' directly, which both diverged from the other path's
+    // state machine and put the full recompute-and-write chain on the request thread during
+    // the exam-end burst. It now persists the answers as status='submitted' and queues
+    // grading, exactly as the other path always did; ResultDetails.tsx already renders that
+    // intermediate state and flips to the result the moment grading lands.
+    const outcome = await attemptSubmissionService.submit(req.auth, docId, 'update', data);
+    if ('ok' in outcome && outcome.ok === false) {
+      return res.status(outcome.status).json({ error: outcome.error });
     }
-    const submitResult = await attemptDao.submit(docId, decision.data);
-    return res.status(200).json(submitResult);
+    return res.status(200).json(outcome);
   })
 );
 
@@ -349,12 +360,16 @@ router.post(
         const attempt = attemptByStudent.get(studentId);
         const existingInvite = inviteByStudent.get(studentId);
 
-        if (attempt?.status === 'started' || attempt?.status === 'in-progress' || (attempt?.status === 'completed' && attempt.canReattempt)) {
+        // isAttemptFinished, not === 'completed': grading is asynchronous, so a just-submitted
+        // attempt sits in 'submitted' before it reaches 'completed'. Matching only 'completed'
+        // meant a re-trigger during the grading window fell through both branches and issued a
+        // brand-new invite for an exam the student had in fact already sat.
+        if (attempt?.status === 'started' || attempt?.status === 'in-progress' || (isAttemptFinished(attempt?.status) && attempt?.canReattempt)) {
           skipped++;
           return;
         }
 
-        if (attempt?.status === 'completed' && !attempt.canReattempt) {
+        if (isAttemptFinished(attempt?.status) && !attempt?.canReattempt) {
           const attemptDecision = await authorizeWrite(req.auth, 'update', 'attempts', attempt.id, { canReattempt: true });
           if (attemptDecision.ok === false) throw new Error(attemptDecision.error);
           await attemptDao.update(attempt.id, attemptDecision.data);

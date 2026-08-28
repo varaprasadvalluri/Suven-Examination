@@ -1,36 +1,27 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { db, handleFirestoreError, OperationType, collection, query, where, doc, getDoc, getDocs, limit, orderBy, getCountFromServer } from '../lib/firebase';
+import { db, collection, query, where, doc, getDoc, getDocs, limit, getCountFromServer } from '../lib/firebase';
 import { attemptsService } from '../services/api';
 import { useAuth } from '../lib/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AdminExams } from './AdminExams';
 import { SchoolStudentOnboarding } from './SchoolStudentOnboarding';
 import { toast } from 'sonner';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Tabs, TabsContent } from './ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { Button } from './ui/button';
 import {
   Building2,
   Users,
   ClipboardList,
-  BookOpen,
-  GraduationCap,
   TrendingUp,
   Award,
   ShieldCheck,
-  Zap,
   BrainCircuit,
   Activity,
-  Filter,
   CheckCircle2,
-  ChevronRight,
   RefreshCw,
-  BarChart4,
-  ArrowUpRight,
   Sparkles,
   Inbox,
-  UserCheck2,
   Loader2,
   Crown,
   Medal
@@ -48,7 +39,6 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  Legend,
   Cell
 } from 'recharts';
 

@@ -9,7 +9,6 @@ import {
   orderBy,
   onSnapshot,
   addDoc,
-  deleteDoc,
   doc,
   updateDoc,
   getDocs,
@@ -19,24 +18,22 @@ import {
 import { useAuth } from '../lib/AuthContext';
 import { authHeaders } from '../lib/sessionStore';
 import { Exam } from '../types';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
+import { Card } from './ui/card';
 import { ConfirmationDialog } from './ConfirmationDialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   Plus,
   Trash2,
   Clock,
-  FileText,
   ClipboardList,
   Eye,
   EyeOff,
   Search,
   ShieldCheck,
   CheckCircle2,
-  Zap,
   Send,
   Edit3,
   Calendar,
@@ -46,7 +43,6 @@ import { toast } from 'sonner';
 
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { motion, AnimatePresence } from 'motion/react';
 
 import { Textarea } from './ui/textarea';
 import { AdminDispatchCenter } from './AdminDispatchCenter';
@@ -373,7 +369,7 @@ export const AdminExams: React.FC = () => {
     if (!examToDelete) return;
     setIsDeletingExam(true);
     try {
-      const response = await fetch(`/api/exams/${examToDelete.id}`, {
+      const response = await fetch(`/api/v1/exams/${examToDelete.id}`, {
         method: 'DELETE',
         headers: { ...authHeaders() }
       });

@@ -6,9 +6,6 @@ import {
   Database,
   RefreshCw,
   CheckCircle2,
-  AlertCircle,
-  ArrowRight,
-  Settings,
   Key,
   Users,
   Terminal,
@@ -17,16 +14,11 @@ import {
   Copy,
   FileText,
   ShieldCheck,
-  Cpu,
-  UserCheck,
   Sparkles,
-  Coins,
   TrendingDown,
   Gauge,
-  DollarSign,
   Info,
   Sliders,
-  Award,
   Bell,
   AlertTriangle
 } from 'lucide-react';
@@ -117,7 +109,7 @@ export const DatabaseMigrator: React.FC = () => {
     toast.loading('Starting Firestore data migration...');
 
     try {
-      const migrateResponse = await fetch('/api/db/migrate', {
+      const migrateResponse = await fetch('/api/v1/admin/database/migrations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() }
       });
@@ -151,7 +143,7 @@ export const DatabaseMigrator: React.FC = () => {
     toast.loading('Bootstrapping clean database schema...');
 
     try {
-      const seedResponse = await fetch('/api/db/seed', {
+      const seedResponse = await fetch('/api/v1/admin/database/seeds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() }
       });
@@ -185,7 +177,7 @@ export const DatabaseMigrator: React.FC = () => {
     toast.loading('Deploying GCP IAM policies...');
 
     try {
-      const iamSyncResponse = await fetch('/api/gcp/sync-iam', {
+      const iamSyncResponse = await fetch('/api/v1/admin/cloud/iam-sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() }
       });

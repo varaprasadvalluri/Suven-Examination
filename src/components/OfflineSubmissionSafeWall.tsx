@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent, CardFooter, CardTitle } from './ui/card';
 import { WifiOff, ShieldAlert, Loader2, Copy, Check, Lock, Laptop, FileSignature } from 'lucide-react';
 import { toast } from 'sonner';
 

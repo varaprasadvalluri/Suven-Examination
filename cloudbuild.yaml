@@ -67,9 +67,9 @@ steps:
         '--port',
         '3000',
         '--min-instances',
-        '1', # Scale to zero-ish idle cost; BUMP before exam window (see above)
+        '${_MIN_INSTANCES}',
         '--max-instances',
-        '100', # Region CPU quota ceiling at cpu=2 (see comment above)
+        '${_MAX_INSTANCES}',
         '--cpu',
         '2', # Dedicate 2 vCPUs per container instance
         '--memory',
@@ -77,7 +77,7 @@ steps:
         # instance (vs the original 100) needs more headroom to
         # avoid OOM under real load
         '--concurrency',
-        '500', # 100 * 500 = 50,000 capacity, makes up for the max-instances ceiling
+        '${_CONCURRENCY}',
         '--timeout',
         '60s'
       ]
@@ -90,6 +90,22 @@ images:
 # regardless — see GCP_DEPLOYMENT.md). Override at trigger time with
 # `--substitutions=_FIREBASE_PROJECT_ID=...` if these ever change.
 substitutions:
+  # CAPACITY — max-instances * concurrency is the ceiling on simultaneous students.
+  # Defaults below reproduce exactly what this file deployed before these became variables:
+  #   100 * 500 = 50,000. Note that is HALF the 100k-concurrent target: at 100k, the second
+  # half of the students queue behind Cloud Run admission. The only lever that raises it is a
+  # CPU quota increase for asia-south1 (https://cloud.google.com/run/quotas) — gcloud rejects
+  # --max-instances above 100 at --cpu 2 until that is granted, and it is not instant. File it
+  # ahead of the exam calendar, not during it.
+  #
+  # BEFORE AN EXAM WINDOW, override at trigger time so containers are already warm at the
+  # opening spike instead of cold-starting under load, then set it back afterwards:
+  #   gcloud builds submit --substitutions=_MIN_INSTANCES=30
+  # These are substitutions rather than edits to the deploy step so that change is a flag on
+  # one command, not a commit that has to be reviewed, merged and reverted under time pressure.
+  _MIN_INSTANCES: '1' # Cost-minimized for ordinary days; raise to 20-30 before a real window
+  _MAX_INSTANCES: '100' # Region CPU quota ceiling at cpu=2
+  _CONCURRENCY: '500' # In-flight requests per instance; 4Gi is sized for this number
   _FIREBASE_PROJECT_ID: 'project-02bb6275-51ac-45e7-940'
   _FIRESTORE_DATABASE_ID: 'suven-edu'
   _FIREBASE_API_KEY: 'AIzaSyD-AzMGuVYnFwhFLOStoerl21LSD7vkIvc'

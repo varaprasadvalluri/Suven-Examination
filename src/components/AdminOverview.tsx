@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { db, collection, getDocs, query, orderBy, limit, where, getCountFromServer } from '../lib/firebase';
-import { Exam, School, Attempt } from '../types';
+import { Exam, Attempt } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -8,20 +8,13 @@ import {
   Users,
   FileText,
   School as SchoolIcon,
-  TrendingUp,
   Plus,
   ChevronRight,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
   Download,
   Loader2,
-  ShieldCheck,
   Zap,
   Activity,
   LayoutGrid,
-  BarChart3,
-  Search,
   Crown,
   Medal,
   Award
@@ -42,8 +35,7 @@ import {
   Radar,
   RadarChart,
   PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis
+  PolarAngleAxis
 } from 'recharts';
 
 const loginActivityData = [

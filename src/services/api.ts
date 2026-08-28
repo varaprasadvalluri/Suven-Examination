@@ -451,7 +451,7 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
             } else {
               fallbackJson = { data: [] };
             }
-          } catch (e) {
+          } catch (_e) {
             fallbackJson = { data: [] };
           }
         }
@@ -529,14 +529,14 @@ async function fetchWithInterceptor(url: string, options: RequestInit = {}): Pro
         if (payload && payload.error) {
           errorMessage = payload.error;
         }
-      } catch (e) {
+      } catch (_e) {
         try {
           const clone = response.clone();
           const text = await clone.text();
           if (text && text.trim().length > 0 && text.length < 200) {
             errorMessage = text.trim();
           }
-        } catch (textErr) {
+        } catch (_textErr) {
           // ignore parsing error
         }
       }
@@ -612,7 +612,7 @@ export const cloudinaryApi = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const uploadResponse = await fetchWithInterceptor('/api/cloudinary/upload', {
+    const uploadResponse = await fetchWithInterceptor('/api/v1/media/cloudinary/uploads', {
       method: 'POST',
       body: formData
     });
@@ -621,7 +621,7 @@ export const cloudinaryApi = {
   },
 
   async sign(params: any): Promise<any> {
-    return safeFetchJson('/api/cloudinary/sign', {
+    return safeFetchJson('/api/v1/media/cloudinary/signature', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params)
@@ -629,7 +629,7 @@ export const cloudinaryApi = {
   },
 
   async delete(publicId: string): Promise<{ success: boolean }> {
-    return safeFetchJson('/api/cloudinary/delete', {
+    return safeFetchJson('/api/v1/media/cloudinary/deletions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ public_id: publicId })
@@ -644,7 +644,7 @@ export const cloudinaryApi = {
  */
 export const authApi = {
   async validateToken(token: string): Promise<any> {
-    return safeFetchJson('/api/auth/validate', {
+    return safeFetchJson('/api/v1/auth/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token })
@@ -652,7 +652,7 @@ export const authApi = {
   },
 
   async createProfile(data: any): Promise<any> {
-    return safeFetchJson('/api/auth/create-profile', {
+    return safeFetchJson('/api/v1/auth/profiles', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -660,7 +660,7 @@ export const authApi = {
   },
 
   async getSession(): Promise<any> {
-    return safeFetchJson('/api/auth/session');
+    return safeFetchJson('/api/v1/auth/session');
   }
 };
 
@@ -671,7 +671,7 @@ export const authApi = {
  */
 export const gatekeeperApi = {
   async enroll(attemptId: string, imageBase64: string): Promise<{ success: boolean; confidence?: number; status?: string }> {
-    return safeFetchJson('/api/gatekeeper/enroll', {
+    return safeFetchJson('/api/v1/exam-entry/enrollments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ attemptId, imageBase64 })
@@ -687,7 +687,7 @@ export const gatekeeperApi = {
     rollNumber: string,
     dob?: string
   ): Promise<{ success: boolean; profileData: any; sessionToken: string }> {
-    return safeFetchJson('/api/gatekeeper/student-login', {
+    return safeFetchJson('/api/v1/exam-entry/student-login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, rollNumber, dob })
@@ -743,7 +743,7 @@ export const examsApi = {
   },
 
   async updateExam(examId: string, data: any): Promise<{ success: boolean }> {
-    return safeFetchJson(`/api/exams/${examId}`, {
+    return safeFetchJson(`/api/v1/exams/${examId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -754,7 +754,7 @@ export const examsApi = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const importResponse = await fetchWithInterceptor(`/api/exams/${examId}/import-doc`, {
+    const importResponse = await fetchWithInterceptor(`/api/v1/exams/${examId}/import-doc`, {
       method: 'POST',
       body: formData
     });
@@ -763,13 +763,13 @@ export const examsApi = {
   },
 
   async deleteExam(examId: string): Promise<{ success: boolean }> {
-    return safeFetchJson(`/api/exams/${examId}`, {
+    return safeFetchJson(`/api/v1/exams/${examId}`, {
       method: 'DELETE'
     });
   },
 
   async deleteQuestion(questionId: string): Promise<{ success: boolean }> {
-    return safeFetchJson(`/api/questions/${questionId}`, {
+    return safeFetchJson(`/api/v1/questions/${questionId}`, {
       method: 'DELETE'
     });
   }

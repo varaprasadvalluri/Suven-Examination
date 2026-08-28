@@ -116,13 +116,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   // Delegates profile lookup/creation and role assignment entirely to the server
-  // (/api/auth/validate), which verifies the caller's Firebase ID token and applies the
+  // (/api/v1/auth/sessions), which verifies the caller's Firebase ID token and applies the
   // real authorization rules (e.g. admin self-registration is blocked). This also mints
   // the session token that authorizes every subsequent /api/db/query and /api/db/write call.
   const fetchProfile = async (firebaseUser: User) => {
     try {
       const idToken = await firebaseUser.getIdToken();
-      const validateResponse = await fetch('/api/auth/validate', {
+      const validateResponse = await fetch('/api/v1/auth/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ displayName: firebaseUser.displayName })
@@ -215,7 +215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Server enforces the real rules here: admin self-registration is hard-blocked, and a
       // 'school' role is only granted if the email is verified against allowed_schools/schools.
-      const createProfileResponse = await fetch('/api/auth/create-profile', {
+      const createProfileResponse = await fetch('/api/v1/auth/profiles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ name, role, schoolId })
@@ -246,7 +246,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       await firebaseLogout();
-    } catch (e) {
+    } catch (_e) {
       // Ignore firebase auth logout if offline/demo
     }
     // Properly clear all session data, tokens (JWT/Cookies), and local cache upon logout

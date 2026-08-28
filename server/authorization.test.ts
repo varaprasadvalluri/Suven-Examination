@@ -16,7 +16,7 @@ import { injectReadScope, authorizeWrite, sanitizeForPublicRead } from './author
 const mockGetDoc = clientGetDoc as unknown as ReturnType<typeof vi.fn>;
 
 function notFound() {
-  return { exists: () => false, data: () => null };
+  return { exists: () => false, data: (): any => null };
 }
 
 function found(data: any) {

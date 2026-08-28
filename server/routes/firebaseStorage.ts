@@ -97,7 +97,7 @@ function getBucket() {
  *         description: FIREBASE_STORAGE_BUCKET not configured, or signing failed
  */
 router.post(
-  '/api/storage/sign-upload',
+  ['/api/v1/media/firebase/signature', '/api/storage/sign-upload'],
   requireSession,
   storageUploadLimiter,
   asyncHandler(async (req, res) => {
@@ -180,7 +180,7 @@ export async function cleanupFirebaseStorageAsset(publicId: string | undefined |
  *         description: Not a Firebase Storage publicId, or deletion failed
  */
 router.post(
-  '/api/storage/delete',
+  ['/api/v1/media/firebase/deletions', '/api/storage/delete'],
   requireSession,
   asyncHandler(async (req, res) => {
     const { publicId } = req.body || {};

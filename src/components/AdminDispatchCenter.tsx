@@ -13,18 +13,16 @@ import {
   serverTimestamp
 } from '../lib/firebase';
 import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import {
-  Send,
   Mail,
   Phone,
   RefreshCw,
   Check,
-  AlertTriangle,
   Clock,
   ShieldAlert,
   Link as LinkIcon,
@@ -255,7 +253,7 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
         });
         toast.success(`Success! Dispatched on retry sequence.`, { id: toastId });
       }, 1200);
-    } catch (err) {
+    } catch (_err) {
       toast.error('Retry lock failed', { id: toastId });
     }
   };

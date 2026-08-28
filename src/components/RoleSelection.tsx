@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { db, collection, getDocs, query, orderBy } from '../lib/firebase';
 import { setSessionToken } from '../lib/sessionStore';
 import { Card, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { ShieldCheck, User as UserIcon, Building2, Search, Loader2 } from 'lucide-react';
+import { ShieldCheck, User as UserIcon, Building2, Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { School } from '../types';
 import { toast } from 'sonner';
@@ -72,7 +72,7 @@ export const RoleSelection: React.FC = () => {
           throw new Error('No authenticated user session found.');
         }
         const idToken = await user.getIdToken();
-        const createProfileResponse = await fetch('/api/auth/create-profile', {
+        const createProfileResponse = await fetch('/api/v1/auth/profiles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
           body: JSON.stringify({

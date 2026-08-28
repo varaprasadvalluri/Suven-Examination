@@ -186,7 +186,7 @@ export const AdminSchoolManagement: React.FC = () => {
       toast.success('Email successfully pre-registered');
       setIsPreRegisterOpen(false);
       setPreRegisterEmail('');
-    } catch (e) {
+    } catch (_e) {
       toast.error('Failed to pre-register email');
     } finally {
       setIsPreRegistering(false);
@@ -417,7 +417,7 @@ export const AdminSchoolManagement: React.FC = () => {
         status: currentStatus === 'active' ? 'inactive' : 'active'
       });
       toast.success(`School ${currentStatus === 'active' ? 'deactivated' : 'activated'}`);
-    } catch (error) {
+    } catch (_error) {
       toast.error('Failed to update status');
     }
   };

@@ -1,7 +1,7 @@
 import express from 'express';
 import { requireSession, requireRole } from '../../auth/middleware';
 import { asyncHandler } from '../../middleware/errorHandler';
-import { queryCache, CACHE_TTLS } from '../../db/cache';
+import { readThrough } from '../../db/cache';
 import { BadRequestError, ConflictError } from '../../lib/errors';
 import { NamedListDao } from '../../dao/createNamedListDao';
 
@@ -24,20 +24,14 @@ export function createNamedListController(opts: {
     requireSession,
     requireRole(...readRoles),
     asyncHandler(async (_req, res) => {
-      const cacheKey = JSON.stringify({ collectionName, constraints: [] });
-      const ttl = CACHE_TTLS[collectionName] || 0;
-      const cached = queryCache.get(cacheKey);
-      if (ttl > 0 && cached && Date.now() - cached.timestamp < ttl) {
-        return res.status(200).json({ success: true, data: cached.data, fromCache: true });
-      }
-
-      const docList = await dao.findAll();
-      docList.sort((a, b) => String((a.data as any)?.name || '').localeCompare(String((b.data as any)?.name || '')));
-
-      if (ttl > 0) {
-        queryCache.set(cacheKey, { timestamp: Date.now(), data: docList });
-      }
-      return res.status(200).json({ success: true, data: docList });
+      // Sort inside the fetch so the cached value is already ordered — sorting after the
+      // cache read would redo the work on every hit.
+      const { data, fromCache } = await readThrough(collectionName, async () => {
+        const docList = await dao.findAll();
+        docList.sort((a, b) => String((a.data as any)?.name || '').localeCompare(String((b.data as any)?.name || '')));
+        return docList;
+      });
+      return res.status(200).json({ success: true, data, ...(fromCache ? { fromCache: true } : {}) });
     })
   );
 

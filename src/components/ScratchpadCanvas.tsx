@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Pencil, Trash2, Eraser, Move, Eye, EyeOff } from 'lucide-react';
+import { Pencil, Trash2, Eraser, EyeOff } from 'lucide-react';
 import { Button } from './ui/button';
 
 export const ScratchpadCanvas: React.FC = () => {

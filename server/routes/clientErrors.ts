@@ -12,7 +12,7 @@ const router = express.Router();
 // unauthenticated calls. Own small JSON body limit (not the global 2mb one) since a crash
 // report is a message + stack + small context object, never a large payload.
 router.post(
-  '/api/client-errors',
+  ['/api/v1/client-errors', '/api/client-errors'],
   clientErrorReportLimiter,
   express.json({ limit: '20kb' }),
   asyncHandler(async (req, res) => {

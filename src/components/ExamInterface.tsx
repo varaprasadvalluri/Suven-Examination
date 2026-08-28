@@ -17,24 +17,18 @@ import {
   addDoc
 } from '../lib/firebase';
 import { Exam, Question, Attempt } from '../types';
-import { orderQuestionsForAttempt } from '../lib/examQuestionOrder';
-import { scoreExam } from '../lib/examScoring';
-import { MathInputToolbar } from './MathInputToolbar';
+import { orderQuestionsForAttempt } from '../../shared/examQuestionOrder';
+import { scoreExam } from '../../shared/examScoring';
 import { Button } from './ui/button';
-import { Card, CardContent, CardFooter } from './ui/card';
 import { Badge } from './ui/badge';
 import {
   Clock,
-  ChevronLeft,
   Circle,
   ArrowLeft,
   ArrowRight,
-  ChevronRight,
-  Send,
   HelpCircle,
   ShieldAlert,
   PauseCircle,
-  Volume2,
   ListChecks,
   X,
   AlertTriangle,
@@ -44,21 +38,17 @@ import {
   Home,
   FileQuestion
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../lib/AuthContext';
 import { authHeaders } from '../lib/sessionStore';
+import { reportClientCrash } from '../lib/customErrors';
+import { isAttemptFinished } from '../../shared/attemptStatus';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 
 // Specialized Subject-Specific Modules
-import { ScratchpadCanvas } from './ScratchpadCanvas';
-import { PeriodicTableHelper } from './PeriodicTableHelper';
-import { EmbeddedCodeEditor } from './EmbeddedCodeEditor';
-import { RichTextKeyboardEditor } from './RichTextKeyboardEditor';
-import { LazyExamAsset } from './LazyExamAsset';
 import { ExamSyncProvider, useExamSync } from './ExamSyncContext';
-import { OfflineSubmissionSafeWall } from './OfflineSubmissionSafeWall';
 import { examAnswerQueue } from '../services/api';
 
 const ExamInterfaceCore: React.FC = () => {
@@ -150,7 +140,12 @@ const ExamInterfaceCore: React.FC = () => {
       }
 
       const aData = { id: attemptSnap.id, ...attemptSnap.data() } as Attempt;
-      if (aData.status === 'completed') {
+      // isAttemptFinished, not === 'completed': grading is asynchronous, so an attempt that has
+      // been handed in reads as 'submitted' until the grading worker finishes. Matching only
+      // 'completed' let a student re-open and keep answering an exam they had already
+      // submitted, for as long as grading took. ResultDetails renders the grading-in-progress
+      // state, so sending them there is correct at every one of these statuses.
+      if (isAttemptFinished(aData.status)) {
         navigate(`/result/${attemptId}`);
         return;
       }
@@ -316,7 +311,7 @@ const ExamInterfaceCore: React.FC = () => {
 
   // Periodic Auto-Save for time tracking and statistics
   useEffect(() => {
-    if (!attemptId || loading || !attempt || attempt.status === 'completed') return;
+    if (!attemptId || loading || !attempt || isAttemptFinished(attempt.status)) return;
 
     const autoSaveInterval = setInterval(async () => {
       try {
@@ -388,8 +383,9 @@ const ExamInterfaceCore: React.FC = () => {
     }
 
     // Dialog stays open (buttons disabled, "Transmitting..." shown via `loading`) for the
-    // whole submit so the student always sees feedback — it only goes away when navigate()
-    // below unmounts this screen, on both the success and error paths.
+    // whole submit so the student always sees feedback. On success it goes away when
+    // navigate() below unmounts this screen; on failure the catch block closes it explicitly
+    // and leaves the student on the exam so they can retry.
     setLoading(true);
     try {
       // Flush any queued answers immediately to DB before scoring/finalizing
@@ -422,37 +418,47 @@ const ExamInterfaceCore: React.FC = () => {
       // The main attempt write and the error-book write are independent — run them
       // concurrently instead of back-to-back so submission only waits on the slower of the
       // two round trips, not both added together.
+      // Persists the attempt, or THROWS. Never resolves on a failed write: everything
+      // downstream of this (clearing the local answer cache, the success toast, navigating to
+      // the result page) is only correct if the answers actually reached the server. This used
+      // to swallow both channels' errors and resolve regardless, which told a student their
+      // exam was submitted — and deleted their only local copy of the answers — when nothing
+      // had been persisted at all.
       const submitAttempt = async () => {
-        let isCompletedInDb = false;
+        const failures: string[] = [];
 
-        // Primary Channel: Direct Firestore Client Update
+        // Primary Channel: the apiService updateDoc path (routes to POST
+        // /api/v1/attempts/:id/submit, which recomputes the score server-side).
         try {
           await updateDoc(doc(db, 'attempts', attemptId), submissionPayload);
-          isCompletedInDb = true;
-        } catch (err) {
+          return;
+        } catch (err: any) {
+          failures.push(`primary: ${err?.message || String(err)}`);
           console.warn('Client-side updateDoc failed, attempting Express API proxy submission:', err);
         }
 
         // Fallback Channel: Express Server Proxy Write
-        if (!isCompletedInDb) {
-          try {
-            const submitResponse = await fetch('/api/db/write', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...authHeaders() },
-              body: JSON.stringify({
-                type: 'update',
-                collectionName: 'attempts',
-                docId: attemptId,
-                data: submissionPayload
-              })
-            });
-            if (!submitResponse.ok) {
-              console.warn('Express write API returned non-OK response:', await submitResponse.text());
-            }
-          } catch (apiErr) {
-            console.error('Express write API fetch error:', apiErr);
+        try {
+          const submitResponse = await fetch('/api/db/write', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({
+              type: 'update',
+              collectionName: 'attempts',
+              docId: attemptId,
+              data: submissionPayload
+            })
+          });
+          if (submitResponse.ok) {
+            return;
           }
+          failures.push(`fallback: HTTP ${submitResponse.status} ${await submitResponse.text()}`);
+        } catch (apiErr: any) {
+          failures.push(`fallback: ${apiErr?.message || String(apiErr)}`);
+          console.error('Express write API fetch error:', apiErr);
         }
+
+        throw new Error(`Exam submission was not saved. ${failures.join(' | ')}`);
       };
 
       const submitErrorBook = async () => {
@@ -484,8 +490,13 @@ const ExamInterfaceCore: React.FC = () => {
         }
       };
 
+      // submitErrorBook() swallows its own failures by design (a missing review entry is not
+      // worth failing a submission over), so this only rejects when the attempt write itself
+      // failed on every channel — which must abort the whole success path below.
       await Promise.all([submitAttempt(), submitErrorBook()]);
 
+      // Only past this line is the submission confirmed persisted, so only here is it safe to
+      // drop the student's local progress cache.
       localStorage.removeItem(`exam_visited_${attemptId}`);
       localStorage.removeItem(`exam_review_${attemptId}`);
 
@@ -498,10 +509,22 @@ const ExamInterfaceCore: React.FC = () => {
 
       toast.success('Exam submitted successfully!');
       setTimeout(() => navigate(`/result/${attemptId}`), 1500);
-    } catch (error) {
+    } catch (error: any) {
+      // Deliberately does NOT navigate to the result page. The student stays on the exam
+      // screen with their answers still in component state and still in localStorage, so the
+      // submit button can be pressed again. Navigating away on a failed submission was how a
+      // lost attempt became invisible to everyone, including the student.
       console.error('Critical submission error:', error);
-      toast.error('An error occurred during submission. Attempting automatic navigation...');
-      setTimeout(() => navigate(`/result/${attemptId}`), 2000);
+      reportClientCrash({
+        message: error?.message || String(error),
+        stack: error?.stack,
+        code: 'exam/submission-failed',
+        action: `ExamInterface.handleSubmit attemptId=${attemptId}`
+      });
+      setIsSubmitConfirmOpen(false);
+      toast.error('Your exam was NOT submitted — nothing has been lost. Check your connection and press Submit again.', {
+        duration: 15000
+      });
     } finally {
       setLoading(false);
     }
@@ -589,7 +612,7 @@ const ExamInterfaceCore: React.FC = () => {
 
   // 1. Initialize secure media capturing (Camera disabled per policy, optional audio analysis)
   useEffect(() => {
-    if (loading || !attempt || attempt.status === 'completed') return;
+    if (loading || !attempt || isAttemptFinished(attempt.status)) return;
 
     const initMedia = async () => {
       // Camera / Video stream request completely removed so students are never prompted for camera access.
@@ -677,12 +700,12 @@ const ExamInterfaceCore: React.FC = () => {
   }, [micAllowed, handleViolationTrigger]);
 
   useEffect(() => {
-    if (!attempt || attempt.status === 'completed' || loading) return;
+    if (!attempt || isAttemptFinished(attempt.status) || loading) return;
 
     const clearClipboard = async () => {
       try {
         await navigator.clipboard.writeText('');
-      } catch (err) {
+      } catch (_err) {
         // clipboard API might require focus or permission, ignore if blocked
       }
     };
@@ -814,7 +837,7 @@ const ExamInterfaceCore: React.FC = () => {
   }, [attempt, loading, logProctorAnomaly]);
 
   useEffect(() => {
-    if (!exam || !attempt || attempt.status === 'completed' || loading) return;
+    if (!exam || !attempt || isAttemptFinished(attempt.status) || loading) return;
 
     // 1. Freeze timer tick completely if admin triggered an active Emergency Pause
     if (isPaused) return;
@@ -858,7 +881,7 @@ const ExamInterfaceCore: React.FC = () => {
   }, [timeLeft, hasWarnedUnder5Min]);
 
   useEffect(() => {
-    if (!attemptId || !attempt || attempt.status === 'completed') return;
+    if (!attemptId || !attempt || isAttemptFinished(attempt.status)) return;
 
     const logActivity = async (type: string, description: string) => {
       try {
@@ -1205,7 +1228,7 @@ const ExamInterfaceCore: React.FC = () => {
     }
   };
 
-  if (!isFullscreen && !loading && attempt && attempt.status !== 'completed') {
+  if (!isFullscreen && !loading && attempt && !isAttemptFinished(attempt.status)) {
     return (
       <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center text-white">
         <motion.div

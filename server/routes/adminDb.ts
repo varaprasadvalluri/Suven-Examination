@@ -1,7 +1,7 @@
 import express from 'express';
 import { requireSession, requireRole } from '../auth/middleware';
 import { firebaseConfig } from '../config';
-import { clientDb, clientCollection, clientDoc, clientGetDocs, clientSetDoc, clientWriteBatch } from '../firestoreClient';
+import { clientDb, clientCollection, clientDoc, clientGetDocs, clientSetDoc, clientWriteBatch, createDatabaseHandle } from '../firestoreClient';
 import { asyncHandler } from '../middleware/errorHandler';
 import { InternalServerError } from '../lib/errors';
 
@@ -14,10 +14,10 @@ const router = express.Router();
  *   post:
  *     summary: Migrate Firestore collections (schools, users, exams, attempts, etc., including nested exam questions) from a source project to this app's current database
  *     description: >
- *       Admin only. NOTE — this route currently has pre-existing TypeScript errors
- *       (getApps/initializeClientApp/getClientFirestore are referenced but not imported),
- *       unrelated to this documentation pass and not fixed here; the route as written will
- *       not compile/run until that's addressed.
+ *       Admin only. Reads each collection from the source project/database through the REST
+ *       client's source-database handle and writes it into this app's own database in batches
+ *       of 400 operations. Nested exam questions subcollections are migrated alongside their
+ *       exam. A failure on one collection is logged and skipped rather than aborting the run.
  *     tags: [Admin DB]
  *     security:
  *       - bearerAuth: []
@@ -41,7 +41,7 @@ const router = express.Router();
  *         description: Migration failed
  */
 router.post(
-  '/api/db/migrate',
+  ['/api/v1/admin/database/migrations', '/api/db/migrate'],
   requireSession,
   requireRole('admin'),
   asyncHandler(async (req, res) => {
@@ -72,21 +72,13 @@ router.post(
     addLog(`Destination Database: "${firebaseConfig.firestoreDatabaseId}" (Project: "${firebaseConfig.projectId}")`);
 
     try {
-      // 1. Initialize source app if not already initialized
-      let sourceApp;
-      const existingApps = getApps();
-      const sourceAppName = 'sourceMigrationApp';
-      const existingSourceApp = existingApps.find((app) => app.name === sourceAppName);
-
-      if (existingSourceApp) {
-        sourceApp = existingSourceApp;
-        addLog(`Re-using existing source Firebase app instance.`);
-      } else {
-        sourceApp = initializeClientApp(sourceConfig, sourceAppName);
-        addLog(`Initialized new source Firebase app instance.`);
-      }
-
-      const sourceDb = getClientFirestore(sourceApp, sourceConfig.firestoreDatabaseId);
+      // 1. Open a handle on the SOURCE database. This server talks to Firestore over REST
+      // (server/firestoreClient.ts), not the Firebase client SDK, so there is no "app" to
+      // initialize — a handle is just the project/database/apiKey triple that read URLs are
+      // built from. Reads below go through this handle; every write still targets `clientDb`
+      // (this app's own database), which is what makes it a migration rather than a copy.
+      const sourceDb = createDatabaseHandle(sourceConfig);
+      addLog(`Opened source database handle for project "${sourceConfig.projectId}".`);
 
       // 2. Collections to migrate
       const collectionsToMigrate = [
@@ -199,7 +191,7 @@ router.post(
  *         description: Seeding failed
  */
 router.post(
-  '/api/db/seed',
+  ['/api/v1/admin/database/seeds', '/api/db/seed'],
   requireSession,
   requireRole('admin'),
   asyncHandler(async (req, res) => {

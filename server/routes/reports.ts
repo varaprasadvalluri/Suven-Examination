@@ -48,7 +48,7 @@ const MAX_EXPORT_ROWS = 300000;
 // ranking table caps what it fetches for its own live-listener performance; export needs to
 // keep working even as total students grow well past what's safe to hold in a browser tab).
 router.post(
-  '/api/reports/merit-list-xlsx',
+  ['/api/v1/reports/merit-list', '/api/reports/merit-list-xlsx'],
   requireSession,
   requireRole('admin', 'school'),
   asyncHandler(async (req: any, res) => {
@@ -60,28 +60,28 @@ router.post(
 
     const schoolsSnap = await clientGetDocs(clientCollection(clientDb, 'schools'));
     const schoolNameMap = new Map<string, string>();
-    schoolsSnap.docs.forEach((d) => schoolNameMap.set(d.id, (d.data() as any)?.name || d.id));
+    schoolsSnap.docs.forEach((d: any) => schoolNameMap.set(d.id, (d.data() as any)?.name || d.id));
 
     const studentConstraints = [clientWhere('role', '==', 'student')];
     if (effectiveSchoolId) studentConstraints.push(clientWhere('schoolId', '==', effectiveSchoolId));
     const studentsSnap = await clientGetDocs(
       clientQuery(clientCollection(clientDb, 'users'), ...studentConstraints, clientLimit(MAX_EXPORT_ROWS))
     );
-    const students = studentsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+    const students = studentsSnap.docs.map((d: any) => ({ id: d.id, ...(d.data() as any) }));
 
     const attemptConstraints = [clientWhere('status', '==', 'completed')];
     if (effectiveSchoolId) attemptConstraints.push(clientWhere('schoolId', '==', effectiveSchoolId));
     const attemptsSnap = await clientGetDocs(
       clientQuery(clientCollection(clientDb, 'attempts'), ...attemptConstraints, clientLimit(MAX_EXPORT_ROWS))
     );
-    const attempts = attemptsSnap.docs.map((d) => d.data() as any);
+    const attempts = attemptsSnap.docs.map((d: any) => d.data() as any);
 
     const examsSnap = await clientGetDocs(clientCollection(clientDb, 'exams'));
     const examNameMap = new Map<string, string>();
-    examsSnap.docs.forEach((d) => examNameMap.set(d.id, (d.data() as any)?.title || d.id));
+    examsSnap.docs.forEach((d: any) => examNameMap.set(d.id, (d.data() as any)?.title || d.id));
 
     const attemptsByStudent = new Map<string, any[]>();
-    attempts.forEach((a) => {
+    attempts.forEach((a: any) => {
       if (!a.studentId) return;
       const list = attemptsByStudent.get(a.studentId) || [];
       list.push(a);
@@ -141,9 +141,9 @@ router.post(
       };
     });
 
-    rows.sort((a, b) => b.percentile - a.percentile || b.score - a.score);
+    rows.sort((a: any, b: any) => b.percentile - a.percentile || b.score - a.score);
 
-    const sheetRows = rows.map((r, i) => ({
+    const sheetRows = rows.map((r: any, i: number) => ({
       Rank: i + 1,
       Name: r.name,
       'Roll No.': r.rollNumber,

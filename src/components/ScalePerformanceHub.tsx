@@ -7,18 +7,11 @@ import { DatabaseMigrator } from './DatabaseMigrator';
 import {
   Play,
   Terminal,
-  CheckCircle,
-  AlertTriangle,
   Activity,
   Database,
   Cpu,
-  Layers,
-  Wifi,
-  Globe,
   RefreshCw,
-  Code,
   ShieldCheck,
-  Server,
   FileCode,
   CheckCircle2,
   AlertCircle

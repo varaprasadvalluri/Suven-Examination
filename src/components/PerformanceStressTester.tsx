@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from './ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { db, doc, setDoc, getDoc, deleteDoc } from '../lib/firebase';
@@ -8,25 +8,21 @@ import {
   Play,
   Square,
   Activity,
-  Database,
   ShieldAlert,
   ShieldCheck,
   Zap,
   AlertTriangle,
   TrendingUp,
   CheckCircle,
-  Timer,
   Sliders,
   Cpu,
   RefreshCw,
-  Eye,
   Lock,
   Flame,
   Gauge
 } from 'lucide-react';
 import {
   ResponsiveContainer,
-  AreaChart,
   Area,
   Line,
   ComposedChart,
@@ -34,8 +30,6 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  BarChart,
-  Bar,
   Legend
 } from 'recharts';
 import { toast } from 'sonner';

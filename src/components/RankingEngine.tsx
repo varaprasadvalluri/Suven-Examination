@@ -349,7 +349,7 @@ export const RankingEngine: React.FC = () => {
   const handleExportXlsx = async () => {
     setIsExportingXlsx(true);
     try {
-      const response = await fetch('/api/reports/merit-list-xlsx', {
+      const response = await fetch('/api/v1/reports/merit-list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ schoolId: profile?.role === 'admin' ? selectedSchoolId : undefined })

@@ -6,21 +6,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import {
-  TrendingUp,
   Award,
   BrainCircuit,
-  Users2,
   Building,
-  Clock,
-  BarChart3,
-  HelpCircle,
   AlertTriangle,
-  ArrowUpRight,
-  CheckCircle2,
   ChevronRight,
   Download
 } from 'lucide-react';
-import { motion } from 'motion/react';
 import { useAuth } from '../lib/AuthContext';
 import {
   ResponsiveContainer,

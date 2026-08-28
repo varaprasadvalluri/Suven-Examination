@@ -96,7 +96,7 @@ function getCloudinary() {
  *         description: Cloudinary not configured, or upload failed
  */
 router.post(
-  '/api/cloudinary/upload',
+  ['/api/v1/media/cloudinary/uploads', '/api/cloudinary/upload'],
   requireSession,
   cloudinaryUploadLimiter,
   asyncHandler(async (req, res) => {
@@ -145,7 +145,7 @@ router.post(
  *         description: Cloudinary not configured, or signing failed
  */
 router.post(
-  '/api/cloudinary/sign',
+  ['/api/v1/media/cloudinary/signature', '/api/cloudinary/sign'],
   requireSession,
   cloudinaryUploadLimiter,
   asyncHandler(async (req, res) => {
@@ -241,7 +241,7 @@ export async function cleanupCloudinaryAsset(
  *         description: Deletion failed
  */
 router.post(
-  '/api/cloudinary/delete',
+  ['/api/v1/media/cloudinary/deletions', '/api/cloudinary/delete'],
   requireSession,
   asyncHandler(async (req, res) => {
     const { publicId } = req.body;

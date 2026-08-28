@@ -1,4 +1,4 @@
-import type { Question } from '../types';
+import type { Question } from '../src/types';
 
 export type StudentAnswer = number | string | number[] | null | undefined;
 

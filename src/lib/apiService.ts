@@ -127,6 +127,30 @@ function dispatchDbWrite(collectionName?: string, type: CrudType = 'update', doc
 }
 
 // Client-side drop-in mock of Firestore runTransaction
+// Maps one accumulated { type, collectionName, docId, data } operation onto its RESTful
+// route. Shared by runTransaction and writeBatch, which both replay a list of operations —
+// neither is a real atomic transaction here (each op is its own request), which was already
+// true before these URLs changed.
+async function writeOperation(op: { type: string; collectionName: string; docId?: string; data?: any }) {
+  const base = `/api/v1/${encodeURIComponent(op.collectionName)}`;
+  if (op.type === 'add') {
+    return safeFetchJson(base, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: op.data })
+    });
+  }
+  const url = `${base}/${encodeURIComponent(op.docId || '')}`;
+  if (op.type === 'delete') {
+    return safeFetchJson(url, { method: 'DELETE' });
+  }
+  return safeFetchJson(url, {
+    method: op.type === 'set' ? 'PUT' : 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data: op.data })
+  });
+}
+
 export async function runTransaction(dbInstance: any, updateFunction: (transaction: any) => Promise<any>) {
   const operations: any[] = [];
   const transactionProxy = {
@@ -148,11 +172,7 @@ export async function runTransaction(dbInstance: any, updateFunction: (transacti
 
   // Commit all operations accumulated during the transaction
   for (const op of operations) {
-    await safeFetchJson('/api/db/write', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(op)
-    });
+    await writeOperation(op);
     dispatchDbWrite(op.collectionName, op.type === 'add' ? 'create' : op.type, op.docId);
   }
 
@@ -176,11 +196,7 @@ export function writeBatch(dbInstance: any) {
     commit: async () => {
       // Execute each queued operation using standard proxy write API
       for (const op of operations) {
-        await safeFetchJson('/api/db/write', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(op)
-        });
+        await writeOperation(op);
         dispatchDbWrite(op.collectionName, op.type === 'add' ? 'create' : op.type, op.docId);
       }
       dispatchDbWrite();
@@ -304,14 +320,7 @@ export async function getDoc(docRef: any) {
   const named = await tryNamedGetDoc(docRef);
   if (named) return named;
 
-  const payload = await safeFetchJson('/api/db/query', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      collectionName: docRef.collectionName,
-      docId: docRef.id
-    })
-  });
+  const payload = await safeFetchJson(`/api/v1/${encodeURIComponent(docRef.collectionName)}/${encodeURIComponent(docRef.id)}`);
 
   return wrapDocResult(docRef.id, payload.data);
 }
@@ -324,13 +333,10 @@ export async function getDocs(queryRef: any) {
   const named = await tryNamedGetDocs(collectionName, constraints);
   if (named) return named;
 
-  const payload = await safeFetchJson('/api/db/query', {
+  const payload = await safeFetchJson(`/api/v1/${encodeURIComponent(collectionName)}/search`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      collectionName,
-      constraints
-    })
+    body: JSON.stringify({ constraints })
   });
 
   return wrapDocsResult(payload.data || []);
@@ -338,14 +344,10 @@ export async function getDocs(queryRef: any) {
 
 // Core standard ADD document write
 export async function addDoc(collectionRef: any, data: any) {
-  const payload = await safeFetchJson('/api/db/write', {
+  const payload = await safeFetchJson(`/api/v1/${encodeURIComponent(collectionRef.collectionName)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      type: 'add',
-      collectionName: collectionRef.collectionName,
-      data
-    })
+    body: JSON.stringify({ data })
   });
 
   dispatchDbWrite(collectionRef.collectionName, 'create', payload.id);
@@ -354,13 +356,10 @@ export async function addDoc(collectionRef: any, data: any) {
 
 // Core standard SET document write
 export async function setDoc(docRef: any, data: any, options?: any) {
-  await safeFetchJson('/api/db/write', {
-    method: 'POST',
+  await safeFetchJson(`/api/v1/${encodeURIComponent(docRef.collectionName)}/${encodeURIComponent(docRef.id)}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      type: 'set',
-      collectionName: docRef.collectionName,
-      docId: docRef.id,
       data,
       options
     })
@@ -412,15 +411,10 @@ export async function updateDoc(docRef: any, data: any) {
     return { success: true };
   }
 
-  await safeFetchJson('/api/db/write', {
-    method: 'POST',
+  await safeFetchJson(`/api/v1/${encodeURIComponent(docRef.collectionName)}/${encodeURIComponent(docRef.id)}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      type: 'update',
-      collectionName: docRef.collectionName,
-      docId: docRef.id,
-      data
-    })
+    body: JSON.stringify({ data })
   });
 
   dispatchDbWrite(docRef.collectionName, 'update', docRef.id);
@@ -438,14 +432,8 @@ export async function deleteDoc(docRef: any) {
     return { success: true };
   }
 
-  await safeFetchJson('/api/db/write', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      type: 'delete',
-      collectionName: docRef.collectionName,
-      docId: docRef.id
-    })
+  await safeFetchJson(`/api/v1/${encodeURIComponent(docRef.collectionName)}/${encodeURIComponent(docRef.id)}`, {
+    method: 'DELETE'
   });
 
   dispatchDbWrite(docRef.collectionName, 'delete', docRef.id);
@@ -457,11 +445,10 @@ export async function getCountFromServer(queryRef: any) {
   const collectionName = queryRef.collectionName;
   const constraints = queryRef.constraints || [];
 
-  const payload = await safeFetchJson('/api/db/query', {
+  const payload = await safeFetchJson(`/api/v1/${encodeURIComponent(collectionName)}/count`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      collectionName,
       constraints,
       countOnly: true
     })

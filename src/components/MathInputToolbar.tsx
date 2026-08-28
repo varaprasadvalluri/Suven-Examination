@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { MathRenderer } from './MathRenderer';
-import { ToggleLeft, HelpCircle, Sparkles, BookOpen, Layers } from 'lucide-react';
+import { HelpCircle, Sparkles } from 'lucide-react';
 
 interface MathInputToolbarProps {
   value: string;

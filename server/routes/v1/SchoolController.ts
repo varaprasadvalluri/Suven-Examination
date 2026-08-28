@@ -1,6 +1,6 @@
 import express from 'express';
 import { schoolDao } from '../../dao';
-import { queryCache, CACHE_TTLS } from '../../db/cache';
+import { readThrough } from '../../db/cache';
 import { asyncHandler } from '../../middleware/errorHandler';
 import { requireSession, requireRole } from '../../auth/middleware';
 import {
@@ -45,19 +45,8 @@ const router = express.Router();
 router.get(
   '/api/v1/schools',
   asyncHandler(async (_req, res) => {
-    const cacheKey = JSON.stringify({ collectionName: 'schools', constraints: [] });
-    const ttl = CACHE_TTLS['schools'] || 0;
-    const cached = queryCache.get(cacheKey);
-    if (ttl > 0 && cached && Date.now() - cached.timestamp < ttl) {
-      return res.status(200).json({ success: true, data: cached.data, fromCache: true });
-    }
-
-    const docList = await schoolDao.findAll();
-
-    if (ttl > 0) {
-      queryCache.set(cacheKey, { timestamp: Date.now(), data: docList });
-    }
-    return res.status(200).json({ success: true, data: docList });
+    const { data, fromCache } = await readThrough('schools', () => schoolDao.findAll());
+    return res.status(200).json({ success: true, data, ...(fromCache ? { fromCache: true } : {}) });
   })
 );
 

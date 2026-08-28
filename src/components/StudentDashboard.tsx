@@ -320,7 +320,7 @@ export const StudentDashboard: React.FC = () => {
       setPendingExam(null);
       setPendingReattemptId(null);
       navigate(`/exam/${attemptId}`);
-    } catch (err) {
+    } catch (_err) {
       toast.error(pendingReattemptId ? 'Failed to re-initialize exam attempt' : 'Failed to start exam');
     } finally {
       setIsLaunchingExam(false);

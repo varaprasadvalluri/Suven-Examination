@@ -1,10 +1,43 @@
 import { GoogleAuth } from 'google-auth-library';
 import { firebaseConfig } from './config';
 import { createBreaker } from './lib/circuitBreaker';
+import { withRetry, FirestoreRestError } from './lib/retry';
+
+// A handle identifying WHICH Firestore database a ref belongs to. The default handle
+// (`clientDb`) carries no overrides and therefore resolves to this app's own configured
+// project/database — byte-identical to the URLs this client built before handles existed.
+//
+// Overrides exist for exactly one caller: the admin migration route (routes/adminDb.ts), which
+// has to READ from a different project's database and write into this one. Without this, refs
+// carried no database identity at all, so `clientCollection(sourceDb, ...)` silently ignored
+// its first argument and read the destination — a migration that would have copied the
+// destination onto itself.
+export interface DatabaseHandle {
+  type: 'db';
+  projectId?: string;
+  databaseId?: string;
+  apiKey?: string;
+}
+
+export function createDatabaseHandle(config: { projectId: string; firestoreDatabaseId?: string; apiKey: string }): DatabaseHandle {
+  return {
+    type: 'db',
+    projectId: config.projectId,
+    databaseId: config.firestoreDatabaseId || '(default)',
+    apiKey: config.apiKey
+  };
+}
 
 // REST Client configuration
-export const getBaseUrl = () =>
-  `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${firebaseConfig.firestoreDatabaseId}/documents`;
+export const getBaseUrl = (db?: DatabaseHandle) => {
+  const projectId = db?.projectId || firebaseConfig.projectId;
+  const databaseId = db?.databaseId || firebaseConfig.firestoreDatabaseId;
+  return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents`;
+};
+
+function apiKeyFor(db?: DatabaseHandle): string {
+  return db?.apiKey || firebaseConfig.apiKey;
+}
 
 // Exported for direct reuse by the GCP billing/IAM routes, which use the same ADC client
 // and auto-detected project ID outside of Firestore REST calls.
@@ -15,7 +48,13 @@ export const auth = new GoogleAuth({
 export let detectedContainerProjectId: string | null = null;
 let cachedToken: { token: string; expiry: number } | null = null;
 
-export async function getAuthHeader(): Promise<Record<string, string>> {
+export async function getAuthHeader(db?: DatabaseHandle): Promise<Record<string, string>> {
+  // A ref pointing at a DIFFERENT project than this app's own never gets this app's ADC
+  // token — that credential isn't valid there, and attaching it would mask the real 403 with
+  // a confusing auth error. Such reads authenticate with the source config's own apiKey.
+  if (db?.projectId && db.projectId !== firebaseConfig.projectId) {
+    return {};
+  }
   if (!detectedContainerProjectId) {
     try {
       detectedContainerProjectId = await auth.getProjectId();
@@ -59,7 +98,9 @@ export async function getAuthHeader(): Promise<Record<string, string>> {
 
 console.log(`[NODE EXPRESS SERVER] Routed safely via Firestore REST API Gateway to DB: "${firebaseConfig.firestoreDatabaseId}"`);
 
-export const clientDb = { type: 'db' };
+// The default handle: no overrides, so every ref built from it resolves to this app's own
+// configured project and database exactly as before.
+export const clientDb: DatabaseHandle = { type: 'db' };
 
 // Firestore REST Type Marshallers and Parsers
 export function fromFirestoreValue(val: any): any {
@@ -195,22 +236,25 @@ export function mapOp(op: string): string {
 // --- REST CLIENT WRAPPERS FOR COMPATIBILITY ---
 
 export function clientCollection(parent: any, collectionName: string) {
+  // A subcollection inherits its parent doc's database; a top-level collection takes the
+  // database from the handle it was opened against (clientDb by default).
   if (parent && parent.type === 'doc') {
-    return { type: 'collection', collectionName: `${parent.collectionName}/${parent.id}/${collectionName}` };
+    return { type: 'collection', collectionName: `${parent.collectionName}/${parent.id}/${collectionName}`, db: parent.db };
   }
-  return { type: 'collection', collectionName };
+  return { type: 'collection', collectionName, db: parent && parent.type === 'db' ? parent : undefined };
 }
 
 export function clientDoc(...args: any[]) {
   if (args.length === 3) {
+    const dbHandle = args[0];
     const colName = args[1];
     const id = args[2];
-    return { type: 'doc', collectionName: colName, id };
+    return { type: 'doc', collectionName: colName, id, db: dbHandle && dbHandle.type === 'db' ? dbHandle : undefined };
   } else if (args.length === 2) {
     const parent = args[0];
     const id = args[1];
     if (parent && parent.type === 'collection') {
-      return { type: 'doc', collectionName: parent.collectionName, id };
+      return { type: 'doc', collectionName: parent.collectionName, id, db: parent.db };
     }
     if (typeof parent === 'string') {
       return { type: 'doc', collectionName: parent, id };
@@ -223,10 +267,10 @@ export function clientDoc(...args: any[]) {
 }
 
 async function clientGetDocImpl(docRef: any) {
-  const url = `${getBaseUrl()}/${docRef.collectionName}/${docRef.id}?key=${firebaseConfig.apiKey}`;
+  const url = `${getBaseUrl(docRef.db)}/${docRef.collectionName}/${docRef.id}?key=${apiKeyFor(docRef.db)}`;
   try {
     const headers: Record<string, string> = {};
-    const authHeader = await getAuthHeader();
+    const authHeader = await getAuthHeader(docRef.db);
     Object.assign(headers, authHeader);
 
     const httpResponse = await fetch(url, { headers });
@@ -234,12 +278,12 @@ async function clientGetDocImpl(docRef: any) {
       return {
         id: docRef.id,
         exists: () => false,
-        data: () => null
+        data: (): any => null
       };
     }
     if (!httpResponse.ok) {
       const errText = await httpResponse.text();
-      throw new Error(`Firestore REST error: ${httpResponse.status} ${errText}`);
+      throw new FirestoreRestError(httpResponse.status, `Firestore REST error: ${httpResponse.status} ${errText}`);
     }
     const payload = await httpResponse.json();
     const docData = fromFirestoreFields(payload.fields || {});
@@ -260,7 +304,7 @@ async function clientGetDocsImpl(queryRef: any) {
 
   const { parentPath, collectionId } = parseCollectionPath(collectionName);
   const urlPath = parentPath ? `/${parentPath}:runQuery` : ':runQuery';
-  const url = `${getBaseUrl()}${urlPath}?key=${firebaseConfig.apiKey}`;
+  const url = `${getBaseUrl(queryRef.db)}${urlPath}?key=${apiKeyFor(queryRef.db)}`;
 
   const structuredQuery: any = {
     from: [{ collectionId }]
@@ -306,6 +350,11 @@ async function clientGetDocsImpl(queryRef: any) {
     structuredQuery.limit = limitConstraints[0].limit;
   }
 
+  const offsetConstraints = constraints.filter((constraint: any) => constraint.type === 'offset');
+  if (offsetConstraints.length > 0 && !hasStartAfter) {
+    structuredQuery.offset = offsetConstraints[0].offset;
+  }
+
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const authHeader = await getAuthHeader();
@@ -319,7 +368,7 @@ async function clientGetDocsImpl(queryRef: any) {
 
     if (!httpResponse.ok) {
       const errText = await httpResponse.text();
-      throw new Error(`Firestore REST runQuery error: ${httpResponse.status} ${errText}`);
+      throw new FirestoreRestError(httpResponse.status, `Firestore REST runQuery error: ${httpResponse.status} ${errText}`);
     }
 
     const payload = await httpResponse.json();
@@ -385,7 +434,7 @@ async function clientSetDocImpl(docRef: any, data: any, options?: any) {
 
   if (!httpResponse.ok) {
     const errText = await httpResponse.text();
-    throw new Error(`Firestore REST setDoc error: ${httpResponse.status} ${errText}`);
+    throw new FirestoreRestError(httpResponse.status, `Firestore REST setDoc error: ${httpResponse.status} ${errText}`);
   }
 
   return { success: true };
@@ -412,7 +461,7 @@ async function clientUpdateDocImpl(docRef: any, data: any) {
 
   if (!httpResponse.ok) {
     const errText = await httpResponse.text();
-    throw new Error(`Firestore REST updateDoc error: ${httpResponse.status} ${errText}`);
+    throw new FirestoreRestError(httpResponse.status, `Firestore REST updateDoc error: ${httpResponse.status} ${errText}`);
   }
 
   return { success: true };
@@ -432,7 +481,7 @@ async function clientDeleteDocImpl(docRef: any) {
 
   if (!httpResponse.ok && httpResponse.status !== 404) {
     const errText = await httpResponse.text();
-    throw new Error(`Firestore REST deleteDoc error: ${httpResponse.status} ${errText}`);
+    throw new FirestoreRestError(httpResponse.status, `Firestore REST deleteDoc error: ${httpResponse.status} ${errText}`);
   }
 
   return { success: true };
@@ -455,7 +504,7 @@ async function clientAddDocImpl(collectionRef: any, data: any) {
 
   if (!httpResponse.ok) {
     const errText = await httpResponse.text();
-    throw new Error(`Firestore REST addDoc error: ${httpResponse.status} ${errText}`);
+    throw new FirestoreRestError(httpResponse.status, `Firestore REST addDoc error: ${httpResponse.status} ${errText}`);
   }
 
   const payload = await httpResponse.json();
@@ -466,11 +515,20 @@ async function clientAddDocImpl(collectionRef: any, data: any) {
 // Circuit-breaker-wrapped entry points — every caller across the server (gatekeeper,
 // exams, db, reports, adminDb routes) imports these same names, so wrapping here protects
 // all Firestore REST access in one place without touching call sites.
-export const clientGetDoc = createBreaker('firestore.getDoc', clientGetDocImpl);
-export const clientGetDocs = createBreaker('firestore.getDocs', clientGetDocsImpl);
-export const clientSetDoc = createBreaker('firestore.setDoc', clientSetDocImpl);
-export const clientUpdateDoc = createBreaker('firestore.updateDoc', clientUpdateDocImpl);
-export const clientDeleteDoc = createBreaker('firestore.deleteDoc', clientDeleteDocImpl);
+//
+// Retry sits INSIDE the breaker (see server/lib/retry.ts): a call that fails once on a
+// transient 429/503 and succeeds on the retry is reported to the breaker as a success, so
+// ordinary Firestore contention no longer counts toward tripping it.
+//
+// clientAddDoc is deliberately NOT retried. It POSTs to the collection and lets Firestore
+// assign the document ID, so it is not idempotent — retrying a request that actually
+// succeeded but whose response was lost would create a second, duplicate document instead of
+// converging on the first. It keeps the breaker only.
+export const clientGetDoc = createBreaker('firestore.getDoc', withRetry('firestore.getDoc', clientGetDocImpl));
+export const clientGetDocs = createBreaker('firestore.getDocs', withRetry('firestore.getDocs', clientGetDocsImpl));
+export const clientSetDoc = createBreaker('firestore.setDoc', withRetry('firestore.setDoc', clientSetDocImpl));
+export const clientUpdateDoc = createBreaker('firestore.updateDoc', withRetry('firestore.updateDoc', clientUpdateDocImpl));
+export const clientDeleteDoc = createBreaker('firestore.deleteDoc', withRetry('firestore.deleteDoc', clientDeleteDocImpl));
 export const clientAddDoc = createBreaker('firestore.addDoc', clientAddDocImpl);
 
 export interface QueryConstraint {
@@ -480,6 +538,7 @@ export interface QueryConstraint {
   value?: any;
   direction?: 'asc' | 'desc';
   limit?: number;
+  offset?: number;
   startAfter?: any;
 }
 
@@ -493,6 +552,15 @@ export function clientLimit(value: number): QueryConstraint {
 
 export function clientOrderBy(field: string, direction: 'asc' | 'desc' = 'asc'): QueryConstraint {
   return { type: 'orderBy', field, direction };
+}
+
+// Skips the first N matching documents inside Firestore, so page N of a list can be served
+// without shipping pages 1..N-1 to this process. NOTE Firestore still BILLS the skipped
+// documents as reads, so offset is a large win on transfer, parsing and memory but only a
+// partial win on cost — deep pages stay proportionally expensive. Cursor pagination is the
+// only shape that avoids that entirely; see FirestoreAttemptDao.findByFilters.
+export function clientOffset(value: number): QueryConstraint {
+  return { type: 'offset', offset: value };
 }
 
 export function clientStartAfter(docSnapshot: any): QueryConstraint {
@@ -510,7 +578,8 @@ export function clientQuery(...args: any[]) {
   return {
     type: 'query',
     collectionName: collectionRef.collectionName,
-    constraints
+    constraints,
+    db: collectionRef.db
   };
 }
 
@@ -540,13 +609,64 @@ export function clientWriteBatch(dbInstance: any) {
   };
 }
 
+// Real server-side COUNT via Firestore's aggregation endpoint.
+//
+// This used to run the full query and return `snap.docs.length` — i.e. it read and parsed every
+// matching document just to produce a number, which is the most expensive possible way to count
+// and exactly what a caller reaching for a count is trying to avoid. runAggregationQuery does
+// the counting inside Firestore and returns a single scalar, billed at roughly one read per
+// 1,000 documents matched instead of one per document.
+//
+// Falls back to the old count-by-fetching path if the aggregation call fails, so a deployment
+// where the endpoint is unavailable keeps working rather than breaking a dashboard.
 export async function clientGetCountFromServer(queryRef: any) {
-  const snap = await clientGetDocs(queryRef);
-  return {
-    data: () => ({
-      count: snap.docs.length
-    })
-  };
+  const collectionName = queryRef.collectionName;
+  const constraints = (queryRef.constraints || []).filter((constraint: any) => constraint.type === 'where');
+  const { parentPath, collectionId } = parseCollectionPath(collectionName);
+  const urlPath = parentPath ? `/${parentPath}:runAggregationQuery` : ':runAggregationQuery';
+  const url = `${getBaseUrl(queryRef.db)}${urlPath}?key=${apiKeyFor(queryRef.db)}`;
+
+  const structuredQuery: any = { from: [{ collectionId }] };
+  if (constraints.length > 0) {
+    const filters = constraints.map((constraint: any) => ({
+      fieldFilter: {
+        field: { fieldPath: constraint.field },
+        op: mapOp(constraint.op),
+        value: toFirestoreValue(constraint.value)
+      }
+    }));
+    structuredQuery.where = filters.length === 1 ? filters[0] : { compositeFilter: { op: 'AND', filters } };
+  }
+
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    Object.assign(headers, await getAuthHeader(queryRef.db));
+
+    const httpResponse = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        structuredAggregationQuery: {
+          structuredQuery,
+          aggregations: [{ count: {}, alias: 'total' }]
+        }
+      })
+    });
+
+    if (!httpResponse.ok) {
+      throw new FirestoreRestError(httpResponse.status, `Firestore REST count error: ${httpResponse.status} ${await httpResponse.text()}`);
+    }
+
+    const payload = await httpResponse.json();
+    const rows = Array.isArray(payload) ? payload : [payload];
+    const raw = rows.find((row: any) => row?.result?.aggregateFields?.total)?.result?.aggregateFields?.total;
+    const count = raw ? parseInt(raw.integerValue ?? raw.doubleValue ?? '0', 10) : 0;
+    return { data: () => ({ count }) };
+  } catch (err) {
+    console.warn('[Firestore] Aggregation count failed, falling back to counting by fetch:', err);
+    const snap = await clientGetDocs(queryRef);
+    return { data: () => ({ count: snap.docs.length }) };
+  }
 }
 
 export async function clientRunTransaction(dbInstance: any, updateFunction: (transaction: any) => Promise<any>) {

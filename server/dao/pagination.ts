@@ -13,6 +13,10 @@ export interface PagedResult<T> {
   pageSize: number;
   total: number;
   totalPages: number;
+  // Set by list queries that apply a hard scan cap (see FirestoreAttemptDao.findByFilters):
+  // true means `total`/`totalPages` describe the capped window, not the whole result set.
+  // Optional so implementations without a cap are unaffected.
+  truncated?: boolean;
 }
 
 export const DEFAULT_PAGE_SIZE = 10;

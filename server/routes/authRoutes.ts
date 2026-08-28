@@ -50,7 +50,7 @@ const router = express.Router();
  */
 // SECURE SERVER-SIDE AUTHENTICATION ENDPOINTS
 router.post(
-  '/api/auth/validate',
+  ['/api/v1/auth/sessions', '/api/auth/validate'],
   authLimiter,
   asyncHandler(async (req, res) => {
     // uid/email must come from a verified Firebase ID token, never trusted from the request
@@ -105,7 +105,7 @@ router.post(
         } else {
           // Case-insensitive fallback lookup
           const allSchools = await clientGetDocs(schoolsRef);
-          const foundSchool = allSchools.docs.find((doc) => {
+          const foundSchool = allSchools.docs.find((doc: any) => {
             const schoolData = doc.data();
             return (schoolData.adminEmail || '').trim().toLowerCase() === emailLower;
           });
@@ -292,7 +292,7 @@ router.post(
  *         description: Server/Firestore error
  */
 router.post(
-  '/api/auth/create-profile',
+  ['/api/v1/auth/profiles', '/api/auth/create-profile'],
   authLimiter,
   asyncHandler(async (req, res) => {
     // uid/email must come from a verified Firebase ID token, never trusted from the request
@@ -352,7 +352,7 @@ router.post(
           } else {
             // Check allowedDomains in schools collection
             const allSchools = await clientGetDocs(schoolsRef);
-            const found = allSchools.docs.find((docSnap) => {
+            const found = allSchools.docs.find((docSnap: any) => {
               const schoolDoc = docSnap.data();
               if (!schoolDoc) return false;
               const isEmailMatch = (schoolDoc.adminEmail || '').trim().toLowerCase() === emailLower;
@@ -443,7 +443,7 @@ router.post(
 // not name/permissions/etc.) — a deliberate Firestore read, since this is a low-frequency
 // "fetch my full profile" call, not the hot exam-taking path.
 router.get(
-  '/api/auth/session',
+  ['/api/v1/auth/session', '/api/auth/session'],
   requireSession,
   asyncHandler(async (req: any, res) => {
     const userSnap = await clientGetDoc(clientDoc(clientDb, 'users', req.auth.uid));

@@ -3,8 +3,7 @@ import { requireSession, requireRole, resolveAuth, RequestAuth } from '../auth/m
 import { checkDuplicateSubmission } from '../middleware/duplicateSubmission';
 import { queryCache, CACHE_TTLS } from '../db/cache';
 import { enqueueWrite } from '../db/writeQueue';
-import { taskQueueService } from '../lib/taskQueue';
-import crypto from 'crypto';
+import { attemptSubmissionService } from '../services/AttemptSubmissionService';
 import { asyncHandler } from '../middleware/errorHandler';
 import { BadRequestError, UnauthorizedError, ForbiddenError, NotFoundError, InternalServerError } from '../lib/errors';
 import {
@@ -79,7 +78,7 @@ async function cleanupQuestionImage(imagePublicId: string | undefined | null) {
  */
 // 3. Question deletion with automatic image cleanup (Cloudinary or Firebase Storage)
 router.delete(
-  '/api/questions/:questionId',
+  ['/api/v1/questions/:questionId', '/api/questions/:questionId'],
   requireSession,
   requireRole('admin'),
   asyncHandler(async (req, res) => {
@@ -130,7 +129,7 @@ router.delete(
  */
 // 4. Exam deletion with automatic image cleanup for all its questions
 router.delete(
-  '/api/exams/:examId',
+  ['/api/v1/exams/:examId', '/api/exams/:examId'],
   requireSession,
   requireRole('admin'),
   asyncHandler(async (req, res) => {
@@ -211,9 +210,7 @@ router.delete(
  *         description: Server/Firestore error
  */
 // Proxy Route for Standard Reads (Direct Queries, Document GETs, or snapshot requests)
-router.post(
-  '/api/db/query',
-  asyncHandler(async (req, res) => {
+export const handleCollectionQuery = asyncHandler(async (req: any, res: any) => {
     const { collectionName, constraints = [], docId, countOnly } = req.body;
     if (!collectionName) {
       throw new BadRequestError('Missing collectionName specification.');
@@ -399,7 +396,7 @@ router.post(
 
     const snap = await clientGetDocs(builtQuery);
 
-    const docList = snap.docs.map((doc) => ({
+    const docList = snap.docs.map((doc: any) => ({
       id: doc.id,
       data: doc.data()
     }));
@@ -409,8 +406,7 @@ router.post(
     }
 
     return res.status(200).json({ success: true, data: await sanitizeQuestionsPayload(docList, queriedExamId) });
-  })
-);
+});
 
 /**
  * @openapi
@@ -459,11 +455,7 @@ router.post(
  *         description: Server/Firestore error, or failure to persist/queue an exam submission
  */
 // Proxy Route for Cushioning and Batching Writes
-router.post(
-  '/api/db/write',
-  requireSession,
-  checkDuplicateSubmission,
-  asyncHandler(async (req: any, res) => {
+export const handleCollectionWrite = asyncHandler(async (req: any, res: any) => {
     const { type, collectionName, docId, data } = req.body;
     if (!type || !collectionName) {
       throw new BadRequestError('Missing type or collectionName parameters.');
@@ -491,41 +483,20 @@ router.post(
     const isSubmission = collectionName === 'attempts' && (type === 'update' || type === 'set') && data && data.status === 'completed';
 
     if (isSubmission && docId) {
-      // Persist the student's own raw answers immediately as status='submitted' (not yet
-      // graded) — this is data the student legitimately owns, not a trust boundary, so there's
-      // no reason to delay it behind grading. Also means the submission survives even if
-      // grading is delayed or fails. score/accuracy are stripped here regardless of what the
-      // client sent — never even transiently trusted, same rule as the old inline path.
-      const { score: _clientScore, accuracy: _clientAccuracy, ...rest } = data;
-      const submittedData = { ...rest, status: 'submitted' };
-
-      let authorizedSubmittedData = submittedData;
-      const decision = await authorizeWrite(req.auth, type, collectionName, docId, submittedData);
-      if (decision.ok === false) {
-        return res.status(decision.status).json({ error: decision.error });
-      }
-      authorizedSubmittedData = decision.data;
-
-      await enqueueWrite({ type, collectionName, docId, data: authorizedSubmittedData });
-
+      // Delegates to the SINGLE submission implementation shared with
+      // POST /api/v1/attempts/:id/submit — see server/services/AttemptSubmissionService.ts for
+      // why the two paths were collapsed. This route is kept (not rejected in favour of the v1
+      // one) because ExamInterface.tsx uses it as its fallback channel when the primary
+      // submission call fails, which is a real recovery path on a flaky network.
       try {
-        // examId/studentId here are supplementary metadata for the task payload/logging —
-        // grading itself (recomputeAttemptScore, called from taskQueueService.gradeAttempt)
-        // re-reads the attempt doc by attemptId regardless, so it doesn't depend on these
-        // being present or correct.
-        await taskQueueService.enqueueGradingTask({
-          eventId: `evt_${crypto.randomBytes(8).toString('hex')}`,
-          timestamp: new Date().toISOString(),
-          examId: authorizedSubmittedData.examId || data.examId || '',
-          studentId: req.auth.role === 'student' ? req.auth.uid : data.studentId || '',
-          answers: data.answers || [],
-          attemptId: docId
-        });
+        const outcome = await attemptSubmissionService.submit(req.auth, docId, type, data);
+        if ('ok' in outcome && outcome.ok === false) {
+          return res.status(outcome.status).json({ error: outcome.error });
+        }
+        return res.status(200).json(outcome);
       } catch (err: any) {
         throw new InternalServerError('Submission saved, but grading could not be queued: ' + (err.message || String(err)));
       }
-
-      return res.status(200).json({ success: true, id: docId, queued: true });
     }
 
     let authorizedData = data;
@@ -538,7 +509,13 @@ router.post(
     // Push to write queue, creating a promise that resolves upon the queue flush cycle
     const result = await enqueueWrite({ type, collectionName, docId, data: authorizedData });
     return res.status(200).json(result);
-  })
-);
+});
+
+// The original generic proxy paths. Kept mounted so nothing that still calls them breaks, but
+// they are no longer the canonical URLs — see server/routes/v1/ResourceController.ts, which
+// exposes the SAME handlers under resource-shaped /api/v1/* paths. Retire these once no caller
+// references them.
+router.post('/api/db/query', handleCollectionQuery);
+router.post('/api/db/write', requireSession, checkDuplicateSubmission, handleCollectionWrite);
 
 export default router;

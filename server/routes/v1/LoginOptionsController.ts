@@ -1,6 +1,6 @@
 import express from 'express';
 import { loginOptionsDao } from '../../dao';
-import { queryCache, CACHE_TTLS } from '../../db/cache';
+import { readThrough } from '../../db/cache';
 import { asyncHandler } from '../../middleware/errorHandler';
 
 const router = express.Router();
@@ -29,19 +29,8 @@ const router = express.Router();
 router.get(
   '/api/v1/login-options',
   asyncHandler(async (_req, res) => {
-    const cacheKey = JSON.stringify({ collectionName: 'login_options', constraints: [] });
-    const ttl = CACHE_TTLS['login_options'] || 0;
-    const cached = queryCache.get(cacheKey);
-    if (ttl > 0 && cached && Date.now() - cached.timestamp < ttl) {
-      return res.status(200).json({ success: true, data: cached.data, fromCache: true });
-    }
-
-    const docList = await loginOptionsDao.findAll();
-
-    if (ttl > 0) {
-      queryCache.set(cacheKey, { timestamp: Date.now(), data: docList });
-    }
-    return res.status(200).json({ success: true, data: docList });
+    const { data, fromCache } = await readThrough('login_options', () => loginOptionsDao.findAll());
+    return res.status(200).json({ success: true, data, ...(fromCache ? { fromCache: true } : {}) });
   })
 );
 

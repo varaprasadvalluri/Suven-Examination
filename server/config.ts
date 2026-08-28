@@ -18,7 +18,11 @@ if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
   );
 }
 
-export const PORT = 3000;
+// Cloud Run injects PORT into the container and expects the server to bind whatever it says.
+// The Dockerfile happens to set PORT=3000 and the deploy passes --port 3000, so a hardcoded
+// 3000 works today — but it would break silently the moment either of those changes. Read the
+// env var and keep 3000 as the local-dev default.
+export const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Gates the load-test bypass in /api/gatekeeper/enroll (see load-test.cjs). Previously that
 // bypass triggered on the client-supplied `x-load-test: true` header OR substrings like

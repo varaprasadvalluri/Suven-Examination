@@ -3,7 +3,7 @@ import { requireSession } from '../../auth/middleware';
 import { attemptDao } from '../../dao';
 import { normalizePageParams, paginateInMemory } from '../../dao/pagination';
 import { asyncHandler } from '../../middleware/errorHandler';
-import { getAccessibleExamCandidates, getUpcomingListItems } from '../../services/StudentDashboardService';
+import { studentDashboardService } from '../../services/StudentDashboardService';
 
 const router = express.Router();
 
@@ -67,7 +67,7 @@ router.get(
       return res.status(403).json({ error: 'Forbidden: you may only view your own dashboard' });
     }
 
-    const candidates = await getAccessibleExamCandidates(studentId, req.auth.role === 'student' ? req.auth.schoolId : null);
+    const candidates = await studentDashboardService.getAccessibleExamCandidates(studentId, req.auth.role === 'student' ? req.auth.schoolId : null);
     const topInProgressCandidate = candidates[0] || null;
     return res.status(200).json({ success: true, data: { inProgress: topInProgressCandidate } });
   })
@@ -133,7 +133,7 @@ router.get(
     const { page, pageSize } = normalizePageParams(req.query);
     const schoolId = req.auth.role === 'student' ? req.auth.schoolId : null;
 
-    const items = await getUpcomingListItems(studentId, schoolId);
+    const items = await studentDashboardService.getUpcomingListItems(studentId, schoolId);
     const paginatedUpcomingExams = paginateInMemory(items, { page, pageSize });
     return res.status(200).json({ success: true, data: paginatedUpcomingExams });
   })

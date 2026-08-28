@@ -2,15 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { db, doc, getDoc, getDocs, collection, query, where, runTransaction } from '../lib/firebase';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
+import { Card, CardDescription, CardTitle } from './ui/card';
 import { toast } from 'sonner';
-import { ShieldCheck, AlertCircle, HelpCircle, ShieldAlert, Lock, User2, Key, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { ShieldCheck, AlertCircle, ShieldAlert, Lock, User2, Key, Loader2 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { setSessionToken } from '../lib/sessionStore';
 import { ExamInstructionsScreen } from './ExamInstructionsScreen';
+import { isAttemptFinished } from '../../shared/attemptStatus';
 
 export const StudentLinkEntry: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -38,8 +36,8 @@ export const StudentLinkEntry: React.FC = () => {
   const [isLaunching, setIsLaunching] = useState(false);
   const [step, setStep] = useState<'login' | 'instructions'>('login');
   const [matchedStudentProfile, setMatchedStudentProfile] = useState<any | null>(null);
-  // Proof that /api/gatekeeper/verify-identity actually checked this identity server-side —
-  // required by /api/gatekeeper/enroll instead of trusting a client-asserted student id.
+  // Proof that /api/v1/exam-entry/identity/verify actually checked this identity server-side —
+  // required by /api/v1/exam-entry/enrollments instead of trusting a client-asserted student id.
   const [verificationTicket, setVerificationTicket] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [questions, setQuestions] = useState<any[]>([]);
@@ -252,7 +250,7 @@ export const StudentLinkEntry: React.FC = () => {
       // Search for (or auto-onboard) the student by roll number — done server-side since
       // there's no session yet at this point in the flow (identical result to the old
       // direct-Firestore lookup, just routed through a route that runs before auth exists).
-      const verifyRes = await fetch('/api/gatekeeper/verify-identity', {
+      const verifyRes = await fetch('/api/v1/exam-entry/identity/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -314,7 +312,7 @@ export const StudentLinkEntry: React.FC = () => {
       // HYBRID TRANSITION ROUTING LAYER
       try {
         console.log('Attempting secure state enrollment via Node.js Express backend API...');
-        const response = await fetch('/api/gatekeeper/enroll', {
+        const response = await fetch('/api/v1/exam-entry/enrollments', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -387,7 +385,10 @@ export const StudentLinkEntry: React.FC = () => {
             // 'expired' gets the same canReattempt gate as 'completed' — otherwise a school
             // re-triggering an expired attempt would never actually unlock it (the resume
             // branch below would just re-expire it again without ever consulting canReattempt).
-            if (attemptData.status === 'completed' || attemptData.status === 'expired') {
+            // Mirrors the server-side gate in server/routes/gatekeeper.ts: an attempt that
+            // has been handed in but is still grading ('submitted') is finished for re-entry
+            // purposes, even though it isn't 'completed' yet.
+            if (isAttemptFinished(attemptData.status) || attemptData.status === 'expired') {
               if (attemptData.canReattempt) {
                 transaction.update(attemptDocRef, {
                   status: 'started',

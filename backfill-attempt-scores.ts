@@ -29,8 +29,8 @@
 import './server/loadEnv';
 import { clientDb, clientCollection, clientQuery, clientWhere, clientGetDocs } from './server/firestoreClient';
 import { enqueueWrite } from './server/db/writeQueue';
-import { scoreExam } from './src/lib/examScoring';
-import { orderQuestionsForAttempt } from './src/lib/examQuestionOrder';
+import { scoreExam } from './shared/examScoring';
+import { orderQuestionsForAttempt } from './shared/examQuestionOrder';
 
 const APPLY = process.argv.includes('--apply');
 const INCLUDE_ACCURACY_CHANGES = process.argv.includes('--include-accuracy-changes');

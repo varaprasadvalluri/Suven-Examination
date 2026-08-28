@@ -14,9 +14,7 @@ import {
   getDoc,
   onSnapshot,
   addDoc,
-  updateDoc,
-  deleteDoc,
-  writeBatch
+  updateDoc
 } from '../lib/firebase';
 import { Question, Exam } from '../types';
 import { MathRenderer } from './MathRenderer';
@@ -25,7 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
-import { ArrowLeft, Plus, Save, Trash2, CheckCircle2, Edit3, X, Wand2, Loader2, FileUp, ImagePlus } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Trash2, CheckCircle2, Edit3, X, Wand2, Loader2, FileUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { FileUpload } from './FileUpload';
 import { useSubjectCategories } from '../hooks/useNamedList';
@@ -402,7 +400,7 @@ export const ExamQuestions: React.FC = () => {
     )
       return;
     try {
-      const response = await fetch(`/api/questions/${qId}`, {
+      const response = await fetch(`/api/v1/questions/${qId}`, {
         method: 'DELETE',
         headers: { ...authHeaders() }
       });
@@ -421,7 +419,7 @@ export const ExamQuestions: React.FC = () => {
     try {
       await updateDoc(doc(db, 'exams', examId), { status: nextStatus });
       toast.success(`Exam ${nextStatus}`);
-    } catch (error) {
+    } catch (_error) {
       toast.error('Failed to update status');
     }
   };
@@ -432,7 +430,7 @@ export const ExamQuestions: React.FC = () => {
       await updateDoc(doc(db, 'exams', examId), editedInfo);
       toast.success('Exam information updated');
       setIsEditingInfo(false);
-    } catch (error) {
+    } catch (_error) {
       toast.error('Failed to update exam info');
     }
   };
@@ -457,7 +455,7 @@ export const ExamQuestions: React.FC = () => {
         const base64Data = fileDataUrl.split(',')[1];
 
         try {
-          const response = await fetch(`/api/exams/${examId}/import-doc`, {
+          const response = await fetch(`/api/v1/exams/${examId}/import-doc`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -485,7 +483,7 @@ export const ExamQuestions: React.FC = () => {
         }
       };
       reader.readAsDataURL(file);
-    } catch (err) {
+    } catch (_err) {
       toast.error('File reading failed.', { id: toastId });
       setIsDocxLoading(false);
     }
