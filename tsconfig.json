@@ -18,5 +18,12 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["server.ts", "migrate-db.ts"]
+  // Without an explicit `include`, tsc defaults to sweeping in every .ts/.tsx/.js file under
+  // the project root. Combined with `allowJs` and an `exclude` that overrides (rather than
+  // extends) tsc's default exclude list, that meant node_modules' JavaScript was being pulled
+  // into the program — `tsc --noEmit` exhausted a 2GB heap and died before reporting anything,
+  // so `npm run lint` never actually typechecked this side of the app. Scoped to the client
+  // sources it's meant to cover; the server half is checked via tsconfig.server.json.
+  "include": ["src/**/*", "vite.config.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist", "android", "ios", "server", "server.ts", "migrate-db.ts"]
 }

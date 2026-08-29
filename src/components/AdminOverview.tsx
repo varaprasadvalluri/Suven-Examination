@@ -375,7 +375,8 @@ export const AdminOverview: React.FC = () => {
             </div>
             <Button
               variant="ghost"
-              className="rounded-xl font-black text-[10px] uppercase tracking-widest text-indigo-600 hover:bg-indigo-100 h-10 px-6"
+              onClick={() => navigate('/admin/analytics')}
+              className="rounded-xl font-black text-[10px] uppercase tracking-widest text-indigo-600 hover:bg-indigo-100 h-10 px-6 cursor-pointer"
             >
               Detailed Analytics
             </Button>
@@ -512,7 +513,10 @@ export const AdminOverview: React.FC = () => {
               <p className="text-[11px] font-semibold text-slate-400">No students currently taking an exam</p>
             )}
           </div>
-          <Button className="mt-8 bg-slate-900 text-white rounded-2xl h-12 font-black text-[10px] uppercase tracking-widest">
+          <Button
+            onClick={() => navigate('/admin/proctoring')}
+            className="mt-8 bg-slate-900 text-white rounded-2xl h-12 font-black text-[10px] uppercase tracking-widest cursor-pointer"
+          >
             Open Monitor
           </Button>
         </Card>
@@ -801,7 +805,8 @@ export const AdminOverview: React.FC = () => {
             </div>
             <Button
               variant="ghost"
-              className="w-full mt-10 border border-slate-200 hover:bg-slate-50 rounded-2xl h-12 text-[10px] font-black uppercase tracking-widest text-slate-700"
+              onClick={() => navigate('/admin/merit')}
+              className="w-full mt-10 border border-slate-200 hover:bg-slate-50 rounded-2xl h-12 text-[10px] font-black uppercase tracking-widest text-slate-700 cursor-pointer"
             >
               Full Consolidated List
             </Button>

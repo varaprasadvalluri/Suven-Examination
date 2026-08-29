@@ -527,15 +527,19 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               </Button>
             )}
 
-            {/* Active notifications indicator - customized for children's star themes */}
+            {/* No notification system exists yet. The unread-dot that used to pulse here was
+                hardcoded, not driven by any state — it signalled waiting notifications that
+                never existed and could never be cleared. Dot removed and the button disabled
+                until there's something real behind it. */}
             <Button
               variant="ghost"
               size="icon"
-              className="h-11 w-11 text-amber-500 hover:text-amber-600 bg-amber-50 hover:bg-amber-100 border-2 border-b-[4px] border-amber-200/80 rounded-xl relative transition-transform hover:scale-105"
+              disabled
+              title="Notifications coming soon"
+              aria-label="Notifications (coming soon)"
+              className="h-11 w-11 text-slate-400 bg-slate-50 border-2 border-b-[4px] border-slate-200/80 rounded-xl relative opacity-60 cursor-not-allowed"
             >
               <Bell className="h-5 w-5" />
-              <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-rose-500 animate-ping" />
-              <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-rose-500" />
             </Button>
 
             {isStudent && (

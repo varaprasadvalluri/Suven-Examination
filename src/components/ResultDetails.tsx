@@ -638,11 +638,15 @@ export const ResultDetails: React.FC = () => {
               </span>
             </div>
           </div>
+          {/* Student-facing: not built yet, so it's disabled rather than looking like a
+              report the student can open and then getting no response. */}
           <Button
             variant="ghost"
-            className="h-10 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest text-indigo-600 hover:bg-indigo-50 flex items-center gap-2"
+            disabled
+            title="Coming soon"
+            className="h-10 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest text-slate-400 opacity-70 flex items-center gap-2 cursor-not-allowed"
           >
-            Neural Improvement Plan <TrendingUp size={14} />
+            Improvement Plan · Soon <TrendingUp size={14} />
           </Button>
         </div>
       </Card>

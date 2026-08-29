@@ -456,8 +456,14 @@ export const RankingEngine: React.FC = () => {
             {isExportingXlsx ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
             {isExportingXlsx ? 'Exporting...' : 'Export XLS'}
           </Button>
-          <Button className="bg-slate-900 text-white h-12 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-xl shadow-slate-200">
-            <Medal size={14} /> Award Certificates
+          {/* Not implemented — muted and disabled so it doesn't read as equally functional
+              as the working Export XLS button sitting right next to it. */}
+          <Button
+            disabled
+            title="Coming soon"
+            className="bg-slate-400 text-white h-12 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 cursor-not-allowed"
+          >
+            <Medal size={14} /> Award Certificates <span className="font-bold normal-case tracking-normal text-slate-200">· Soon</span>
           </Button>
         </div>
       </header>
@@ -650,7 +656,14 @@ export const RankingEngine: React.FC = () => {
                 onChange={(e) => setFilter(e.target.value)}
               />
             </div>
-            <Button variant="outline" className="h-12 w-12 p-0 rounded-xl border-slate-100 bg-slate-50 text-slate-400">
+            {/* No filter UI behind this yet; the search box beside it is the working filter. */}
+            <Button
+              variant="outline"
+              disabled
+              title="Additional filters coming soon"
+              aria-label="Additional filters (coming soon)"
+              className="h-12 w-12 p-0 rounded-xl border-slate-100 bg-slate-50 text-slate-300 opacity-60 cursor-not-allowed"
+            >
               <Filter size={20} />
             </Button>
           </div>

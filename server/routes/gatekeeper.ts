@@ -30,6 +30,13 @@ import {
 
 const router = express.Router();
 
+// Single failure message for every rejected student-login attempt (unknown roll number, wrong
+// name, wrong DOB). One shared string is what keeps the responses indistinguishable — see the
+// enumeration-oracle note on the student-login route below. It names both failure modes so an
+// un-onboarded student still knows what to do without the response disclosing which one it was.
+const STUDENT_LOGIN_FAILURE_MESSAGE =
+  "We couldn't verify those details. Check your Full Name and Register / Roll Number, or ask your school to onboard you if you haven't been added yet.";
+
 // In-Memory Store for High-Concurrency Load Tests to prevent consuming Cloud Firestore quota.
 // Exported: /api/db/write's isLoadTestWrite branch reads/writes the same store.
 export const mockLoadTestStore = new Map<string, any>();
@@ -403,9 +410,10 @@ router.post(
  *       400:
  *         description: Missing name or roll number
  *       401:
- *         description: Name doesn't match the account, or DOB provided but doesn't match the account's on-file DOB
- *       404:
- *         description: No student account found for that roll number
+ *         description: >-
+ *           Credentials rejected. Deliberately identical (status and message) whether the roll
+ *           number matched no account, the name didn't match, or a supplied DOB didn't match —
+ *           distinguishing these would let a caller enumerate valid roll numbers.
  *       409:
  *         description: Roll number is ambiguous across multiple student accounts
  *       500:
@@ -432,8 +440,14 @@ router.post(
       clientQuery(usersRef, clientWhere('rollNumber', '==', trimmedRoll), clientWhere('role', '==', 'student'))
     );
 
+    // Deliberately the same status and message as the name/DOB mismatch below. Distinct
+    // responses here ("no such roll number" vs "roll number exists, name wrong") would be a
+    // user-enumeration oracle: it lets a caller sweep roll numbers to learn which ones map to
+    // real accounts, then concentrate name-guessing on the confirmed ones. The wording still
+    // names both possibilities so a genuinely un-onboarded student gets an actionable hint
+    // without the response revealing which case they actually hit.
     if (querySnap.empty) {
-      throw new NotFoundError('No student account found for that Register / Roll Number. Ask your school to onboard you first.');
+      throw new UnauthorizedError(STUDENT_LOGIN_FAILURE_MESSAGE);
     }
 
     // Roll numbers are only guaranteed unique within a school. Without a school to scope by
@@ -452,7 +466,7 @@ router.post(
     // must not be sufficient to log in as another student.
     const accountName = typeof matchedData.name === 'string' ? matchedData.name.trim() : '';
     if (!accountName || accountName.toLowerCase() !== trimmedName.toLowerCase()) {
-      throw new UnauthorizedError('Full Name, Register / Roll Number, or Date of Birth does not match our records.');
+      throw new UnauthorizedError(STUDENT_LOGIN_FAILURE_MESSAGE);
     }
 
     // DOB is optional at onboarding, so it's optional here too: checked only when the
@@ -460,7 +474,7 @@ router.post(
     // accepted with known risk — DOB stays skippable at login even for accounts that do
     // have one on file, since name-match above already closes the roll-number-only bypass.
     if (trimmedDob && matchedData.dob && String(matchedData.dob).trim() !== trimmedDob) {
-      throw new UnauthorizedError('Full Name, Register / Roll Number, or Date of Birth does not match our records.');
+      throw new UnauthorizedError(STUDENT_LOGIN_FAILURE_MESSAGE);
     }
 
     const profileData = {

@@ -91,14 +91,22 @@ export const LiveProctoringWall: React.FC = () => {
           <p className="text-slate-500 font-medium mt-1">Real-time heuristic integrity monitoring & anomaly detection.</p>
         </div>
         <div className="flex gap-3 flex-wrap">
+          {/* Not built yet — surfaced as explicitly disabled rather than as live-looking
+              buttons that silently do nothing when an invigilator clicks them. */}
           <Button
             variant="outline"
-            className="border-slate-200 h-12 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2"
+            disabled
+            title="Coming soon"
+            className="border-slate-200 h-12 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 opacity-60 cursor-not-allowed"
           >
-            <Bell size={14} /> Alerts Log
+            <Bell size={14} /> Alerts Log <span className="font-bold normal-case tracking-normal text-slate-400">· Soon</span>
           </Button>
-          <Button className="bg-slate-900 text-white h-12 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2">
-            <Terminal size={14} /> System Console
+          <Button
+            disabled
+            title="Coming soon"
+            className="bg-slate-400 text-white h-12 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 cursor-not-allowed"
+          >
+            <Terminal size={14} /> System Console <span className="font-bold normal-case tracking-normal text-slate-200">· Soon</span>
           </Button>
         </div>
       </header>
@@ -150,15 +158,24 @@ export const LiveProctoringWall: React.FC = () => {
                     <Monitor size={10} className="text-slate-400" /> Tab: {attempt.violationsCount || 0}
                   </div>
                 </div>
+                {/* Per-student proctor actions aren't implemented yet. Left visible but
+                    explicitly disabled — an invigilator clicking "Flag Student" and getting
+                    silence is worse than seeing the action isn't available. */}
                 <div className="mt-6 flex gap-2">
                   <Button
                     variant="outline"
-                    className="flex-grow border-slate-100 h-10 rounded-xl font-black text-[9px] uppercase tracking-widest text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                    disabled
+                    title="Coming soon"
+                    className="flex-grow border-slate-100 h-10 rounded-xl font-black text-[9px] uppercase tracking-widest text-slate-400 opacity-60 cursor-not-allowed"
                   >
-                    Flag Student
+                    Flag Student · Soon
                   </Button>
-                  <Button className="flex-grow bg-indigo-600 text-white shadow-lg shadow-indigo-100 h-10 rounded-xl font-black text-[9px] uppercase tracking-widest">
-                    Watch Live
+                  <Button
+                    disabled
+                    title="Coming soon"
+                    className="flex-grow bg-slate-400 text-white h-10 rounded-xl font-black text-[9px] uppercase tracking-widest cursor-not-allowed"
+                  >
+                    Watch Live · Soon
                   </Button>
                 </div>
               </CardContent>
