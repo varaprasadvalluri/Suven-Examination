@@ -131,6 +131,9 @@ export const AdminOverview: React.FC = () => {
 
   const [dynamicLoginActivityData, setDynamicLoginActivityData] = useState(loginActivityData);
   const [dynamicSubjectMasteryData, setDynamicSubjectMasteryData] = useState(subjectMasteryData);
+  const [throughputPeak, setThroughputPeak] = useState<{ count: number; day: string }>({ count: 0, day: '' });
+  const [throughputWeekChangePct, setThroughputWeekChangePct] = useState<number | null>(null);
+  const [throughputDailyAvg, setThroughputDailyAvg] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -227,19 +230,38 @@ export const AdminOverview: React.FC = () => {
           setDynamicSubjectMasteryData(computedMastery);
         }
 
-        // 2. Login Activity (Mocked using attempts creation time)
-        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const dayCounts = { Sun: 0, Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0 };
-        attemptsList.forEach((a) => {
-          if (a.startTime) {
-            const date = new Date(a.startTime);
-            if (!isNaN(date.getTime())) {
-              dayCounts[days[date.getDay()]] += 10; // arbitrary multiplier for volume
-            }
-          }
-        });
-        const computedLogin = days.map((d) => ({ day: d, value: dayCounts[d] > 0 ? dayCounts[d] : Math.floor(Math.random() * 200 + 100) }));
-        setDynamicLoginActivityData(computedLogin);
+        // 2. Daily Throughput — real rolling 7-day count of completed assessments, replacing
+        // the old all-time weekday-bucket mock (which conflated every past Monday ever into
+        // one bar via an arbitrary x10 multiplier, and filled empty days with Math.random()).
+        // scopedAttempts already holds full history in memory for the other widgets above, so
+        // this — plus a genuine week-over-week comparison — costs no extra reads.
+        const completedScoped = scopedAttempts.filter((a) => a.status === 'completed' && a.endTime);
+        const dayMs = 24 * 60 * 60 * 1000;
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const countForDayOffset = (offsetFromToday: number) => {
+          const dayStartMs = todayStart.getTime() - offsetFromToday * dayMs;
+          const dayEndMs = dayStartMs + dayMs;
+          return completedScoped.filter((a) => {
+            const t = new Date(a.endTime).getTime();
+            return t >= dayStartMs && t < dayEndMs;
+          }).length;
+        };
+
+        const last7 = Array.from({ length: 7 }, (_, i) => 6 - i).map((offset) => ({
+          day: new Date(todayStart.getTime() - offset * dayMs).toLocaleDateString('en-US', { weekday: 'short' }),
+          count: countForDayOffset(offset)
+        }));
+        setDynamicLoginActivityData(last7.map((d) => ({ day: d.day, value: d.count })));
+
+        const totalThisWeek = last7.reduce((sum, d) => sum + d.count, 0);
+        const peakDay = last7.reduce((best, d) => (d.count > best.count ? d : best), last7[0]);
+        setThroughputPeak({ count: peakDay.count, day: peakDay.day });
+        setThroughputDailyAvg(Math.round((totalThisWeek / 7) * 10) / 10);
+
+        const totalPrevWeek = Array.from({ length: 7 }, (_, i) => 13 - i).reduce((sum, offset) => sum + countForDayOffset(offset), 0);
+        setThroughputWeekChangePct(totalPrevWeek > 0 ? Math.round(((totalThisWeek - totalPrevWeek) / totalPrevWeek) * 100) : null);
       } catch (error) {
         console.error(error);
       } finally {
@@ -304,7 +326,7 @@ export const AdminOverview: React.FC = () => {
               <div>
                 <CardTitle className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Daily Throughput</CardTitle>
                 <CardDescription className="font-semibold text-slate-400 mt-1">
-                  Total assessments processed in the last 24 hours.
+                  Completed assessments per day over the last 7 days.
                 </CardDescription>
               </div>
               <Badge className="bg-emerald-500/10 text-emerald-600 border-0 font-black text-[10px] uppercase px-3 py-1">Live Feed</Badge>
@@ -333,15 +355,21 @@ export const AdminOverview: React.FC = () => {
           <div className="bg-slate-50 p-6 md:p-8 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100">
             <div className="flex gap-6 md:gap-10">
               <div className="flex flex-col">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Peak Flux</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Peak Day</span>
                 <span className="text-2xl font-black text-slate-900 mt-1">
-                  1,560 <span className="text-[10px] text-emerald-500">▲ 14%</span>
+                  {throughputPeak.count}
+                  {throughputPeak.day && <span className="text-xs font-bold text-slate-400 ml-1">{throughputPeak.day}</span>}{' '}
+                  {throughputWeekChangePct !== null && (
+                    <span className={`text-[10px] ${throughputWeekChangePct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {throughputWeekChangePct >= 0 ? '▲' : '▼'} {Math.abs(throughputWeekChangePct)}%
+                    </span>
+                  )}
                 </span>
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Avg Latency</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Daily Average</span>
                 <span className="text-2xl font-black text-slate-900 mt-1">
-                  240ms <span className="text-[10px] text-slate-400">NOMINAL</span>
+                  {throughputDailyAvg} <span className="text-[10px] text-slate-400">PER DAY</span>
                 </span>
               </div>
             </div>

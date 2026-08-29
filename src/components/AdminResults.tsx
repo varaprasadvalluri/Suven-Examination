@@ -268,8 +268,8 @@ export const AdminResults: React.FC = () => {
   if (!canViewResults)
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in duration-500">
-        <div className="bg-red-50 p-6 rounded-full mb-6">
-          <Users className="h-12 w-12 text-red-500" />
+        <div className="bg-rose-50 p-6 rounded-full mb-6">
+          <Users className="h-12 w-12 text-rose-500" />
         </div>
         <h3 className="text-2xl font-bold text-slate-900">Access Restricted</h3>
         <p className="text-slate-500 mt-2 max-w-sm">
@@ -376,7 +376,7 @@ export const AdminResults: React.FC = () => {
                 return (
                   <div
                     key={q.id || qIndex}
-                    className={`p-5 rounded-2xl border transition-all ${isAnomaly ? (q.status === 'anomaly-leak' ? 'bg-orange-50/40 border-orange-200 text-orange-950 shadow-md ring-1 ring-orange-100' : q.status === 'anomaly-hard' ? 'bg-rose-50/30 border-rose-200 text-rose-950' : 'bg-green-50/15 border-green-200 text-green-950') : 'bg-white border-slate-200 shadow-sm hover:border-slate-400'}`}
+                    className={`p-5 rounded-2xl border transition-all ${isAnomaly ? (q.status === 'anomaly-leak' ? 'bg-orange-50/40 border-orange-200 text-orange-950 shadow-md ring-1 ring-orange-100' : q.status === 'anomaly-hard' ? 'bg-rose-50/30 border-rose-200 text-rose-950' : 'bg-amber-50/30 border-amber-200 text-amber-950') : 'bg-white border-slate-200 shadow-sm hover:border-slate-400'}`}
                   >
                     <div className="flex justify-between items-start gap-3">
                       <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md font-mono">
@@ -394,7 +394,7 @@ export const AdminResults: React.FC = () => {
                         </span>
                       )}
                       {q.status === 'anomaly-easy' && (
-                        <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-green-100/90 text-green-800 border border-green-200">
+                        <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-amber-100/90 text-amber-800 border border-amber-200">
                           <Sparkles size={10} /> High Pass Ratio
                         </span>
                       )}

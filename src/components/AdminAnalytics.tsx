@@ -329,7 +329,16 @@ export const AdminAnalytics: React.FC = () => {
               key={i}
               className="border border-slate-100 shadow-xl shadow-slate-200/25 rounded-3xl p-6 bg-white flex items-center gap-5"
             >
-              <div className={`p-4 rounded-2xl bg-${stat.color}-500/10 text-${stat.color}-600 shrink-0`}>
+              <div
+                className={`p-4 rounded-2xl shrink-0 ${
+                  {
+                    indigo: 'bg-indigo-500/10 text-indigo-600',
+                    emerald: 'bg-emerald-500/10 text-emerald-600',
+                    blue: 'bg-blue-500/10 text-blue-600',
+                    amber: 'bg-amber-500/10 text-amber-600'
+                  }[stat.color]
+                }`}
+              >
                 <stat.icon size={26} />
               </div>
               <div>
@@ -354,7 +363,7 @@ export const AdminAnalytics: React.FC = () => {
                   </CardDescription>
                 </div>
                 <Badge className="bg-slate-100 text-slate-600 border-none px-3 py-1 font-bold text-[9px] uppercase tracking-wider self-start sm:self-auto">
-                  Live Metrics
+                  Snapshot
                 </Badge>
               </div>
             </CardHeader>
