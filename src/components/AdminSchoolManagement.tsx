@@ -752,7 +752,7 @@ export const AdminSchoolManagement: React.FC = () => {
                         setPageSize(parseInt(e.target.value));
                         setPage(1);
                       }}
-                      className="p-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-705 outline-none cursor-pointer"
+                      className="p-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none cursor-pointer"
                     >
                       {[3, 5, 10, 20].map((size) => (
                         <option key={size} value={size}>
@@ -931,7 +931,7 @@ export const AdminSchoolManagement: React.FC = () => {
                         setPageSize(parseInt(e.target.value));
                         setPage(1);
                       }}
-                      className="p-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-707 outline-none cursor-pointer"
+                      className="p-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none cursor-pointer"
                     >
                       {[3, 5, 10, 20].map((size) => (
                         <option key={size} value={size}>
@@ -982,7 +982,7 @@ export const AdminSchoolManagement: React.FC = () => {
         }}
       >
         <DialogContent className="sm:max-w-[500px] rounded-3xl border border-slate-200 shadow-2xl bg-white p-0 overflow-hidden">
-          <div className="p-6 border-b border-slate-150">
+          <div className="p-6 border-b border-slate-200">
             <DialogHeader>
               <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                 <Building2 className="text-indigo-600 h-6 w-6" /> Edit School Info
@@ -1077,7 +1077,7 @@ export const AdminSchoolManagement: React.FC = () => {
               />
             </div>
           </div>
-          <div className="p-6 bg-slate-50 border-t border-slate-150 flex gap-3">
+          <div className="p-6 bg-slate-50 border-t border-slate-200 flex gap-3">
             <Button
               variant="outline"
               className="flex-1 rounded-xl h-11 text-xs font-bold bg-white cursor-pointer hover:bg-slate-100"
@@ -1086,7 +1086,7 @@ export const AdminSchoolManagement: React.FC = () => {
               Cancel
             </Button>
             <Button
-              className="flex-[2] rounded-xl h-11 text-xs font-bold bg-indigo-600 hover:bg-slate-900 text-white cursor-pointer shadow-lg shadow-indigo-150 transition-colors"
+              className="flex-[2] rounded-xl h-11 text-xs font-bold bg-indigo-600 hover:bg-slate-900 text-white cursor-pointer shadow-lg shadow-indigo-200 transition-colors"
               onClick={handleUpdateSchool}
             >
               Save Changes
@@ -1101,7 +1101,7 @@ export const AdminSchoolManagement: React.FC = () => {
             <Search className="h-10 w-10" />
           </div>
           <h3 className="text-2xl font-display font-black text-slate-900 tracking-tight">Zero Network Entry Points</h3>
-          <p className="text-slate-550 mt-2 font-medium max-w-sm mx-auto">
+          <p className="text-slate-600 mt-2 font-medium max-w-sm mx-auto">
             Either your search yielded no results or the global network hasn't been provisioned yet.
           </p>
           <Button className="mt-8 bg-slate-900 hover:bg-indigo-600" onClick={() => setIsSheetOpen(true)}>

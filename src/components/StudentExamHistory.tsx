@@ -170,6 +170,7 @@ export const StudentExamHistory: React.FC = () => {
               type="button"
               onClick={() => setPage((prevPage) => Math.max(1, prevPage - 1))}
               disabled={page === 1 || loading}
+              aria-label="Previous page"
               className="p-1.5 rounded-lg border border-slate-200 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 cursor-pointer"
             >
               <ChevronLeft size={14} />
@@ -178,6 +179,7 @@ export const StudentExamHistory: React.FC = () => {
               type="button"
               onClick={() => setPage((prevPage) => Math.min(totalPages, prevPage + 1))}
               disabled={page >= totalPages || loading}
+              aria-label="Next page"
               className="p-1.5 rounded-lg border border-slate-200 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 cursor-pointer"
             >
               <ChevronRight size={14} />

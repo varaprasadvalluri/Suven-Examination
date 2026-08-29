@@ -344,7 +344,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             </div>
             <CardDescription className="font-semibold text-slate-400 mt-1">
               Copies all existing database collections (schools, exams, questions, users, attempts, schedules, syllabus) from the old
-              project to the new <strong className="text-slate-850">suven-edu</strong> database.
+              project to the new <strong className="text-slate-900">suven-edu</strong> database.
             </CardDescription>
           </div>
           <Button
@@ -378,7 +378,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
           )}
 
           {/* Console Terminal */}
-          <div className="border border-slate-850 bg-slate-950 rounded-[24px] p-6 text-slate-200 font-mono text-xs overflow-hidden shadow-2xl relative">
+          <div className="border border-slate-900 bg-slate-950 rounded-[24px] p-6 text-slate-200 font-mono text-xs overflow-hidden shadow-2xl relative">
             <div className="absolute top-3 right-4 flex gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
@@ -390,7 +390,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             </div>
             <div className="space-y-2 max-h-[240px] overflow-y-auto scroller-hide">
               {migrationLogs.length === 0 ? (
-                <p className="text-slate-550 italic text-[11px] py-4 text-center">
+                <p className="text-slate-600 italic text-[11px] py-4 text-center">
                   Migration console offline. Click "Start Firestore Migration" to execute dynamic cross-tenant data pipeline.
                 </p>
               ) : (
@@ -451,7 +451,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                     <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-tight truncate" title={collection}>
                       {collection}
                     </span>
-                    <strong className="text-lg font-black text-amber-650 block">{count}</strong>
+                    <strong className="text-lg font-black text-amber-700 block">{count}</strong>
                     <span className="text-[9px] text-emerald-600 font-bold block uppercase">Created</span>
                   </div>
                 ))}
@@ -460,7 +460,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
           )}
 
           {/* Console Terminal */}
-          <div className="border border-slate-850 bg-slate-950 rounded-[24px] p-6 text-slate-200 font-mono text-xs overflow-hidden shadow-2xl relative">
+          <div className="border border-slate-900 bg-slate-950 rounded-[24px] p-6 text-slate-200 font-mono text-xs overflow-hidden shadow-2xl relative">
             <div className="absolute top-3 right-4 flex gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
@@ -472,7 +472,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             </div>
             <div className="space-y-2 max-h-[240px] overflow-y-auto scroller-hide">
               {seedingLogs.length === 0 ? (
-                <p className="text-slate-550 italic text-[11px] py-4 text-center">
+                <p className="text-slate-600 italic text-[11px] py-4 text-center">
                   Seeding engine offline. Click "Bootstrap Clean Database" to construct database collections with pre-configured schemas.
                 </p>
               ) : (
@@ -548,7 +548,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
           )}
 
           {/* IAM Sync Console Terminal */}
-          <div className="border border-slate-850 bg-slate-950 rounded-[24px] p-6 text-slate-200 font-mono text-xs overflow-hidden shadow-2xl relative">
+          <div className="border border-slate-900 bg-slate-950 rounded-[24px] p-6 text-slate-200 font-mono text-xs overflow-hidden shadow-2xl relative">
             <div className="absolute top-3 right-4 flex gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
@@ -560,7 +560,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             </div>
             <div className="space-y-2 max-h-[240px] overflow-y-auto scroller-hide">
               {iamLogs.length === 0 ? (
-                <p className="text-slate-550 italic text-[11px] py-4 text-center">
+                <p className="text-slate-600 italic text-[11px] py-4 text-center">
                   IAM Policy Gateway offline. Click "Sync IAM Permissions" to compile, verify, and synchronize all user-specific GCP roles
                   automatically.
                 </p>
@@ -930,7 +930,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
               </p>
 
               <div className="space-y-3.5 pt-2">
-                <div className="p-4 bg-white rounded-2xl border border-slate-150 space-y-2">
+                <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-2">
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Configuration Checklist</span>
                   <ul className="space-y-2 text-xs text-slate-600 font-medium leading-relaxed">
                     <li className="flex items-start gap-2">
@@ -1013,7 +1013,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
               </p>
 
               <div className="space-y-3.5 pt-2">
-                <div className="p-4 bg-white rounded-2xl border border-slate-150 space-y-2">
+                <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-2">
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Setting Up Hard Caps</span>
                   <ul className="space-y-2 text-xs text-slate-600 font-medium leading-relaxed">
                     <li className="flex items-start gap-2">

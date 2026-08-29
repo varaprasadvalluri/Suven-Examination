@@ -609,7 +609,7 @@ export const PerformanceStressTester: React.FC = () => {
             <CardHeader className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <CardTitle className="text-sm font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
-                  <Activity className="h-4.5 w-4.5 text-indigo-600 animate-pulse" /> Live Latency & Scale Telemetry
+                  <Activity className="h-5 w-5 text-indigo-600 animate-pulse" /> Live Latency & Scale Telemetry
                 </CardTitle>
                 <CardDescription className="text-xs font-semibold text-slate-400">
                   Real-time simulation showing operation load vs server/NoSQL latency.
@@ -854,7 +854,7 @@ export const PerformanceStressTester: React.FC = () => {
         <CardContent className="p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="p-4 rounded-2xl border border-indigo-50/80 bg-indigo-50/20 space-y-2">
             <div className="flex items-center gap-1.5">
-              <AlertTriangle className="text-indigo-600 h-4.5 w-4.5" />
+              <AlertTriangle className="text-indigo-600 h-5 w-5" />
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Single Document Hotspots</h4>
             </div>
             <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
@@ -868,7 +868,7 @@ export const PerformanceStressTester: React.FC = () => {
 
           <div className="p-4 rounded-2xl border border-emerald-50/80 bg-emerald-50/20 space-y-2">
             <div className="flex items-center gap-1.5">
-              <CheckCircle className="text-emerald-600 h-4.5 w-4.5" />
+              <CheckCircle className="text-emerald-600 h-5 w-5" />
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">CORS & SQL Injection Shield</h4>
             </div>
             <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
@@ -882,7 +882,7 @@ export const PerformanceStressTester: React.FC = () => {
 
           <div className="p-4 rounded-2xl border border-purple-50/80 bg-purple-50/20 space-y-2">
             <div className="flex items-center gap-1.5">
-              <CheckCircle className="text-purple-600 h-4.5 w-4.5" />
+              <CheckCircle className="text-purple-600 h-5 w-5" />
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Redis Session Rate Limiter</h4>
             </div>
             <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
@@ -895,7 +895,7 @@ export const PerformanceStressTester: React.FC = () => {
 
           <div className="p-4 rounded-2xl border border-amber-50/80 bg-amber-50/20 space-y-2">
             <div className="flex items-center gap-1.5">
-              <AlertTriangle className="text-amber-600 h-4.5 w-4.5" />
+              <AlertTriangle className="text-amber-600 h-5 w-5" />
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Denial of Wallet Protection</h4>
             </div>
             <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">

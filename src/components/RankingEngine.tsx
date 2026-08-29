@@ -26,9 +26,37 @@ import {
   ChevronRight,
   ChevronDown,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  Hash,
+  GraduationCap,
+  ClipboardCheck,
+  Building2
 } from 'lucide-react';
 import { motion } from 'motion/react';
+
+// Deterministic color per class name — same class always renders the same badge color
+// across the table, so an admin can visually group students by class without a legend.
+// Hues are picked to stay clear of the ones already meaningful elsewhere in this table
+// (amber = top-3 rank, indigo/blue/emerald = status, emerald/rose = improvement).
+const CLASS_BADGE_PALETTE = [
+  'bg-sky-50 text-sky-700 border-sky-100',
+  'bg-violet-50 text-violet-700 border-violet-100',
+  'bg-teal-50 text-teal-700 border-teal-100',
+  'bg-orange-50 text-orange-700 border-orange-100',
+  'bg-pink-50 text-pink-700 border-pink-100',
+  'bg-cyan-50 text-cyan-700 border-cyan-100',
+  'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100',
+  'bg-lime-50 text-lime-700 border-lime-100'
+];
+
+function getClassBadgeStyle(className: string): string {
+  if (!className || className === 'Unassigned') return 'bg-slate-50 text-slate-400 border-slate-100';
+  let hash = 0;
+  for (let i = 0; i < className.length; i++) {
+    hash = (hash * 31 + className.charCodeAt(i)) >>> 0;
+  }
+  return CLASS_BADGE_PALETTE[hash % CLASS_BADGE_PALETTE.length];
+}
 
 export const RankingEngine: React.FC = () => {
   const { profile } = useAuth();
@@ -103,7 +131,8 @@ export const RankingEngine: React.FC = () => {
       },
       (err) => {
         console.error('Error subscribing to students: ', err);
-      }
+      },
+      { idleAware: true }
     );
 
     const unsubscribeAttempts = onSnapshot(
@@ -118,7 +147,8 @@ export const RankingEngine: React.FC = () => {
       },
       (err) => {
         console.error('Error subscribing to attempts: ', err);
-      }
+      },
+      { idleAware: true }
     );
 
     return () => {
@@ -203,6 +233,7 @@ export const RankingEngine: React.FC = () => {
         branch: stud.schoolName || schoolNameMap[stud.schoolId] || 'Autonomous Hub',
         schoolId: stud.schoolId || '',
         class: stud.class || 'Unassigned',
+        section: stud.section || '',
         status: averagePercentage >= 90 ? 'Elite' : averagePercentage >= 75 ? 'Advanced' : 'Rising'
       });
     });
@@ -259,6 +290,7 @@ export const RankingEngine: React.FC = () => {
           branch: att.schoolName || schoolNameMap[att.schoolId] || 'Autonomous Hub',
           schoolId: att.schoolId || '',
           class: 'Unassigned',
+          section: '',
           status: averagePercentage >= 90 ? 'Elite' : averagePercentage >= 75 ? 'Advanced' : 'Rising'
         });
       }
@@ -461,10 +493,10 @@ export const RankingEngine: React.FC = () => {
       </div>
 
       {/* Top 5 overall highlight strip */}
-      <Card className="shadow-2xl shadow-slate-200/50 border-0 rounded-[40px] overflow-hidden bg-gradient-to-br from-slate-900 to-indigo-950 text-white">
-        <CardHeader className="p-5 md:p-8 border-b border-white/5">
-          <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-300">Top 5 Students</CardTitle>
-          <CardDescription className="text-xs font-semibold text-indigo-200 mt-1">
+      <Card className="shadow-2xl shadow-slate-200/50 border-0 rounded-[40px] overflow-hidden bg-gradient-to-br from-amber-50 via-white to-indigo-50">
+        <CardHeader className="p-5 md:p-8 border-b border-slate-100">
+          <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500">Top 5 Students</CardTitle>
+          <CardDescription className="text-xs font-semibold text-indigo-600 mt-1">
             {profile?.role === 'admin' ? 'Top performing candidates across all schools.' : "This school's top performing candidates."}
           </CardDescription>
         </CardHeader>
@@ -473,31 +505,38 @@ export const RankingEngine: React.FC = () => {
             {topFive.map((cand, i) => {
               const rankIcon =
                 i === 0 ? (
-                  <Crown size={16} className="text-amber-400" />
+                  <Crown size={16} className="text-amber-500" />
                 ) : i === 1 ? (
-                  <Medal size={16} className="text-slate-300" />
+                  <Medal size={16} className="text-slate-400" />
                 ) : i === 2 ? (
-                  <Award size={16} className="text-orange-400" />
+                  <Award size={16} className="text-orange-500" />
                 ) : null;
+              const rankCardStyle =
+                i === 0
+                  ? 'bg-amber-50 border-amber-200'
+                  : i === 1
+                    ? 'bg-slate-100 border-slate-200'
+                    : i === 2
+                      ? 'bg-orange-50 border-orange-200'
+                      : 'bg-slate-50 border-slate-100';
               return (
-                <div
-                  key={cand.id}
-                  className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-center text-center gap-2"
-                >
+                <div key={cand.id} className={`${rankCardStyle} border rounded-2xl p-4 flex flex-col items-center text-center gap-2`}>
                   <div className="flex items-center gap-1.5">
-                    {rankIcon || <span className="text-xs font-black text-indigo-300">0{i + 1}</span>}
+                    {rankIcon || <span className="text-xs font-black text-indigo-500">0{i + 1}</span>}
                   </div>
                   {i < 3 && (
-                    <div className="h-6 w-1.5 rounded-full bg-white/10 overflow-hidden flex items-end">
+                    <div className="h-6 w-1.5 rounded-full bg-slate-200/70 overflow-hidden flex items-end">
                       <div
-                        className={`w-full rounded-full ${i === 0 ? 'bg-amber-400' : i === 1 ? 'bg-slate-300' : 'bg-orange-400'}`}
+                        className={`w-full rounded-full ${i === 0 ? 'bg-amber-500' : i === 1 ? 'bg-slate-400' : 'bg-orange-500'}`}
                         style={{ height: `${Math.max(10, Math.min(100, cand.percentile))}%` }}
                       />
                     </div>
                   )}
-                  <p className="text-xs font-black uppercase tracking-tight truncate max-w-full">{cand.name}</p>
-                  <p className="text-[9px] font-bold text-slate-400 truncate max-w-full">{cand.branch}</p>
-                  <span className="text-xs font-black text-emerald-400">{cand.percentile}%</span>
+                  <p className="text-xs font-black uppercase tracking-tight truncate max-w-full text-slate-900">{cand.name}</p>
+                  <p className="text-[9px] font-bold text-slate-500 truncate max-w-full">{cand.branch}</p>
+                  <span className="text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                    {cand.percentile}%
+                  </span>
                 </div>
               );
             })}
@@ -619,10 +658,10 @@ export const RankingEngine: React.FC = () => {
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-100/80 border-b border-slate-200">
-                <tr className="divide-x divide-slate-200/50">
+              <thead className="bg-[#0B1E3F] border-b border-black/20">
+                <tr className="divide-x divide-white/10">
                   <th
-                    className="px-6 py-3.5 cursor-pointer hover:bg-slate-200/50 transition-colors select-none font-sans text-xs uppercase font-black tracking-wider text-slate-500 w-28 text-left"
+                    className="px-6 py-3.5 cursor-pointer hover:bg-white/5 transition-colors select-none font-sans text-xs uppercase font-black tracking-wider text-slate-300 w-28 text-left"
                     onClick={() => {
                       if (sortField === 'rank') {
                         setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -633,21 +672,27 @@ export const RankingEngine: React.FC = () => {
                     }}
                   >
                     <div className="flex items-center gap-1.5">
+                      <Trophy size={13} className="text-amber-400" />
                       Rank
                       {sortField === 'rank' ? (
                         sortDirection === 'asc' ? (
-                          <ArrowUp size={13} className="text-indigo-650 font-bold" />
+                          <ArrowUp size={13} className="text-sky-400 font-bold" />
                         ) : (
-                          <ArrowDown size={13} className="text-indigo-650 font-bold" />
+                          <ArrowDown size={13} className="text-sky-400 font-bold" />
                         )
                       ) : (
-                        <ArrowUpDown size={13} className="text-slate-400" />
+                        <ArrowUpDown size={13} className="text-slate-500" />
                       )}
                     </div>
                   </th>
-                  <th className="px-6 py-3.5 font-sans text-xs uppercase font-black tracking-wider text-slate-500">Candidate Profile</th>
+                  <th className="px-6 py-3.5 font-sans text-xs uppercase font-black tracking-wider text-slate-300">
+                    <div className="flex items-center gap-1.5">
+                      <Users size={13} className="text-indigo-300" />
+                      Candidate Profile
+                    </div>
+                  </th>
                   <th
-                    className="px-6 py-3.5 cursor-pointer hover:bg-slate-200/50 transition-colors select-none font-sans text-xs uppercase font-black tracking-wider text-slate-500 w-32"
+                    className="px-6 py-3.5 cursor-pointer hover:bg-white/5 transition-colors select-none font-sans text-xs uppercase font-black tracking-wider text-slate-300 w-32"
                     onClick={() => {
                       if (sortField === 'rollNumber') {
                         setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -658,23 +703,33 @@ export const RankingEngine: React.FC = () => {
                     }}
                   >
                     <div className="flex items-center gap-1.5">
+                      <Hash size={13} className="text-slate-400" />
                       Roll No.
                       {sortField === 'rollNumber' ? (
                         sortDirection === 'asc' ? (
-                          <ArrowUp size={13} className="text-indigo-650 font-bold" />
+                          <ArrowUp size={13} className="text-sky-400 font-bold" />
                         ) : (
-                          <ArrowDown size={13} className="text-indigo-650 font-bold" />
+                          <ArrowDown size={13} className="text-sky-400 font-bold" />
                         )
                       ) : (
-                        <ArrowUpDown size={13} className="text-slate-400" />
+                        <ArrowUpDown size={13} className="text-slate-500" />
                       )}
                     </div>
                   </th>
-                  <th className="px-6 py-3.5 font-sans text-xs uppercase font-black tracking-wider text-slate-500 text-center w-28">
-                    Score
+                  <th className="px-6 py-3.5 font-sans text-xs uppercase font-black tracking-wider text-slate-300 w-28">
+                    <div className="flex items-center gap-1.5">
+                      <GraduationCap size={13} className="text-violet-300" />
+                      Class
+                    </div>
+                  </th>
+                  <th className="px-6 py-3.5 font-sans text-xs uppercase font-black tracking-wider text-slate-300 text-center w-28">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <Target size={13} className="text-rose-300" />
+                      Score
+                    </div>
                   </th>
                   <th
-                    className="px-6 py-3.5 cursor-pointer hover:bg-slate-200/50 transition-colors select-none font-sans text-xs uppercase font-black tracking-wider text-slate-500 text-center w-36"
+                    className="px-6 py-3.5 cursor-pointer hover:bg-white/5 transition-colors select-none font-sans text-xs uppercase font-black tracking-wider text-slate-300 text-center w-36"
                     onClick={() => {
                       if (sortField === 'percentile') {
                         setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -685,25 +740,34 @@ export const RankingEngine: React.FC = () => {
                     }}
                   >
                     <div className="flex items-center justify-center gap-1.5">
+                      <TrendingUp size={13} className="text-emerald-300" />
                       Percentage
                       {sortField === 'percentile' ? (
                         sortDirection === 'asc' ? (
-                          <ArrowUp size={13} className="text-indigo-650 font-bold" />
+                          <ArrowUp size={13} className="text-sky-400 font-bold" />
                         ) : (
-                          <ArrowDown size={13} className="text-indigo-650 font-bold" />
+                          <ArrowDown size={13} className="text-sky-400 font-bold" />
                         )
                       ) : (
-                        <ArrowUpDown size={13} className="text-slate-400" />
+                        <ArrowUpDown size={13} className="text-slate-500" />
                       )}
                     </div>
                   </th>
-                  <th className="px-6 py-3.5 font-sans text-xs uppercase font-black tracking-wider text-slate-500 w-32">Exam Attendance</th>
-                  <th className="px-6 py-3.5 font-sans text-xs uppercase font-black tracking-wider text-slate-500 text-right">
-                    Institutional Branch
+                  <th className="px-6 py-3.5 font-sans text-xs uppercase font-black tracking-wider text-slate-300 w-32">
+                    <div className="flex items-center gap-1.5">
+                      <ClipboardCheck size={13} className="text-sky-400" />
+                      Exam Attendance
+                    </div>
+                  </th>
+                  <th className="px-6 py-3.5 font-sans text-xs uppercase font-black tracking-wider text-slate-300 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Building2 size={13} className="text-slate-400" />
+                      Institutional Branch
+                    </div>
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-150">
+              <tbody className="divide-y divide-slate-200">
                 {combinedRankings.slice((page - 1) * pageSize, page * pageSize).map((entry, i) => (
                   <motion.tr
                     key={entry.id || i}
@@ -714,7 +778,7 @@ export const RankingEngine: React.FC = () => {
                   >
                     <td className="px-6 py-2.5 font-semibold text-slate-900">
                       <span
-                        className={`inline-flex items-center justify-center px-2 py-0.5 rounded-md font-bold text-center ${entry.rank <= 3 ? 'bg-amber-100 text-amber-800 border border-amber-200 font-extrabold' : 'bg-slate-100 text-slate-705 border border-slate-200'}`}
+                        className={`inline-flex items-center justify-center px-2 py-0.5 rounded-md font-bold text-center ${entry.rank <= 3 ? 'bg-amber-100 text-amber-800 border border-amber-200 font-extrabold' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}
                       >
                         #{entry.rank}
                       </span>
@@ -741,7 +805,15 @@ export const RankingEngine: React.FC = () => {
                       </button>
                     </td>
                     <td className="px-6 py-2.5 font-sans font-semibold text-slate-700">{entry.rollNumber || '—'}</td>
-                    <td className="px-6 py-2.5 text-center font-bold text-slate-850">{Math.round(entry.score)}</td>
+                    <td className="px-6 py-2.5">
+                      <Badge
+                        className={`${getClassBadgeStyle(entry.class)} font-black text-[9px] uppercase px-2 py-0.5 rounded-md border`}
+                      >
+                        {entry.class}
+                        {entry.section ? `-${entry.section}` : ''}
+                      </Badge>
+                    </td>
+                    <td className="px-6 py-2.5 text-center font-bold text-slate-900">{Math.round(entry.score)}</td>
                     <td className="px-6 py-2.5 text-center font-bold">
                       <span className="text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full text-xs">
                         {entry.percentile}%
@@ -778,7 +850,7 @@ export const RankingEngine: React.FC = () => {
                   setPageSize(parseInt(e.target.value));
                   setPage(1);
                 }}
-                className="h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-705 outline-none cursor-pointer"
+                className="h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-700 outline-none cursor-pointer"
               >
                 <option value={10}>10</option>
                 <option value={20}>20</option>

@@ -486,7 +486,7 @@ export const StudentLinkEntry: React.FC = () => {
         <div className="relative">
           <div className="w-16 h-16 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
         </div>
-        <p className="text-slate-705 font-display font-black text-xs uppercase tracking-widest animate-pulse">
+        <p className="text-slate-700 font-display font-black text-xs uppercase tracking-widest animate-pulse">
           Establishing Secure Exam Link Core...
         </p>
       </div>
@@ -531,7 +531,7 @@ export const StudentLinkEntry: React.FC = () => {
             <div className="h-16 w-16 bg-rose-50 border-2 border-rose-100 text-rose-500 rounded-full flex items-center justify-center mx-auto">
               <AlertCircle size={32} />
             </div>
-            <CardTitle className="text-xl font-black text-slate-905 uppercase tracking-tight">Security Gateway Error</CardTitle>
+            <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">Security Gateway Error</CardTitle>
             <CardDescription className="text-slate-500 text-xs font-semibold leading-relaxed">
               The secure link is incomplete or contains critical parameter discrepancies. Please ensure you are opening the exact URL
               dispatched by your school.
@@ -650,7 +650,7 @@ export const StudentLinkEntry: React.FC = () => {
               <ShieldCheck size={14} className="text-indigo-600 shrink-0" />
               <span>SECURE ASSESSMENT PASS AUTHORIZED</span>
             </div>
-            <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-slate-150/60">
+            <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-slate-200/60">
               <div>
                 <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold">School Unit</span>
                 <p className="font-extrabold text-slate-800 text-xs mt-0.5 truncate">{school?.name || 'Test001'}</p>
@@ -702,7 +702,7 @@ export const StudentLinkEntry: React.FC = () => {
             {/* Proctor compliance security check */}
             <div className="bg-amber-50/60 border border-amber-100/80 p-3.5 rounded-2xl flex items-start gap-2.5 mt-5">
               <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <div className="text-[10px] font-semibold text-slate-650 leading-normal">
+              <div className="text-[10px] font-semibold text-slate-700 leading-normal">
                 <p className="font-extrabold text-slate-800 uppercase tracking-wider text-[8px] mb-0.5">Lobby Verification Consent</p>
                 By activating this exam, you agree to secure browser lockdowns and temporary test progress tracking.
               </div>

@@ -92,12 +92,12 @@ export const ExamInstructionsScreen: React.FC<ExamInstructionsScreenProps> = ({
           <div className="space-y-4">
             <p className="text-[10px] font-mono font-black text-slate-400 uppercase tracking-widest">Candidate Details</p>
             <div className="flex items-center gap-4 bg-slate-900/50 p-4 rounded-2xl border border-slate-800/60">
-              <div className="h-14 w-14 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 border-2 border-amber-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-amber-500/10 flex-shrink-0">
+              <div className="h-14 w-14 rounded-full bg-gradient-to-br from-[#f2a81e] to-[#c98814] border-2 border-[#f2a81e] flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-amber-500/10 flex-shrink-0">
                 {(studentName || 'A')[0].toUpperCase()}
               </div>
               <div className="min-w-0">
                 <div className="text-base font-black text-white truncate">{studentName}</div>
-                {rollNumber && <div className="text-xs font-bold font-mono text-amber-400/90 mt-0.5">Roll: {rollNumber}</div>}
+                {rollNumber && <div className="text-xs font-bold font-mono text-[#f2a81e]/90 mt-0.5">Roll: {rollNumber}</div>}
               </div>
             </div>
           </div>
@@ -287,7 +287,7 @@ export const ExamInstructionsScreen: React.FC<ExamInstructionsScreenProps> = ({
               ) : (
                 <>
                   <span>{confirmLabel}</span>
-                  <ArrowRight className="h-4.5 w-4.5 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </>
               )}
             </Button>

@@ -538,12 +538,12 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                             <div className="flex items-center gap-1.5">
                               {notif.deliveryStatus === 'pending' && (
                                 <span className="flex items-center gap-1.5 text-slate-500 font-sans text-[11px] font-extrabold uppercase">
-                                  <Clock className="h-3 w-3 animate-pulse text-slate-550" /> Queued
+                                  <Clock className="h-3 w-3 animate-pulse text-slate-600" /> Queued
                                 </span>
                               )}
                               {notif.deliveryStatus === 'processing' && (
                                 <span className="flex items-center gap-1.5 text-[#FFE28A] font-sans text-[11px] font-extrabold uppercase">
-                                  <RefreshCw className="h-3 w-3 animate-spin text-amber-550" /> Locking...
+                                  <RefreshCw className="h-3 w-3 animate-spin text-amber-600" /> Locking...
                                 </span>
                               )}
                               {notif.deliveryStatus === 'sent' && (

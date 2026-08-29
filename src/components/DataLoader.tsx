@@ -60,7 +60,7 @@ export const DataLoader: React.FC<DataLoaderProps> = ({
 
                 {/* Inner rotating ring in opposite direction */}
                 <motion.div
-                  className="absolute w-10 h-10 rounded-full border-4 border-slate-150 border-b-rose-500 border-l-rose-500"
+                  className="absolute w-10 h-10 rounded-full border-4 border-slate-200 border-b-rose-500 border-l-rose-500"
                   animate={{ rotate: -360 }}
                   transition={{
                     duration: 1.8,
@@ -98,7 +98,7 @@ export const DataLoader: React.FC<DataLoaderProps> = ({
             className="flex items-center justify-center min-h-[400px] p-4"
             id="data-loader-error"
           >
-            <div className="w-full max-w-md bg-white border border-rose-100 rounded-[32px] p-8 text-center shadow-2xl shadow-rose-150/40 border-t-8 border-t-rose-500 space-y-6">
+            <div className="w-full max-w-md bg-white border border-rose-100 rounded-[32px] p-8 text-center shadow-2xl shadow-rose-200/40 border-t-8 border-t-rose-500 space-y-6">
               <div className="h-16 w-16 bg-rose-50 border-2 border-rose-100 text-rose-500 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
                 <ServerCrash className="h-8 w-8 animate-bounce" />
               </div>

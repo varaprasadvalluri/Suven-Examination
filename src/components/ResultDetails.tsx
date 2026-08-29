@@ -369,12 +369,12 @@ export const ResultDetails: React.FC = () => {
             <h3 className="text-lg font-black uppercase tracking-wider text-slate-800 font-display">Assessment Overview</h3>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-150">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200">
             <div className="space-y-1">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none font-display">
                 Assessment Title
               </span>
-              <p className="text-slate-805 text-slate-800 font-bold text-sm">{exam.title}</p>
+              <p className="text-slate-800 text-slate-800 font-bold text-sm">{exam.title}</p>
             </div>
             <div className="space-y-1">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none font-display">
@@ -727,7 +727,7 @@ export const ResultDetails: React.FC = () => {
 
                   <CardContent className="p-6 bg-white space-y-4">
                     {q.type === 'numerical' || q.type === 'math' ? (
-                      <div className="p-5.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+                      <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
                         <div className="flex flex-col">
                           <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Your Response:</span>
                           {q.type === 'math' && studentAnswer !== null && studentAnswer !== undefined ? (
@@ -743,7 +743,7 @@ export const ResultDetails: React.FC = () => {
                         <div className="flex flex-col">
                           <span className="text-[10px] font-black uppercase text-indigo-400 tracking-wider">Correct Value:</span>
                           {q.type === 'math' ? (
-                            <div className="p-3 bg-indigo-50/50 border border-indigo-150 rounded-xl mt-1 flex items-center justify-center min-h-[44px]">
+                            <div className="p-3 bg-indigo-50/50 border border-indigo-200 rounded-xl mt-1 flex items-center justify-center min-h-[44px]">
                               <MathRenderer math={q.numericalAnswer || ''} block={true} />
                             </div>
                           ) : (
@@ -757,7 +757,7 @@ export const ResultDetails: React.FC = () => {
                           const isSelected = Array.isArray(studentAnswer) ? studentAnswer.includes(i) : studentAnswer === i;
                           const isCorrectOpt = q.correctAnswerIndex === i;
 
-                          let variant = 'bg-white border-slate-100 text-slate-550 text-slate-500';
+                          let variant = 'bg-white border-slate-100 text-slate-600 text-slate-500';
                           if (isCorrectOpt)
                             variant =
                               'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold shadow-sm shadow-emerald-100 scale-[1.02] z-10';
@@ -786,7 +786,7 @@ export const ResultDetails: React.FC = () => {
                     )}
 
                     {q.explanation && (
-                      <div className="mt-4 p-4.5 bg-indigo-50/50 border border-indigo-100 rounded-2xl">
+                      <div className="mt-4 p-5 bg-indigo-50/50 border border-indigo-100 rounded-2xl">
                         <h5 className="text-xs font-black uppercase tracking-wider text-indigo-700 flex items-center gap-2 mb-1.5">
                           <BrainCircuit size={14} /> Comprehensive Explanation & Solution
                         </h5>

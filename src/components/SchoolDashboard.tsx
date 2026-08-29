@@ -325,7 +325,7 @@ export const SchoolDashboard: React.FC = () => {
       {/* Premium Hub Hero Segment */}
       <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-950 text-white rounded-[32px] p-8 md:p-10 shadow-2xl border border-white/5">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_120%,rgba(99,102,241,0.15),transparent)] pointer-events-none" />
-        <div className="absolute right-0 top-0 w-80 h-80 bg-indigo-5050 bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute right-0 top-0 w-80 h-80 bg-indigo-50 bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="space-y-3">
@@ -620,7 +620,7 @@ export const SchoolDashboard: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Intel Deck Column */}
             <Card className="lg:col-span-2 border-slate-200 shadow-xl shadow-slate-100/30 rounded-[35px] overflow-hidden bg-gradient-to-br from-indigo-900 to-slate-950 text-white relative">
-              <div className="absolute right-0 top-0 w-64 h-64 bg-indigo-5050 bg-indigo-500/10 rounded-full blur-[70px] pointer-events-none" />
+              <div className="absolute right-0 top-0 w-64 h-64 bg-indigo-50 bg-indigo-500/10 rounded-full blur-[70px] pointer-events-none" />
               <CardHeader className="p-5 md:p-8 border-b border-indigo-950/40">
                 <div className="flex items-center gap-2">
                   <div className="p-2 rounded-2xl bg-indigo-500/10 text-[#FFE28A] border border-indigo-400/20">
@@ -648,7 +648,7 @@ export const SchoolDashboard: React.FC = () => {
                   </div>
                 ))}
                 {intelligenceMetrics.generatedInsights.length === 0 && (
-                  <div className="flex items-center gap-2 text-indigo-250 py-4 opacity-50">
+                  <div className="flex items-center gap-2 text-indigo-300 py-4 opacity-50">
                     <CheckCircle2 size={16} />
                     <p className="text-xs font-medium">Awaiting performance telemetry to compile strategic advice deck.</p>
                   </div>
@@ -680,7 +680,7 @@ export const SchoolDashboard: React.FC = () => {
                             toast.info(`Assessment session is active. Forensic diagnostics will compile instantly upon submission.`);
                           }
                         }}
-                        className="flex gap-3 items-center p-3 rounded-xl hover:bg-slate-100 hover:border-slate-350 cursor-pointer transition-all border border-dashed border-slate-100 text-xs text-left group"
+                        className="flex gap-3 items-center p-3 rounded-xl hover:bg-slate-100 hover:border-slate-400 cursor-pointer transition-all border border-dashed border-slate-100 text-xs text-left group"
                         title={a.status === 'completed' ? 'Click to view forensic scorecard details' : 'Assessment in-progress'}
                       >
                         <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600 font-bold flex-shrink-0 group-hover:scale-105 transition-transform">

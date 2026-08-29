@@ -132,7 +132,7 @@ export class RootSafetyWrapper extends Component<Props, State> {
       let actionLabel = 'Refresh Page';
       let IconComponent = ServerCrash;
       let themeColorClass = 'text-indigo-600 bg-indigo-50 border-indigo-200';
-      let btnColorClass = 'bg-indigo-600 hover:bg-indigo-700 border-indigo-850';
+      let btnColorClass = 'bg-indigo-600 hover:bg-indigo-700 border-indigo-900';
 
       // 1. Offline Mode
       if (errorType === 'offline') {
@@ -151,7 +151,7 @@ export class RootSafetyWrapper extends Component<Props, State> {
           actionLabel = 'Go to Login';
           IconComponent = ShieldAlert;
           themeColorClass = 'text-rose-600 bg-rose-50 border-rose-200';
-          btnColorClass = 'bg-rose-600 hover:bg-rose-700 border-rose-850';
+          btnColorClass = 'bg-rose-600 hover:bg-rose-700 border-rose-900';
         } else if (httpStatus === 404) {
           title = 'Data Not Found';
           description = 'The requested page or data could not be found.';
@@ -166,7 +166,7 @@ export class RootSafetyWrapper extends Component<Props, State> {
           actionLabel = 'Refresh Page';
           IconComponent = ServerCrash;
           themeColorClass = 'text-indigo-600 bg-indigo-50 border-indigo-200';
-          btnColorClass = 'bg-indigo-600 hover:bg-indigo-700 border-indigo-850';
+          btnColorClass = 'bg-indigo-600 hover:bg-indigo-700 border-indigo-900';
         }
       }
       // 3. React Runtime Render-Level Crashes
@@ -176,7 +176,7 @@ export class RootSafetyWrapper extends Component<Props, State> {
         actionLabel = 'Refresh Page';
         IconComponent = ServerCrash;
         themeColorClass = 'text-indigo-600 bg-indigo-50 border-indigo-200';
-        btnColorClass = 'bg-indigo-600 hover:bg-indigo-700 border-indigo-850';
+        btnColorClass = 'bg-indigo-600 hover:bg-indigo-700 border-indigo-900';
       }
 
       return (

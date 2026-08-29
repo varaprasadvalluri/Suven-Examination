@@ -58,7 +58,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
         <DialogHeader className="space-y-3">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600 shadow-inner">
-              <AlertTriangle className="h-5.5 w-5.5 animate-pulse" />
+              <AlertTriangle className="h-6 w-6 animate-pulse" />
             </div>
             <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">{title}</DialogTitle>
           </div>

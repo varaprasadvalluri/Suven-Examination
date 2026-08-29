@@ -159,7 +159,8 @@ export const AdminExams: React.FC = () => {
       },
       (error) => {
         console.error('Failed to sync secure exam links for school:', error);
-      }
+      },
+      { idleAware: true }
     );
 
     return () => unsubscribe();
@@ -258,7 +259,8 @@ export const AdminExams: React.FC = () => {
         setLoading(false);
         setError(err.message || 'Security permission denied or cloud connection broken.');
         handleFirestoreError(err, OperationType.LIST, 'exams');
-      }
+      },
+      { idleAware: true }
     );
 
     return () => unsubscribe();
@@ -858,12 +860,12 @@ export const AdminExams: React.FC = () => {
                           variant="outline"
                           onClick={() => navigate(`/admin/exam/${exam.id}`)}
                         >
-                          <Plus className="h-3 w-3 mr-1 text-indigo-550" /> Build
+                          <Plus className="h-3 w-3 mr-1 text-indigo-600" /> Build
                         </Button>
                       )}
                       {canManage && (
                         <Button
-                          className="flex-1 h-9 text-[10px] font-black uppercase tracking-wider rounded-xl border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/60 text-indigo-705 transition-all"
+                          className="flex-1 h-9 text-[10px] font-black uppercase tracking-wider rounded-xl border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/60 text-indigo-700 transition-all"
                           variant="outline"
                           onClick={() => setSelectedDispatchExam(exam)}
                         >
@@ -936,7 +938,7 @@ export const AdminExams: React.FC = () => {
                   {filteredExams.length} Exams
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-center">
                 <Button
                   variant="outline"
                   size="sm"
@@ -946,17 +948,35 @@ export const AdminExams: React.FC = () => {
                 >
                   Previous
                 </Button>
-                {Array.from({ length: Math.ceil(filteredExams.length / pageSize) }).map((_, idx) => (
-                  <Button
-                    key={idx}
-                    variant={page === idx + 1 ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setPage(idx + 1)}
-                    className={`h-9 w-9 p-0 rounded-lg text-xs font-bold ${page === idx + 1 ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600'}`}
-                  >
-                    {idx + 1}
-                  </Button>
-                ))}
+                {(() => {
+                  const totalPages = Math.ceil(filteredExams.length / pageSize) || 1;
+                  const delta = 1;
+                  const pageNumbers: (number | 'ellipsis')[] = [];
+                  for (let i = 1; i <= totalPages; i++) {
+                    if (i === 1 || i === totalPages || (i >= page - delta && i <= page + delta)) {
+                      pageNumbers.push(i);
+                    } else if (pageNumbers[pageNumbers.length - 1] !== 'ellipsis') {
+                      pageNumbers.push('ellipsis');
+                    }
+                  }
+                  return pageNumbers.map((entry, idx) =>
+                    entry === 'ellipsis' ? (
+                      <span key={`ellipsis-${idx}`} className="h-9 w-9 flex items-center justify-center text-xs font-bold text-slate-400">
+                        …
+                      </span>
+                    ) : (
+                      <Button
+                        key={entry}
+                        variant={page === entry ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setPage(entry)}
+                        className={`h-9 w-9 p-0 rounded-lg text-xs font-bold ${page === entry ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600'}`}
+                      >
+                        {entry}
+                      </Button>
+                    )
+                  );
+                })()}
                 <Button
                   variant="outline"
                   size="sm"

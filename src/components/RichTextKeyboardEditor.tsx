@@ -210,7 +210,7 @@ export const RichTextKeyboardEditor: React.FC<RichTextKeyboardEditorProps> = ({
       </div>
 
       {/* Metrics footer card */}
-      <div className="p-4 border border-slate-150 rounded-2xl bg-white flex flex-wrap items-center justify-between gap-4 text-xs font-semibold text-slate-500 shadow-xs">
+      <div className="p-4 border border-slate-200 rounded-2xl bg-white flex flex-wrap items-center justify-between gap-4 text-xs font-semibold text-slate-500 shadow-xs">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <CheckSquare className="h-4 w-4 text-indigo-500" />

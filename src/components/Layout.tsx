@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 // 3D Playful Icons with dimensional gradients and drop shadows for kids
 const CuteDashboardIcon = () => (
   <svg
-    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-12 group-hover:rotate-6 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
+    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-125 group-hover:rotate-6 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
     viewBox="0 0 24 24"
     fill="none"
   >
@@ -38,7 +38,7 @@ const CuteDashboardIcon = () => (
 
 const CuteExamsIcon = () => (
   <svg
-    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-12 group-hover:-translate-y-0.5 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
+    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-125 group-hover:-translate-y-0.5 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
     viewBox="0 0 24 24"
     fill="none"
   >
@@ -59,7 +59,7 @@ const CuteExamsIcon = () => (
 
 const CuteAnalyticsIcon = () => (
   <svg
-    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-12 group-hover:rotate-12 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
+    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-125 group-hover:rotate-12 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
     viewBox="0 0 24 24"
     fill="none"
   >
@@ -78,7 +78,7 @@ const CuteAnalyticsIcon = () => (
 
 const CuteSchoolIcon = () => (
   <svg
-    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-12 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
+    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-125 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
     viewBox="0 0 24 24"
     fill="none"
   >
@@ -96,7 +96,7 @@ const CuteSchoolIcon = () => (
 
 const CuteProctorsIcon = () => (
   <svg
-    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-12 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
+    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-125 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
     viewBox="0 0 24 24"
     fill="none"
   >
@@ -108,7 +108,7 @@ const CuteProctorsIcon = () => (
 
 const CuteTrophyIcon = () => (
   <svg
-    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-12 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
+    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-125 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
     viewBox="0 0 24 24"
     fill="none"
   >
@@ -120,7 +120,7 @@ const CuteTrophyIcon = () => (
 
 const CuteBillingIcon = () => (
   <svg
-    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-12 group-hover:rotate-6 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
+    className="h-6 w-6 shrink-0 transition-all duration-300 group-hover:scale-125 group-hover:rotate-6 drop-shadow-[2px_3px_0px_rgba(0,0,0,0.15)]"
     viewBox="0 0 24 24"
     fill="none"
   >
@@ -337,7 +337,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         {/* Navigation Elements with generous vertical padding & large touch-friendly triggers */}
         <nav className="flex-1 px-1 py-6 space-y-4 overflow-y-auto">
           <div className="px-3 mb-3 select-none">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-450">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
               {isStudent ? '🪐 Learning Base' : '🧙‍♂️ Teacher Base'}
             </p>
           </div>
@@ -350,73 +350,73 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               'Dashboard View': {
                 gradient: 'from-amber-100 to-amber-50',
                 activeBorder: 'border-amber-400',
-                activeText: 'text-amber-850',
+                activeText: 'text-amber-900',
                 accentBg: 'bg-amber-400'
               },
               'Student Onboarding': {
                 gradient: 'from-purple-100 to-purple-50',
                 activeBorder: 'border-purple-400',
-                activeText: 'text-purple-850',
+                activeText: 'text-purple-900',
                 accentBg: 'bg-purple-400'
               },
               'Assigned Exams': {
                 gradient: 'from-emerald-100 to-emerald-50',
                 activeBorder: 'border-emerald-400',
-                activeText: 'text-emerald-850',
+                activeText: 'text-emerald-900',
                 accentBg: 'bg-emerald-400'
               },
               'Exams Manager': {
                 gradient: 'from-emerald-100 to-emerald-50',
                 activeBorder: 'border-emerald-400',
-                activeText: 'text-emerald-850',
+                activeText: 'text-emerald-900',
                 accentBg: 'bg-emerald-400'
               },
               'Institutions': {
                 gradient: 'from-sky-100 to-sky-50',
                 activeBorder: 'border-sky-400',
-                activeText: 'text-sky-850',
+                activeText: 'text-sky-900',
                 accentBg: 'bg-sky-400'
               },
               'Security proctors': {
                 gradient: 'from-amber-100 to-amber-50',
                 activeBorder: 'border-amber-400',
-                activeText: 'text-amber-850',
+                activeText: 'text-amber-900',
                 accentBg: 'bg-amber-400'
               },
               'Syllabus Tracker': {
                 gradient: 'from-emerald-100 to-emerald-50',
                 activeBorder: 'border-emerald-400',
-                activeText: 'text-emerald-850',
+                activeText: 'text-emerald-900',
                 accentBg: 'bg-emerald-400'
               },
               'Merit Scoreboard': {
                 gradient: 'from-amber-100 to-amber-50',
                 activeBorder: 'border-amber-400',
-                activeText: 'text-amber-850',
+                activeText: 'text-amber-900',
                 accentBg: 'bg-amber-400'
               },
               'System Analytics': {
                 gradient: 'from-pink-100 to-pink-50',
                 activeBorder: 'border-pink-400',
-                activeText: 'text-pink-850',
+                activeText: 'text-pink-900',
                 accentBg: 'bg-pink-400'
               },
               'Scale & Performance Hub': {
                 gradient: 'from-purple-100 to-purple-50',
                 activeBorder: 'border-purple-400',
-                activeText: 'text-purple-850',
+                activeText: 'text-purple-900',
                 accentBg: 'bg-purple-400'
               },
               'Interactive API Docs': {
                 gradient: 'from-indigo-100 to-indigo-50',
                 activeBorder: 'border-indigo-400',
-                activeText: 'text-indigo-850',
+                activeText: 'text-indigo-900',
                 accentBg: 'bg-indigo-400'
               },
               'GCP Cloud Billing': {
                 gradient: 'from-emerald-100 to-emerald-50',
                 activeBorder: 'border-emerald-400',
-                activeText: 'text-emerald-850',
+                activeText: 'text-emerald-900',
                 accentBg: 'bg-emerald-400'
               }
             };
@@ -436,7 +436,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 onClick={() => {
                   if (window.innerWidth < 1024) setIsSidebarOpen(false);
                 }}
-                className={`flex items-center space-x-3.5 px-4.5 py-3.5 rounded-2xl transition-all duration-300 group relative border-2 ${
+                className={`flex items-center space-x-3.5 px-5 py-3.5 rounded-2xl transition-all duration-300 group relative border-2 ${
                   active
                     ? `bg-gradient-to-br ${colors.gradient} ${colors.activeBorder} border-b-[5px] ${colors.activeText} font-black shadow-md scale-[1.02]`
                     : 'bg-white border-slate-100 hover:border-slate-300 text-slate-600 hover:text-slate-900 duration-200'
@@ -493,7 +493,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="lg:hidden h-11 w-11 text-slate-700 hover:text-slate-900 bg-slate-50 border-2 border-b-[4px] border-slate-350 rounded-xl"
+                className="lg:hidden h-11 w-11 text-slate-700 hover:text-slate-900 bg-slate-50 border-2 border-b-[4px] border-slate-400 rounded-xl"
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               >
                 {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -542,7 +542,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="lg:hidden h-11 w-11 text-slate-700 hover:text-slate-900 bg-slate-50 border-2 border-b-[4px] border-slate-350 rounded-xl"
+                className="lg:hidden h-11 w-11 text-slate-700 hover:text-slate-900 bg-slate-50 border-2 border-b-[4px] border-slate-400 rounded-xl"
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               >
                 {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

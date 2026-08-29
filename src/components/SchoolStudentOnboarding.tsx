@@ -169,7 +169,8 @@ export const SchoolStudentOnboarding: React.FC = () => {
       },
       (error) => {
         handleFirestoreError(error, OperationType.LIST, 'exams');
-      }
+      },
+      { idleAware: true }
     );
 
     const recentQuery = query(collection(db, 'exams'), where('status', '==', 'published'), orderBy('createdAt', 'desc'), limit(300));
@@ -181,7 +182,8 @@ export const SchoolStudentOnboarding: React.FC = () => {
       },
       (error) => {
         handleFirestoreError(error, OperationType.LIST, 'exams');
-      }
+      },
+      { idleAware: true }
     );
 
     return () => {
@@ -312,7 +314,8 @@ export const SchoolStudentOnboarding: React.FC = () => {
         },
         (error) => {
           console.error('Error reading invitations chunk:', error);
-        }
+        },
+        { idleAware: true }
       );
       unsubscribes.push(unsub);
     }
@@ -343,7 +346,8 @@ export const SchoolStudentOnboarding: React.FC = () => {
       },
       (error) => {
         console.error('Error reading attempts:', error);
-      }
+      },
+      { idleAware: true }
     );
 
     return () => unsub();
@@ -375,7 +379,8 @@ export const SchoolStudentOnboarding: React.FC = () => {
       },
       (err) => {
         console.error('Error reading secure exam link token:', err);
-      }
+      },
+      { idleAware: true }
     );
 
     return () => unsubscribe();
@@ -874,7 +879,8 @@ export const SchoolStudentOnboarding: React.FC = () => {
       },
       (error) => {
         handleFirestoreError(error, OperationType.LIST, 'attempts');
-      }
+      },
+      { idleAware: true }
     );
     return () => unsubscribe();
   }, [viewingStudentAnalytics, profile?.schoolId]);
@@ -1098,7 +1104,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                     {previewData.map((s, idx) => (
                       <div key={idx} className="flex items-center justify-between p-4 hover:bg-slate-50/50 transition-colors">
                         <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-slate-150 bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                          <div className="h-8 w-8 rounded-full bg-slate-200 bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
                             {s.name?.toString().substring(0, 1)}
                           </div>
                           <div>
@@ -1182,7 +1188,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                   label: (
                     <span className="truncate pr-2">
                       {e.title} -{' '}
-                      <span className={`text-[10px] font-bold ${e.id === selectedExamId ? 'text-indigo-200' : 'text-slate-450'}`}>
+                      <span className={`text-[10px] font-bold ${e.id === selectedExamId ? 'text-indigo-200' : 'text-slate-500'}`}>
                         ({e.subject})
                       </span>
                     </span>
@@ -1207,7 +1213,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
 
         {/* Dynamic General Shareable Exam Link Row */}
         {selectedExamId && selectedExamId !== 'none' && (
-          <div className="border-b border-slate-200 divide-y divide-slate-150 bg-white">
+          <div className="border-b border-slate-200 divide-y divide-slate-200 bg-white">
             {/* Row 1: Common Shared Entry Link */}
             <div
               className={`p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6 transition-all duration-300 ${dynamicToken ? 'bg-emerald-50/10 border-l-4 border-l-emerald-500' : 'bg-indigo-50/10'}`}
@@ -1274,7 +1280,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                         ? `${window.location.origin}/student/exam-entry?token=${dynamicToken}`
                         : `${window.location.origin}/student/exam-entry?examId=${selectedExamId}&schoolId=${profile?.schoolId}`
                     }
-                    className="px-4 py-2.5 bg-transparent text-slate-755 font-mono text-[10.5px] outline-none select-all w-full min-w-[220px]"
+                    className="px-4 py-2.5 bg-transparent text-slate-800 font-mono text-[10.5px] outline-none select-all w-full min-w-[220px]"
                   />
                   <Button
                     onClick={() => {
@@ -1520,7 +1526,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                         variant="ghost"
                         size="icon"
                         onClick={() => confirmDeleteStudent(student)}
-                        className="h-9 w-9 rounded-lg hover:bg-red-50 hover:text-red-650 text-slate-500 transition-colors"
+                        className="h-9 w-9 rounded-lg hover:bg-red-50 hover:text-red-700 text-slate-500 transition-colors"
                         title="Delete Student"
                       >
                         <Trash2 size={15} className="text-red-500" />
@@ -1665,7 +1671,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                 />
                 <Button
                   onClick={() => activeInvite && handleCopyLink(activeInvite.url)}
-                  className="bg-slate-900 hover:bg-slate-800 text-white border-l-[3px] border-slate-910 h-auto font-black text-[10px] uppercase tracking-wider px-5 rounded-none"
+                  className="bg-slate-900 hover:bg-slate-800 text-white border-l-[3px] border-slate-900 h-auto font-black text-[10px] uppercase tracking-wider px-5 rounded-none"
                 >
                   {copiedToken === activeInvite?.url ? <Check size={16} /> : <Copy size={16} />}
                 </Button>
@@ -1693,7 +1699,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="w-full max-w-[95vw] sm:max-w-md p-0 rounded-3xl overflow-hidden border-none shadow-2xl bg-white">
           <div className="bg-slate-900 text-white p-6 pb-8">
-            <div className="inline-flex items-center gap-1.5 bg-indigo-5050 bg-indigo-500/20 border border-indigo-400/20 px-2.5 py-1 rounded text-xs font-black uppercase tracking-widest text-indigo-300">
+            <div className="inline-flex items-center gap-1.5 bg-indigo-50 bg-indigo-500/20 border border-indigo-400/20 px-2.5 py-1 rounded text-xs font-black uppercase tracking-widest text-indigo-300">
               <Edit size={12} /> Registry Modification
             </div>
             <DialogTitle className="text-xl font-black uppercase mt-3 tracking-tight">Edit Student Credentials</DialogTitle>
@@ -1810,7 +1816,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
       {/* STUDENT CRUD - DELETE CONFIRMATION DIALOG */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="w-full max-w-[95vw] sm:max-w-md p-0 rounded-3xl overflow-hidden border-none shadow-2xl bg-white">
-          <div className="bg-red-900/10 text-red-700 p-6 border-b border-red-150">
+          <div className="bg-red-900/10 text-red-700 p-6 border-b border-red-200">
             <div className="inline-flex items-center gap-1.5 bg-red-100 text-red-800 px-2.5 py-1 rounded text-xs font-black uppercase tracking-widest">
               <ShieldAlert size={14} /> Critical Action Block
             </div>
@@ -1822,7 +1828,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
               Are you absolutely certain you wish to delete candidate <strong>{deletingStudent?.name}</strong> (Roll:{' '}
               {deletingStudent?.rollNumber}) from the registry system?
             </p>
-            <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl text-[11px] leading-relaxed text-rose-850 font-bold uppercase flex items-center gap-2">
+            <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl text-[11px] leading-relaxed text-rose-900 font-bold uppercase flex items-center gap-2">
               <span>⚠️</span>
               This action completely clears authentication credentials, invitation tokens, and resets live proctor references for this
               candidate.
@@ -1895,7 +1901,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                 </div>
 
                 {/* Score Trend Curve */}
-                <div className="border border-slate-150 rounded-2xl p-4 bg-slate-50/50">
+                <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/50">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-4">Academic Progression Curve</p>
                   <div className="h-[200px] w-full text-xs">
                     {/* Basic visual representation of trend lines using simple progress bars or styled divs to keep rendering lightweight and resilient */}
@@ -1923,7 +1929,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                 {/* Detailed attempts directory listing */}
                 <div className="space-y-2.5">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Historical Assessment Sheets</p>
-                  <div className="divide-y divide-slate-150 border border-slate-150 rounded-2xl overflow-hidden bg-white">
+                  <div className="divide-y divide-slate-200 border border-slate-200 rounded-2xl overflow-hidden bg-white">
                     {studentAttempts.map((at, index) => (
                       <div
                         key={index}

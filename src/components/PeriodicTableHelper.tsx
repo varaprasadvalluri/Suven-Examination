@@ -40,11 +40,11 @@ const CHEMICAL_ELEMENTS: ChemElement[] = [
 const GROUP_COLORS: Record<string, string> = {
   'reactive-nonmetal': 'bg-emerald-50 text-emerald-800 border-emerald-200',
   'noble-gas': 'bg-purple-50 text-purple-800 border-purple-200',
-  alkali: 'bg-rose-50 text-rose-850 border-rose-200',
+  alkali: 'bg-rose-50 text-rose-900 border-rose-200',
   alkaline: 'bg-amber-50 text-amber-800 border-amber-200',
-  metalloid: 'bg-teal-50 text-teal-850 border-teal-200',
+  metalloid: 'bg-teal-50 text-teal-900 border-teal-200',
   'post-transition': 'bg-blue-50 text-blue-800 border-blue-200',
-  transition: 'bg-sky-50 text-sky-850 border-sky-200'
+  transition: 'bg-sky-50 text-sky-900 border-sky-200'
 };
 
 const COMMON_FORMULAS = [
@@ -158,7 +158,7 @@ export const PeriodicTableHelper: React.FC<PeriodicTableHelperProps> = ({ onInse
               <button
                 key={grp}
                 onClick={() => setSelectedGroup(selectedGroup === grp ? null : grp)}
-                className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border cursor-pointer ${selectedGroup === grp ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-250 text-slate-500 hover:bg-slate-50'}`}
+                className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border cursor-pointer ${selectedGroup === grp ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-300 text-slate-500 hover:bg-slate-50'}`}
               >
                 {grp.replace('-', ' ')}
               </button>

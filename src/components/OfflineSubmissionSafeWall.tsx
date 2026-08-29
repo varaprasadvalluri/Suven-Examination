@@ -97,7 +97,7 @@ export const OfflineSubmissionSafeWall: React.FC<OfflineSubmissionSafeWallProps>
           {/* Header Guard Banner */}
           <div className="p-5 sm:p-7 bg-gradient-to-r from-rose-950 to-slate-900 text-white flex items-center gap-4 sm:gap-5 relative border-b border-rose-100">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(244,63,94,0.15),transparent)] pointer-events-none" />
-            <div className="h-14 w-14 rounded-2xl bg-rose-500/10 border border-rose-450 flex items-center justify-center shrink-0">
+            <div className="h-14 w-14 rounded-2xl bg-rose-500/10 border border-rose-500 flex items-center justify-center shrink-0">
               <WifiOff className="h-7 w-7 text-rose-500 animate-pulse" />
             </div>
             <div>
@@ -147,16 +147,16 @@ export const OfflineSubmissionSafeWall: React.FC<OfflineSubmissionSafeWallProps>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] font-mono border-t border-slate-800 pt-3">
                 <div>
-                  <span className="text-slate-450 block text-[9px] uppercase font-sans">Exam Assessment</span>
+                  <span className="text-slate-500 block text-[9px] uppercase font-sans">Exam Assessment</span>
                   <span className="font-bold text-white uppercase truncate block">{examTitle}</span>
                 </div>
                 <div>
-                  <span className="text-slate-450 block text-[9px] uppercase font-sans">Student Name</span>
+                  <span className="text-slate-500 block text-[9px] uppercase font-sans">Student Name</span>
                   <span className="font-bold text-white uppercase truncate block">{studentName}</span>
                 </div>
               </div>
 
-              <div className="mt-2 bg-slate-950 p-4 rounded-xl border border-slate-850 flex items-center justify-between gap-4">
+              <div className="mt-2 bg-slate-950 p-4 rounded-xl border border-slate-900 flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <span className="text-[8px] font-black uppercase text-slate-400 block tracking-widest leading-none mb-1">
                     Receipt Code Signature
@@ -173,7 +173,7 @@ export const OfflineSubmissionSafeWall: React.FC<OfflineSubmissionSafeWallProps>
                 </Button>
               </div>
 
-              <p className="text-[9px] text-slate-450 font-sans italic text-center mt-1 leading-normal">
+              <p className="text-[9px] text-slate-500 font-sans italic text-center mt-1 leading-normal">
                 This verification signature acts as physical proof that your assessment is complete. Take a phone photo as backup.
               </p>
             </div>

@@ -459,7 +459,7 @@ export const AdminAnalytics: React.FC = () => {
 
           {/* Proctors Quick Escalations Overview Panel */}
           <Card className="border-0 shadow-2xl shadow-slate-200/40 rounded-[32px] bg-slate-950 text-white flex flex-col justify-between group overflow-hidden relative">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-505/10 blur-3xl -mr-16 -mt-16" />
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 blur-3xl -mr-16 -mt-16" />
             <CardHeader className="p-6 md:p-8">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-rose-500">

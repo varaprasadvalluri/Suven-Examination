@@ -581,7 +581,7 @@ export const ExamQuestions: React.FC = () => {
                     <CardTitle className="text-base font-bold text-slate-900">Question {globalIdx + 1}</CardTitle>
                   </div>
                   <div className="flex items-center gap-2 pt-1.5 flex-wrap">
-                    <span className="px-2.5 py-0.5 bg-indigo-50 border border-indigo-150 text-[10px] uppercase font-black tracking-wider text-indigo-600 rounded-md">
+                    <span className="px-2.5 py-0.5 bg-indigo-50 border border-indigo-200 text-[10px] uppercase font-black tracking-wider text-indigo-600 rounded-md">
                       Subject: {q.subject || exam?.subject || 'General'}
                     </span>
                     <span className="px-2.5 py-0.5 bg-slate-100 text-[10px] uppercase font-black tracking-wider text-slate-600 rounded-md">
@@ -786,7 +786,7 @@ export const ExamQuestions: React.FC = () => {
 
               {/* Mathematics & Scientific Equation Toolbar */}
               {['Physics', 'Chemistry', 'Mathematics', 'Biology'].includes(newQuestion.subject || 'Physics') && (
-                <div className="bg-slate-50 border-2 border-dashed border-indigo-250 rounded-2xl p-5 space-y-4">
+                <div className="bg-slate-50 border-2 border-dashed border-indigo-300 rounded-2xl p-5 space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-base select-none">📐</span>
@@ -839,6 +839,7 @@ export const ExamQuestions: React.FC = () => {
                           onClick={() => insertMathSymbol(item.sym)}
                           className="h-10 px-3 text-sm font-bold bg-white hover:bg-slate-900 hover:text-white text-slate-800 border border-slate-200 rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-sm active:translate-y-0.5 hover:scale-105"
                           title={`Insert ${item.sym} (Shortkey: ${item.label})`}
+                          aria-label={`Insert ${item.label} symbol`}
                         >
                           {item.sym}
                         </button>
@@ -872,6 +873,7 @@ export const ExamQuestions: React.FC = () => {
                             onClick={() => insertMathSymbol(item.sym)}
                             className="h-9 px-2.5 text-xs font-black bg-white hover:bg-indigo-600 hover:text-white text-indigo-950 border border-indigo-100 rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-xs active:translate-y-0.5 hover:scale-105"
                             title={item.label}
+                            aria-label={`Insert ${item.label}`}
                           >
                             {item.sym}
                           </button>
@@ -903,6 +905,7 @@ export const ExamQuestions: React.FC = () => {
                             onClick={() => insertMathSymbol(item.sym)}
                             className="h-9 px-2.5 text-xs font-black bg-white hover:bg-slate-700 hover:text-white text-slate-700 border border-slate-200 rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-xs active:translate-y-0.5 hover:scale-105"
                             title={item.label}
+                            aria-label={`Insert ${item.label}`}
                           >
                             {item.sym}
                           </button>
@@ -912,10 +915,10 @@ export const ExamQuestions: React.FC = () => {
                   </div>
 
                   {/* Interactive conversion guidelines */}
-                  <div className="text-[10.5px] bg-white border border-slate-150 p-3.5 rounded-xl space-y-3 text-slate-600 leading-relaxed">
+                  <div className="text-[10.5px] bg-white border border-slate-200 p-3.5 rounded-xl space-y-3 text-slate-600 leading-relaxed">
                     <div className="space-y-1">
                       <p className="font-extrabold text-[#6366F1] flex items-center gap-1 uppercase tracking-wider text-[9px]">
-                        <Wand2 className="h-4.5 w-4.5 text-[#6366F1]" /> Dynamic LaTeX & Text Autocorrect
+                        <Wand2 className="h-5 w-5 text-[#6366F1]" /> Dynamic LaTeX & Text Autocorrect
                       </p>
                       <p className="font-bold text-slate-500">
                         Type standard LaTeX commands like{' '}
@@ -964,7 +967,7 @@ export const ExamQuestions: React.FC = () => {
               </div>
 
               {/* Reusable Cloudinary Image Upload Component */}
-              <div className="bg-indigo-50/10 p-5 rounded-2xl border border-dashed border-indigo-150/60">
+              <div className="bg-indigo-50/10 p-5 rounded-2xl border border-dashed border-indigo-200/60">
                 <FileUpload
                   imageUrl={newQuestion.imageUrl}
                   imagePublicId={newQuestion.imagePublicId}
@@ -1009,7 +1012,7 @@ export const ExamQuestions: React.FC = () => {
                     value={newQuestion.numericalAnswer || ''}
                     onChange={(e) => setNewQuestion({ ...newQuestion, numericalAnswer: e.target.value })}
                     onFocus={() => setActiveInputName(null)}
-                    className="bg-white border-indigo-250 rounded-xl h-11 text-center font-mono text-lg font-bold focus-visible:ring-indigo-500"
+                    className="bg-white border-indigo-300 rounded-xl h-11 text-center font-mono text-lg font-bold focus-visible:ring-indigo-500"
                   />
                   <p className="text-[10px] text-indigo-600 font-semibold">
                     Students will use a rich mathematical symbol toolbar and virtual keyboard to input their equations for this question.
@@ -1018,7 +1021,7 @@ export const ExamQuestions: React.FC = () => {
               ) : (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-black uppercase tracking-wider text-slate-405 text-indigo-900">
+                    <Label className="text-xs font-black uppercase tracking-wider text-slate-400 text-indigo-900">
                       MCQ Choice Configuration
                     </Label>
                     <div className="flex gap-2">

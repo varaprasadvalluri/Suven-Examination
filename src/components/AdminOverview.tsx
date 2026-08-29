@@ -17,7 +17,8 @@ import {
   LayoutGrid,
   Crown,
   Medal,
-  Award
+  Award,
+  Table2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
@@ -79,6 +80,10 @@ export const AdminOverview: React.FC = () => {
     completed: number;
   }
   const [schoolStats, setSchoolStats] = useState<SchoolMetrics[]>([]);
+  const [activeNowStudents, setActiveNowStudents] = useState<{ id: string; name: string }[]>([]);
+  const [activeNowCount, setActiveNowCount] = useState(0);
+  const [anomalyCount, setAnomalyCount] = useState(0);
+  const [schoolViewMode, setSchoolViewMode] = useState<'grid' | 'table'>('grid');
 
   const handleMasterExport = async () => {
     setIsExporting(true);
@@ -167,6 +172,18 @@ export const AdminOverview: React.FC = () => {
           .slice(0, 5) as Attempt[];
         setTopStudents(topByAccuracy);
         setSchoolNameById(Object.fromEntries(schoolsList.map((s) => [s.id, s.name || 'Unknown School'])));
+
+        // Real "students currently taking an exam" sample and count — replaces the
+        // hardcoded "42 Nodes" + fixed dicebear avatar placeholders that used to sit here.
+        const scopedAttempts = !profile?.schoolId ? attemptsList : attemptsList.filter((a) => a.schoolId === profile.schoolId);
+        const liveAttempts = scopedAttempts.filter((a) => a.status === 'started' || a.status === 'in-progress');
+        setActiveNowCount(liveAttempts.length);
+        setActiveNowStudents(liveAttempts.slice(0, 4).map((a) => ({ id: a.id, name: a.studentName || 'Student' })));
+
+        // Real proctoring-anomaly count — replaces the hardcoded "03 ALERT" that used to
+        // sit here regardless of actual attempt data.
+        const flaggedCount = scopedAttempts.filter((a) => (a.violationsCount || 0) > 0 || (a.malpracticeScore || 0) > 0).length;
+        setAnomalyCount(flaggedCount);
 
         const calculatedSchoolStats = schoolsList.map((school) => {
           const schoolAttempts = attemptsList.filter((att) => att.schoolId === school.id);
@@ -356,7 +373,9 @@ export const AdminOverview: React.FC = () => {
                 <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                 <span className="text-[10px] font-black uppercase text-white/50 tracking-widest">Active Now</span>
               </div>
-              <span className="text-[11px] font-black">42 Nodes</span>
+              <span className="text-[11px] font-black">
+                {activeNowCount} {activeNowCount === 1 ? 'Student' : 'Students'}
+              </span>
             </div>
           </div>
         </motion.div>
@@ -440,18 +459,30 @@ export const AdminOverview: React.FC = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between text-[11px] font-bold">
               <span className="text-slate-500">ANOMALIES DETECTED</span>
-              <span className="text-rose-600">03 ALERT</span>
+              <span className={anomalyCount > 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                {anomalyCount > 0 ? `${anomalyCount} ALERT${anomalyCount > 1 ? 'S' : ''}` : 'CLEAR'}
+              </span>
             </div>
-            <div className="flex -space-x-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-10 w-10 rounded-full border-4 border-white bg-slate-200 overflow-hidden">
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${i + 10}`} alt="avatar" />
-                </div>
-              ))}
-              <div className="h-10 w-10 rounded-full border-4 border-white bg-indigo-600 flex items-center justify-center text-white text-[9px] font-black">
-                +12
+            {activeNowStudents.length > 0 ? (
+              <div className="flex -space-x-4">
+                {activeNowStudents.map((student) => (
+                  <div
+                    key={student.id}
+                    title={student.name}
+                    className="h-10 w-10 rounded-full border-4 border-white bg-slate-200 overflow-hidden"
+                  >
+                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${student.id}`} alt={student.name} />
+                  </div>
+                ))}
+                {activeNowCount > activeNowStudents.length && (
+                  <div className="h-10 w-10 rounded-full border-4 border-white bg-indigo-600 flex items-center justify-center text-white text-[9px] font-black">
+                    +{activeNowCount - activeNowStudents.length}
+                  </div>
+                )}
               </div>
-            </div>
+            ) : (
+              <p className="text-[11px] font-semibold text-slate-400">No students currently taking an exam</p>
+            )}
           </div>
           <Button className="mt-8 bg-slate-900 text-white rounded-2xl h-12 font-black text-[10px] uppercase tracking-widest">
             Open Monitor
@@ -464,7 +495,7 @@ export const AdminOverview: React.FC = () => {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">LIVE TRACKING METAMETRICS</span>
+                <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">LIVE TRACKING METAMETRICS</span>
               </div>
               <CardTitle className="text-2xl font-black text-slate-900 uppercase tracking-tighter">
                 Live School Attendance Monitor
@@ -473,20 +504,99 @@ export const AdminOverview: React.FC = () => {
                 Attending (in-session) vs. Completed standardized diagnostic registrations grouped by institution.
               </CardDescription>
             </div>
-            <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 flex gap-6 text-center">
-              <div>
-                <p className="text-[9px] font-black text-indigo-400 uppercase tracking-wider">Total Attending</p>
-                <p className="text-xl font-bold text-slate-800">{schoolStats.reduce((sum, s) => sum + s.attending, 0)}</p>
+            <div className="flex items-center gap-3">
+              <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 flex gap-6 text-center">
+                <div>
+                  <p className="text-[9px] font-black text-indigo-500 uppercase tracking-wider">Total Attending</p>
+                  <p className="text-xl font-bold text-slate-800">{schoolStats.reduce((sum, s) => sum + s.attending, 0)}</p>
+                </div>
+                <div className="w-[1px] bg-slate-200" />
+                <div>
+                  <p className="text-[9px] font-black text-emerald-500 uppercase tracking-wider">Total Completed</p>
+                  <p className="text-xl font-bold text-slate-800">{schoolStats.reduce((sum, s) => sum + s.completed, 0)}</p>
+                </div>
               </div>
-              <div className="w-[1px] bg-slate-200" />
-              <div>
-                <p className="text-[9px] font-black text-emerald-400 uppercase tracking-wider">Total Completed</p>
-                <p className="text-xl font-bold text-slate-800">{schoolStats.reduce((sum, s) => sum + s.completed, 0)}</p>
+              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200/60 rounded-2xl p-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setSchoolViewMode('grid')}
+                  title="Grid view"
+                  className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+                    schoolViewMode === 'grid' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-100'
+                  }`}
+                >
+                  <LayoutGrid size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSchoolViewMode('table')}
+                  title="Table view"
+                  className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+                    schoolViewMode === 'table' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-100'
+                  }`}
+                >
+                  <Table2 size={16} />
+                </button>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4">
+          {schoolViewMode === 'table' ? (
+            <div className="overflow-x-auto rounded-3xl border border-slate-100">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-[#0B1E3F]">
+                  <tr>
+                    <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-300">Institution</th>
+                    <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-300 text-center">Attending</th>
+                    <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-300 text-center">Completed</th>
+                    <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-300 w-56">Completion</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {schoolStats.map((school) => {
+                    const total = school.attending + school.completed;
+                    const ratio = total > 0 ? Math.round((school.completed / total) * 100) : 0;
+                    return (
+                      <tr key={school.schoolId} className="odd:bg-slate-50/50 even:bg-white hover:bg-indigo-50/30 transition-colors">
+                        <td className="px-6 py-3.5">
+                          <p className="text-xs font-black text-slate-900 uppercase tracking-tight">{school.name}</p>
+                          <p className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                            Id: {school.schoolId}
+                          </p>
+                        </td>
+                        <td className="px-6 py-3.5 text-center">
+                          <span className="inline-flex items-center gap-1.5 text-sm font-bold text-indigo-600">
+                            {school.attending}
+                            {school.attending > 0 && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3.5 text-center text-sm font-bold text-emerald-600">{school.completed}</td>
+                        <td className="px-6 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-full transition-all duration-500"
+                                style={{ width: `${ratio}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-black text-indigo-700 w-10 text-right shrink-0">{ratio}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {schoolStats.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-10 text-center text-slate-400 font-semibold text-xs uppercase tracking-widest">
+                        No institution analytics stream connected
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4">
             {schoolStats.map((school) => {
               const total = school.attending + school.completed;
               const ratio = total > 0 ? Math.round((school.completed / total) * 100) : 0;
@@ -501,7 +611,7 @@ export const AdminOverview: React.FC = () => {
                       <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">{school.name}</h4>
                       <p className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider mt-0.5">Id: {school.schoolId}</p>
                     </div>
-                    <Badge className="bg-indigo-50 text-indigo-650 border border-indigo-100 font-bold text-[9px] px-2.5 py-1">
+                    <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold text-[9px] px-2.5 py-1">
                       {ratio}% Done
                     </Badge>
                   </div>
@@ -537,7 +647,8 @@ export const AdminOverview: React.FC = () => {
                 No institution analytics stream connected
               </div>
             )}
-          </div>
+            </div>
+          )}
         </Card>
 
         {/* Recent Deployments Table */}
@@ -609,54 +720,60 @@ export const AdminOverview: React.FC = () => {
         </Card>
 
         {/* Global Rankings Preview */}
-        <Card className="md:col-span-2 lg:col-span-2 bg-slate-900 rounded-[40px] p-6 md:p-10 text-white relative overflow-hidden group">
+        <Card className="md:col-span-2 lg:col-span-2 shadow-2xl shadow-slate-200/40 border-0 rounded-[40px] overflow-hidden bg-white border border-slate-100 p-6 md:p-10 relative">
           <div className="relative z-10">
-            <h3 className="text-xl font-black uppercase tracking-tighter mb-6">Merit Matrix {profile?.schoolId ? '' : '· All Schools'}</h3>
+            <h3 className="text-xl font-black uppercase tracking-tighter mb-6 text-slate-900">
+              Merit Matrix {profile?.schoolId ? '' : '· All Schools'}
+            </h3>
             <div className="space-y-5">
               {topStudents.map((student, i) => {
                 const rankIcon =
                   i === 0 ? (
-                    <Crown size={16} className="text-amber-400" />
+                    <Crown size={16} className="text-amber-500" />
                   ) : i === 1 ? (
-                    <Medal size={16} className="text-slate-300" />
+                    <Medal size={16} className="text-slate-400" />
                   ) : i === 2 ? (
-                    <Award size={16} className="text-orange-400" />
+                    <Award size={16} className="text-orange-500" />
                   ) : null;
                 const accuracy = student.accuracy ?? 0;
                 return (
                   <div key={student.id} className="flex items-center justify-between group/row cursor-pointer">
                     <div className="flex items-center gap-3">
                       <div className="flex flex-col items-center w-5">
-                        {rankIcon || <span className="text-xs font-black text-indigo-400">0{i + 1}</span>}
+                        {rankIcon || <span className="text-xs font-black text-indigo-500">0{i + 1}</span>}
                       </div>
                       {/* Spike bar: height scales with accuracy, gives an at-a-glance rank gap visual for the top 3 */}
                       {i < 3 && (
-                        <div className="h-8 w-1.5 rounded-full bg-white/10 overflow-hidden flex items-end shrink-0">
+                        <div className="h-8 w-1.5 rounded-full bg-slate-200/70 overflow-hidden flex items-end shrink-0">
                           <div
-                            className={`w-full rounded-full ${i === 0 ? 'bg-amber-400' : i === 1 ? 'bg-slate-300' : 'bg-orange-400'}`}
+                            className={`w-full rounded-full ${i === 0 ? 'bg-amber-500' : i === 1 ? 'bg-slate-400' : 'bg-orange-500'}`}
                             style={{ height: `${Math.max(10, Math.min(100, accuracy))}%` }}
                           />
                         </div>
                       )}
-                      <div className="h-8 w-8 rounded-full bg-white/10 overflow-hidden border border-white/20 shrink-0">
+                      <div className="h-8 w-8 rounded-full bg-slate-100 overflow-hidden border border-slate-200 shrink-0">
                         <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${student.id}`} alt="rank" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-black uppercase tracking-tight truncate">{student.studentName || 'Unknown Student'}</p>
+                        <p className="text-xs font-black uppercase tracking-tight truncate text-slate-900">
+                          {student.studentName || 'Unknown Student'}
+                        </p>
                         <p className="text-[9px] font-bold text-slate-500 truncate">
                           {schoolNameById[student.schoolId || ''] || 'Unknown School'}
                         </p>
                       </div>
                     </div>
-                    <span className="text-xs font-black text-emerald-400 shrink-0 pl-2">{accuracy.toFixed(1)}%</span>
+                    <span className="text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full shrink-0 ml-2">
+                      {accuracy.toFixed(1)}%
+                    </span>
                   </div>
                 );
               })}
-              {topStudents.length === 0 && <p className="text-xs font-bold text-slate-500 text-center py-4">No completed exams yet</p>}
+              {topStudents.length === 0 && <p className="text-xs font-bold text-slate-400 text-center py-4">No completed exams yet</p>}
             </div>
             <Button
               variant="ghost"
-              className="w-full mt-10 border border-white/10 hover:bg-white/5 rounded-2xl h-12 text-[10px] font-black uppercase tracking-widest text-white"
+              className="w-full mt-10 border border-slate-200 hover:bg-slate-50 rounded-2xl h-12 text-[10px] font-black uppercase tracking-widest text-slate-700"
             >
               Full Consolidated List
             </Button>

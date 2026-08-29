@@ -211,7 +211,7 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
       </div>
 
       {/* Keyboard Grid */}
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-11 gap-2 min-h-[48px] p-2 bg-white rounded-2xl border border-slate-250">
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-11 gap-2 min-h-[48px] p-2 bg-white rounded-2xl border border-slate-300">
         {activeCategory.symbols.map((sym, idx) => (
           <button
             key={idx}

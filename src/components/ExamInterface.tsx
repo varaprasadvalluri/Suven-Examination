@@ -748,7 +748,7 @@ const ExamInterfaceCore: React.FC = () => {
       if (e.key === 'PrintScreen' || e.key === 'Snapshot' || e.keyCode === 44) {
         e.preventDefault();
         toast.error('PROCTOR ALERT: PrintScreen capture is prohibited.', {
-          icon: <ShieldAlert className="h-5 w-5 text-red-650" />
+          icon: <ShieldAlert className="h-5 w-5 text-red-700" />
         });
         logProctorAnomaly('print_screen', 'Student pressed PrintScreen/Snapshot shortcut key');
         clearClipboard();
@@ -760,7 +760,7 @@ const ExamInterfaceCore: React.FC = () => {
         if (['c', 'v', 'x', 'p', 's', 'u', 'a'].includes(key)) {
           e.preventDefault();
           toast.error(`PROCTOR ALERT: Command shortcut (Ctrl/Cmd + ${key.toUpperCase()}) is blocked.`, {
-            icon: <ShieldAlert className="h-5 w-5 text-red-650" />
+            icon: <ShieldAlert className="h-5 w-5 text-red-700" />
           });
           logProctorAnomaly('shortcut_blocked', `Student triggered blocked keyboard combination: Ctrl/Cmd + ${key.toUpperCase()}`);
           if (['c', 'x'].includes(key)) {
@@ -772,7 +772,7 @@ const ExamInterfaceCore: React.FC = () => {
         if (e.shiftKey && ['i', 'j', 'c'].includes(key)) {
           e.preventDefault();
           toast.error('PROCTOR ALERT: Developer options are blocked.', {
-            icon: <ShieldAlert className="h-5 w-5 text-red-650" />
+            icon: <ShieldAlert className="h-5 w-5 text-red-700" />
           });
           logProctorAnomaly('shortcut_blocked', `Student triggered developer tools shortcut: Ctrl/Cmd + Shift + ${key.toUpperCase()}`);
           return;
@@ -782,7 +782,7 @@ const ExamInterfaceCore: React.FC = () => {
       if (e.key === 'F12' || e.keyCode === 123) {
         e.preventDefault();
         toast.error('PROCTOR ALERT: Developer Tools (F12) access is prohibited.', {
-          icon: <ShieldAlert className="h-5 w-5 text-red-650" />
+          icon: <ShieldAlert className="h-5 w-5 text-red-700" />
         });
         logProctorAnomaly('f12_blocked', 'Student pressed F12 to open Developer Tools');
         return;
@@ -1009,8 +1009,8 @@ const ExamInterfaceCore: React.FC = () => {
         <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none">
           <div className="h-4 bg-slate-200 rounded w-24 shrink-0" />
           <div className="h-9 bg-slate-200 rounded-xl w-36 shrink-0" />
-          <div className="h-9 bg-slate-150 rounded-xl w-36 shrink-0" />
-          <div className="h-9 bg-slate-150 rounded-xl w-36 shrink-0" />
+          <div className="h-9 bg-slate-200 rounded-xl w-36 shrink-0" />
+          <div className="h-9 bg-slate-200 rounded-xl w-36 shrink-0" />
         </div>
 
         {/* Skeleton Main split grid */}
@@ -1068,7 +1068,7 @@ const ExamInterfaceCore: React.FC = () => {
               <div className="h-12 w-12 rounded-2xl bg-slate-200 shrink-0" />
               <div className="space-y-2 w-full">
                 <div className="h-4 bg-slate-200 rounded w-1/2" />
-                <div className="h-3 bg-slate-150 rounded w-1/3" />
+                <div className="h-3 bg-slate-200 rounded w-1/3" />
               </div>
             </div>
 
@@ -1079,7 +1079,7 @@ const ExamInterfaceCore: React.FC = () => {
                 {[1, 2, 3, 4].map((idx) => (
                   <div key={idx} className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-slate-200 shrink-0" />
-                    <div className="h-3 bg-slate-150 rounded w-12" />
+                    <div className="h-3 bg-slate-200 rounded w-12" />
                   </div>
                 ))}
               </div>
@@ -1090,7 +1090,7 @@ const ExamInterfaceCore: React.FC = () => {
               <div className="h-3 bg-slate-200 rounded w-36 mx-auto" />
               <div className="grid grid-cols-5 gap-2.5 justify-items-center">
                 {Array.from({ length: 15 }).map((_, idx) => (
-                  <div key={idx} className="w-11 h-11 rounded-xl bg-slate-150" />
+                  <div key={idx} className="w-11 h-11 rounded-xl bg-slate-200" />
                 ))}
               </div>
               <div className="pt-4 border-t border-slate-100">
@@ -1264,7 +1264,7 @@ const ExamInterfaceCore: React.FC = () => {
       <header className="h-16 bg-[#171a26] border-b border-slate-800 flex items-center justify-between px-6 shrink-0 z-10 shadow-sm">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 bg-amber-400 rounded flex items-center justify-center font-black text-slate-900 shadow-md shadow-amber-500/10">
+            <div className="h-8 w-8 bg-[#f2a81e] rounded flex items-center justify-center font-black text-slate-900 shadow-md shadow-amber-500/10">
               S
             </div>
             <h1 className="font-bold text-slate-100 text-sm md:text-base tracking-wide">{exam?.title || 'Mock Test'}</h1>
@@ -1468,14 +1468,14 @@ const ExamInterfaceCore: React.FC = () => {
               </Button>
               <Button
                 onClick={handleSaveAndNext}
-                className="bg-amber-400 hover:bg-amber-500 text-slate-950 h-11 px-6 md:px-8 rounded-xl font-black text-xs flex items-center gap-2 cursor-pointer border-none shadow-lg shadow-amber-500/10"
+                className="bg-[#f2a81e] hover:bg-[#dd9814] text-slate-950 h-11 px-6 md:px-8 rounded-xl font-black text-xs flex items-center gap-2 cursor-pointer border-none shadow-lg shadow-amber-500/10"
               >
                 Save & Next <ArrowRight size={16} />
               </Button>
               <Button
                 onClick={() => setIsSubmitConfirmOpen(true)}
                 variant="outline"
-                className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 bg-transparent h-11 px-4 md:px-6 rounded-xl font-black text-xs cursor-pointer"
+                className="border-amber-500/30 text-[#f2a81e] hover:bg-amber-500/10 bg-transparent h-11 px-4 md:px-6 rounded-xl font-black text-xs cursor-pointer"
               >
                 Submit Exam
               </Button>
@@ -1638,7 +1638,7 @@ const ExamInterfaceCore: React.FC = () => {
 
           {/* Summary Metric Grid */}
           <div className="grid grid-cols-4 gap-2.5 mt-4">
-            <div className="bg-slate-50 border border-slate-150 p-3 rounded-2xl text-center">
+            <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl text-center">
               <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">Total</span>
               <span className="text-lg font-black text-slate-800 block mt-0.5">{questions.length}</span>
             </div>
@@ -1648,7 +1648,7 @@ const ExamInterfaceCore: React.FC = () => {
             </div>
             <div
               className={`p-3 rounded-2xl text-center border ${
-                unansweredCount > 0 ? 'bg-rose-50/60 border-rose-200 text-rose-700' : 'bg-slate-50 border-slate-150 text-slate-700'
+                unansweredCount > 0 ? 'bg-rose-50/60 border-rose-200 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-700'
               }`}
             >
               <span className="text-[9px] font-extrabold uppercase tracking-wider block">Unanswered</span>
@@ -1662,7 +1662,7 @@ const ExamInterfaceCore: React.FC = () => {
 
           {/* Subject-Wise Unanswered Breakdown List */}
           {unansweredBySubject.length > 0 && (
-            <div className="mt-4 bg-slate-50 border border-slate-150 rounded-2xl p-3.5 space-y-2">
+            <div className="mt-4 bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Unanswered by Subject:</span>
               <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
                 {unansweredBySubject.map((item) => (
@@ -1799,7 +1799,7 @@ const ExamInterfaceCore: React.FC = () => {
             <div className="mx-auto w-20 h-20 rounded-full bg-rose-50 flex items-center justify-center mb-4 border border-rose-100 animate-pulse">
               <ShieldAlert className="h-10 w-10 text-rose-600" />
             </div>
-            <DialogTitle className="text-center text-2xl font-display font-black tracking-tight text-rose-850 uppercase">
+            <DialogTitle className="text-center text-2xl font-display font-black tracking-tight text-rose-900 uppercase">
               PROCTOR WARNING OVERLAY
             </DialogTitle>
             <DialogDescription className="text-center text-slate-700 font-bold pt-3 leading-relaxed">
@@ -1813,7 +1813,7 @@ const ExamInterfaceCore: React.FC = () => {
               <span className="text-red-700 font-black"> immediate automatic exam submission</span> with the current answers.
             </DialogDescription>
           </DialogHeader>
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 text-[11px] font-bold text-slate-500 leading-relaxed text-center my-2">
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-[11px] font-bold text-slate-500 leading-relaxed text-center my-2">
             🔒 Proctor monitoring is active. Do not touch keyboard combinations, minimize, right-click, or leave full-screen mode.
           </div>
           <DialogFooter className="mt-6">

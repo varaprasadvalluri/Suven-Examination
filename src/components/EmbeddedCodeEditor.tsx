@@ -122,7 +122,7 @@ export const EmbeddedCodeEditor: React.FC<CodeEditorProps> = ({ value, onChange,
               <button
                 key={lang}
                 onClick={() => handleLanguageChange(lang)}
-                className={`px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${language === lang ? 'bg-[#37373d] text-white font-bold' : 'text-slate-400 hover:text-slate-250 hover:bg-[#37373d]/25'}`}
+                className={`px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${language === lang ? 'bg-[#37373d] text-white font-bold' : 'text-slate-400 hover:text-slate-300 hover:bg-[#37373d]/25'}`}
               >
                 {lang === 'cpp' ? 'C++' : lang}
               </button>

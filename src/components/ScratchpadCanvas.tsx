@@ -148,7 +148,7 @@ export const ScratchpadCanvas: React.FC = () => {
         </button>
       </div>
 
-      <div className="border border-slate-150 rounded-2xl overflow-hidden bg-white relative cursor-crosshair">
+      <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white relative cursor-crosshair">
         <canvas
           ref={canvasRef}
           onMouseDown={startDrawing}

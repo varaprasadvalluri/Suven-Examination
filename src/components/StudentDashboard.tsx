@@ -139,11 +139,11 @@ const UpcomingCard: React.FC<{ item: UpcomingItem; onViewInProgress: () => void 
 
   if (item.locked) {
     return (
-      <Card className="rounded-2xl shadow-sm border-slate-150 bg-slate-50/60">
+      <Card className="rounded-2xl shadow-sm border-slate-200 bg-slate-50/60">
         <CardContent className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5 min-w-0">
             <div className="h-11 w-11 rounded-xl bg-slate-200/70 border-2 border-slate-300 flex items-center justify-center shrink-0">
-              <Lock className="h-4.5 w-4.5 text-slate-400" />
+              <Lock className="h-5 w-5 text-slate-400" />
             </div>
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -359,10 +359,13 @@ export const StudentDashboard: React.FC = () => {
   const candidateStatusLabel = (c: ExamCandidate) =>
     c.attempt?.status === 'started' || c.attempt?.status === 'in-progress' ? 'Resume' : 'Ready to Start';
 
+  // Brand hexes (#f2a81e gold, #4f46e5 indigo — same as LoginPage.tsx and index.css's
+  // --primary) instead of generic Tailwind swatches, so the nav accents read as one designed
+  // palette rather than four unrelated stock colors.
   const NAV_ACCENT: Record<DashboardView, string> = {
-    'in-progress': '#fbbf24',
-    upcoming: '#818cf8',
-    completed: '#34d399'
+    'in-progress': '#f2a81e',
+    upcoming: '#4f46e5',
+    completed: '#059669'
   };
 
   // Mobile: compact horizontal tab strip (a student shouldn't have to scroll past a full
@@ -403,7 +406,7 @@ export const StudentDashboard: React.FC = () => {
             initial={{ scale: 0.7 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-            className="z-10 absolute top-1 right-1 md:static md:ml-auto h-4 min-w-[16px] md:h-5 md:min-w-[20px] px-1 md:px-1.5 rounded-full bg-amber-400 text-indigo-950 text-[9px] md:text-[10px] font-black flex items-center justify-center"
+            className="z-10 absolute top-1 right-1 md:static md:ml-auto h-4 min-w-[16px] md:h-5 md:min-w-[20px] px-1 md:px-1.5 rounded-full bg-[#f2a81e] text-indigo-950 text-[9px] md:text-[10px] font-black flex items-center justify-center"
           >
             {badge}
           </motion.span>
@@ -425,14 +428,14 @@ export const StudentDashboard: React.FC = () => {
           style={{ paddingTop: 'max(env(safe-area-inset-top), 1rem)' }}
         >
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-amber-400 flex items-center justify-center font-black text-indigo-950 text-lg shadow-md shrink-0">
+            <div className="h-10 w-10 rounded-xl bg-[#f2a81e] flex items-center justify-center font-black text-indigo-950 text-lg shadow-md shrink-0">
               S
             </div>
             <div>
               <span className="font-sans font-extrabold text-sm uppercase tracking-wider text-indigo-950 block leading-none">
                 SUVEN EDU
               </span>
-              <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest block mt-0.5">Student Portal</span>
+              <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest block mt-0.5">Student Portal</span>
             </div>
           </div>
 
@@ -472,19 +475,19 @@ export const StudentDashboard: React.FC = () => {
         <nav className="px-3 md:px-4 pb-3 md:pb-0 flex flex-row gap-2 md:flex-col md:gap-0 md:space-y-1 md:flex-1">
           <NavButton
             view="in-progress"
-            icon={<PlayCircle className="h-4.5 w-4.5 shrink-0" />}
+            icon={<PlayCircle className="h-5 w-5 shrink-0" />}
             label="In Progress"
             badge={inProgress ? 1 : 0}
           />
           <NavButton
             view="upcoming"
-            icon={<NotebookPen className="h-4.5 w-4.5 shrink-0" />}
+            icon={<NotebookPen className="h-5 w-5 shrink-0" />}
             label="Upcoming"
             badge={upcomingPage?.total ?? 0}
           />
           <NavButton
             view="completed"
-            icon={<CheckCircle2 className="h-4.5 w-4.5 shrink-0" />}
+            icon={<CheckCircle2 className="h-5 w-5 shrink-0" />}
             label="Completed"
             badge={completedPage?.total ?? 0}
           />
@@ -547,7 +550,7 @@ export const StudentDashboard: React.FC = () => {
                 className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg flex items-center justify-center mb-2 sm:mb-3"
                 style={{ backgroundColor: `${tile.accent}30`, color: '#1e1b4b' }}
               >
-                <tile.icon className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
+                <tile.icon className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
               <p className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
                 {tile.value === null ? <span className="text-slate-300">···</span> : tile.value}
@@ -606,7 +609,7 @@ export const StudentDashboard: React.FC = () => {
                               className="h-12 w-12 rounded-2xl border-2 flex items-center justify-center shrink-0"
                               style={{ backgroundColor: color.bg, borderColor: color.border, color: color.text }}
                             >
-                              <SubjectIcon className="h-5.5 w-5.5" />
+                              <SubjectIcon className="h-6 w-6" />
                             </div>
                             <div className="min-w-0">
                               <span className="text-[10px] font-black uppercase tracking-widest text-[#0B1E3F] bg-white px-2.5 py-1 rounded-full border border-[#0B1E3F]/15">
@@ -750,7 +753,7 @@ export const StudentDashboard: React.FC = () => {
                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wide border-2 ${
                               unlocked
                                 ? 'bg-[#f2a81e]/15 border-[#f2a81e] text-[#8a5c00]'
-                                : 'bg-slate-100 border-slate-200 text-slate-350 grayscale opacity-60'
+                                : 'bg-slate-100 border-slate-200 text-slate-400 grayscale opacity-60'
                             }`}
                           >
                             <span>{tier.emoji}</span> {tier.label}
@@ -780,7 +783,7 @@ export const StudentDashboard: React.FC = () => {
                               <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-3">
                                 <div className="flex items-center gap-3 min-w-0">
                                   <div className="h-9 w-9 rounded-xl bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center shrink-0">
-                                    <CheckCircle2 className="h-4.5 w-4.5 text-emerald-600" />
+                                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                                   </div>
                                   <div className="min-w-0">
                                     <span className="text-sm font-bold text-slate-800 truncate block">

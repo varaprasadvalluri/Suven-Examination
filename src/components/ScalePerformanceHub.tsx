@@ -232,11 +232,11 @@ test.describe('SuvenEdu QA Automation', () => {
         <div>
           <Badge
             variant="outline"
-            className="bg-purple-100 text-purple-750 border-purple-200 font-black text-[10px] px-2.5 py-1 rounded-md uppercase tracking-wider mb-2"
+            className="bg-purple-100 text-purple-800 border-purple-200 font-black text-[10px] px-2.5 py-1 rounded-md uppercase tracking-wider mb-2"
           >
             Forensic Suite
           </Badge>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-black text-slate-905 tracking-tight flex items-center gap-3">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-black text-slate-900 tracking-tight flex items-center gap-3">
             Scale & Performance Hub <Cpu className="text-purple-500 animate-pulse" size={32} />
           </h2>
           <p className="text-slate-500 font-semibold mt-1">
@@ -359,7 +359,7 @@ test.describe('SuvenEdu QA Automation', () => {
                 <Button
                   onClick={runDiagnostics}
                   disabled={isRunning}
-                  className="bg-purple-650 hover:bg-purple-700 text-white rounded-xl h-11 px-6 font-bold uppercase text-xs tracking-wider flex items-center gap-2 shadow-lg shadow-purple-200"
+                  className="bg-purple-700 hover:bg-purple-700 text-white rounded-xl h-11 px-6 font-bold uppercase text-xs tracking-wider flex items-center gap-2 shadow-lg shadow-purple-200"
                 >
                   {isRunning ? <RefreshCw className="animate-spin" size={14} /> : <Play size={14} />}
                   {isRunning ? 'Running Live Scenarios...' : 'Launch Automated Suite'}
@@ -374,7 +374,7 @@ test.describe('SuvenEdu QA Automation', () => {
                       <span>{progress}%</span>
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                      <div className="bg-purple-650 h-full rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+                      <div className="bg-purple-700 h-full rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
                     </div>
                   </div>
                 )}
@@ -428,7 +428,7 @@ test.describe('SuvenEdu QA Automation', () => {
                 </div>
 
                 {/* Console Terminal */}
-                <div className="border border-slate-850 bg-slate-950 rounded-[24px] p-6 text-slate-200 font-mono text-xs overflow-hidden shadow-2xl relative">
+                <div className="border border-slate-900 bg-slate-950 rounded-[24px] p-6 text-slate-200 font-mono text-xs overflow-hidden shadow-2xl relative">
                   <div className="absolute top-3 right-4 flex gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
@@ -440,7 +440,7 @@ test.describe('SuvenEdu QA Automation', () => {
                   </div>
                   <div className="space-y-2 max-h-[320px] overflow-y-auto scroller-hide">
                     {testLogs.length === 0 ? (
-                      <p className="text-slate-550 italic text-[11px] py-4 text-center">
+                      <p className="text-slate-600 italic text-[11px] py-4 text-center">
                         Diagnostics system offline. Trigger execution to launch headless validation node.
                       </p>
                     ) : (
@@ -451,7 +451,7 @@ test.describe('SuvenEdu QA Automation', () => {
                           {log.type === 'info' && <span className="text-slate-300">{log.text}</span>}
                           {log.type === 'success' && <span className="text-emerald-400 font-semibold">{log.text}</span>}
                           {log.type === 'warning' && <span className="text-amber-300 font-semibold">{log.text}</span>}
-                          {log.type === 'error' && <span className="text-rose-450 font-black">{log.text}</span>}
+                          {log.type === 'error' && <span className="text-rose-500 font-black">{log.text}</span>}
                         </div>
                       ))
                     )}

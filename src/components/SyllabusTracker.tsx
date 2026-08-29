@@ -31,6 +31,7 @@ import {
   doc,
   query,
   orderBy,
+  where,
   serverTimestamp,
   getDocs
 } from '../lib/firebase';
@@ -163,7 +164,8 @@ export const SyllabusTracker: React.FC = () => {
         setLoading(false);
         setError(err.message || 'Security permission denied or cloud connection broken.');
         handleFirestoreError(err, OperationType.LIST, 'syllabus');
-      }
+      },
+      { idleAware: true }
     );
 
     return () => unsubscribe();
@@ -182,12 +184,14 @@ export const SyllabusTracker: React.FC = () => {
           subjectByExamId[examDoc.id] = (examDoc.data() as any).subject || 'General';
         });
 
-        const attemptsSnap = await getDocs(collection(db, 'attempts'));
+        const attemptsQuery =
+          userSchoolId !== 'global'
+            ? query(collection(db, 'attempts'), where('status', '==', 'completed'), where('schoolId', '==', userSchoolId))
+            : query(collection(db, 'attempts'), where('status', '==', 'completed'));
+        const attemptsSnap = await getDocs(attemptsQuery);
         const counts: Record<string, number> = {};
         attemptsSnap.docs.forEach((attemptDoc) => {
           const att = attemptDoc.data() as any;
-          if (att.status !== 'completed') return;
-          if (userSchoolId !== 'global' && att.schoolId !== userSchoolId) return;
           const subject = subjectByExamId[att.examId];
           if (!subject) return;
           counts[subject] = (counts[subject] || 0) + 1;
@@ -457,7 +461,7 @@ export const SyllabusTracker: React.FC = () => {
                           key={sub.id}
                           className={`flex items-center justify-between p-3 rounded-xl transition-all cursor-pointer border ${
                             selectedSubject?.id === sub.id
-                              ? 'bg-indigo-50/60 border-indigo-150 text-indigo-900 font-black shadow-sm'
+                              ? 'bg-indigo-50/60 border-indigo-200 text-indigo-900 font-black shadow-sm'
                               : 'border-transparent text-slate-600 hover:bg-slate-50 font-bold'
                           }`}
                           onClick={() => setSelectedSubject(sub)}

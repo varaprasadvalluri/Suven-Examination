@@ -359,7 +359,7 @@ export const AdminResults: React.FC = () => {
                 Statistical anomalies indicator covering pass ratios, response latency patterns, and potential leak signals.
               </p>
             </div>
-            <span className="flex items-center gap-1 bg-indigo-50 border border-indigo-150 text-indigo-700 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full font-mono w-fit">
+            <span className="flex items-center gap-1 bg-indigo-50 border border-indigo-200 text-indigo-700 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full font-mono w-fit">
               <Brain size={11} /> Mapped Items count: {questionAnalytics.length}
             </span>
           </div>
@@ -376,7 +376,7 @@ export const AdminResults: React.FC = () => {
                 return (
                   <div
                     key={q.id || qIndex}
-                    className={`p-5 rounded-2xl border transition-all ${isAnomaly ? (q.status === 'anomaly-leak' ? 'bg-orange-50/40 border-orange-200 text-orange-950 shadow-md ring-1 ring-orange-100' : q.status === 'anomaly-hard' ? 'bg-rose-50/30 border-rose-200 text-rose-950' : 'bg-green-50/15 border-green-200 text-green-950') : 'bg-white border-slate-200 shadow-sm hover:border-slate-350'}`}
+                    className={`p-5 rounded-2xl border transition-all ${isAnomaly ? (q.status === 'anomaly-leak' ? 'bg-orange-50/40 border-orange-200 text-orange-950 shadow-md ring-1 ring-orange-100' : q.status === 'anomaly-hard' ? 'bg-rose-50/30 border-rose-200 text-rose-950' : 'bg-green-50/15 border-green-200 text-green-950') : 'bg-white border-slate-200 shadow-sm hover:border-slate-400'}`}
                   >
                     <div className="flex justify-between items-start gap-3">
                       <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md font-mono">
@@ -389,7 +389,7 @@ export const AdminResults: React.FC = () => {
                         </span>
                       )}
                       {q.status === 'anomaly-leak' && (
-                        <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-orange-100/90 text-orange-850 border border-orange-250 animate-pulse">
+                        <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-orange-100/90 text-orange-900 border border-orange-300 animate-pulse">
                           <ShieldAlert size={10} /> Leak Suspicion
                         </span>
                       )}
@@ -399,7 +399,7 @@ export const AdminResults: React.FC = () => {
                         </span>
                       )}
                       {q.status === 'normal' && (
-                        <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-slate-50 text-slate-500 border border-slate-150 font-mono">
+                        <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-slate-50 text-slate-500 border border-slate-200 font-mono">
                           Steady
                         </span>
                       )}
@@ -409,15 +409,15 @@ export const AdminResults: React.FC = () => {
 
                     <div className="grid grid-cols-3 gap-2 border-t border-slate-100 mt-3 pt-3 text-center text-[10px] font-mono leading-none">
                       <div className="p-1.5 bg-slate-50 border border-slate-100/40 rounded-lg">
-                        <span className="text-[8px] text-slate-450 uppercase block font-sans mb-1 font-semibold">Checks</span>
+                        <span className="text-[8px] text-slate-500 uppercase block font-sans mb-1 font-semibold">Checks</span>
                         <span className="font-extrabold text-slate-800">{q.attemptsCount}</span>
                       </div>
                       <div className="p-1.5 bg-slate-50 border border-slate-100/40 rounded-lg">
-                        <span className="text-[8px] text-slate-450 uppercase block font-sans mb-1 font-semibold">Success</span>
+                        <span className="text-[8px] text-slate-500 uppercase block font-sans mb-1 font-semibold">Success</span>
                         <span className="font-extrabold text-slate-800">{Math.round(q.passRatio * 100)}%</span>
                       </div>
                       <div className="p-1.5 bg-slate-50 border border-slate-100/40 rounded-lg">
-                        <span className="text-[8px] text-slate-450 uppercase block font-sans mb-1 font-semibold">Latency</span>
+                        <span className="text-[8px] text-slate-500 uppercase block font-sans mb-1 font-semibold">Latency</span>
                         <span className="font-extrabold text-slate-800 flex items-center justify-center gap-0.5">
                           <Clock size={10} className="text-slate-400" /> {Math.round(q.avgTime)}s
                         </span>
@@ -425,7 +425,7 @@ export const AdminResults: React.FC = () => {
                     </div>
 
                     {isAnomaly && (
-                      <div className="text-[9px] font-semibold text-slate-600 mt-2.5 bg-slate-50 border border-slate-150 p-2 rounded-lg leading-normal flex items-start gap-1">
+                      <div className="text-[9px] font-semibold text-slate-600 mt-2.5 bg-slate-50 border border-slate-200 p-2 rounded-lg leading-normal flex items-start gap-1">
                         <AlertTriangle size={10} className="text-indigo-500 shrink-0 mt-0.5" />
                         <span>
                           <strong>Evaluation:</strong> {q.reason}
@@ -505,7 +505,7 @@ export const AdminResults: React.FC = () => {
           </TableBody>
         </Table>
         {totalAttemptsCount > 0 && (
-          <div className="p-4 bg-slate-50 border-t border-slate-150 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <span className="text-xs text-slate-500 font-bold">
               Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalAttemptsCount)} of {totalAttemptsCount} rankings
             </span>

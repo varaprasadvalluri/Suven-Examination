@@ -135,14 +135,14 @@ export const LoginPage: React.FC = () => {
   const getIconComponent = (iconName: string) => {
     switch (iconName) {
       case 'BookOpen':
-        return <BookOpen className="h-4.5 w-4.5 text-indigo-650" />;
+        return <BookOpen className="h-5 w-5 text-indigo-650" />;
       case 'ShieldCheck':
-        return <ShieldCheck className="h-4.5 w-4.5 text-indigo-650" />;
+        return <ShieldCheck className="h-5 w-5 text-indigo-650" />;
       case 'GraduationCap':
-        return <GraduationCap className="h-4.5 w-4.5 text-indigo-650" />;
+        return <GraduationCap className="h-5 w-5 text-indigo-650" />;
       case 'User2':
       default:
-        return <User2 className="h-4.5 w-4.5 text-slate-400" />;
+        return <User2 className="h-5 w-5 text-slate-400" />;
     }
   };
 
@@ -793,7 +793,7 @@ export const LoginPage: React.FC = () => {
                 <ShieldCheck size={14} className="text-indigo-600 shrink-0" />
                 <span>SECURE ASSESSMENT PASS AUTHORIZED</span>
               </div>
-              <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-slate-150/60">
+              <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-slate-200/60">
                 <div>
                   <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold">School Unit</span>
                   <p className="font-extrabold text-slate-800 text-xs mt-0.5 truncate">{inviteSchool?.name || 'Academic Partner Entity'}</p>
@@ -815,7 +815,7 @@ export const LoginPage: React.FC = () => {
                 exit={{ opacity: 0, y: -8 }}
                 className="bg-rose-50 border border-rose-100 text-rose-800 p-3.5 rounded-2xl flex items-start gap-2.5 mb-6 shadow-sm"
               >
-                <AlertCircle className="h-4.5 w-4.5 text-rose-600 mt-0.5 shrink-0" />
+                <AlertCircle className="h-5 w-5 text-rose-600 mt-0.5 shrink-0" />
                 <div className="space-y-0.5 text-xs">
                   <span className="font-extrabold uppercase tracking-wider block text-[10px] text-rose-900">Sign In Issue</span>
                   <p className="font-medium text-rose-700 leading-snug">{errorMessage}</p>
@@ -866,7 +866,7 @@ export const LoginPage: React.FC = () => {
               {/* Proctor compliance security check */}
               <div className="bg-amber-50/60 border border-amber-100/80 p-3.5 rounded-2xl flex items-start gap-2.5 mt-5">
                 <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-[10px] font-semibold text-slate-650 leading-normal">
+                <div className="text-[10px] font-semibold text-slate-700 leading-normal">
                   <p className="font-extrabold text-slate-800 uppercase tracking-wider text-[8px] mb-0.5">Lobby Verification Consent</p>
                   By activating this exam, you agree to secure browser lockdowns and temporary test progress tracking.
                 </div>
@@ -1120,7 +1120,7 @@ export const LoginPage: React.FC = () => {
                           className="flex items-center gap-2 group cursor-pointer text-slate-500 hover:text-slate-800 transition-colors text-xs font-semibold"
                         >
                           <span
-                            className={`h-4.5 w-4.5 rounded-md border flex items-center justify-center transition-all ${
+                            className={`h-5 w-5 rounded-md border flex items-center justify-center transition-all ${
                               rememberMe
                                 ? 'bg-[#1a56db] border-[#1a56db] text-white'
                                 : 'border-slate-200 bg-slate-50/50 group-hover:border-slate-300'
@@ -1266,7 +1266,7 @@ export const LoginPage: React.FC = () => {
                         ) : (
                           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-2.5 text-amber-800 text-[11px] leading-relaxed">
                             <div className="flex items-start gap-2">
-                              <AlertCircle className="h-4.5 w-4.5 text-amber-600 shrink-0 mt-0.5" />
+                              <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                               <div>
                                 <strong className="font-extrabold text-amber-900 block">Institutional Authorization Required</strong>
                                 <p className="font-medium text-amber-800 mt-0.5">

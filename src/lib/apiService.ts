@@ -461,10 +461,53 @@ export async function getCountFromServer(queryRef: any) {
   };
 }
 
+// Shared mouse/keyboard-idle tracker for opt-in idle-aware polling below. A single set of
+// document listeners serves every subscriber — NOT wired into the default polling behavior,
+// since some subscribers (e.g. the exam-taking screen watching for an admin-triggered pause
+// or extra-time grant) must keep polling even while the student is silently reading a
+// question, not touching the mouse. Only subscribers that opt in via `{ idleAware: true }`
+// skip poll ticks while idle.
+const IDLE_THRESHOLD_MS = 20000;
+let lastActivityAt = Date.now();
+let idleTrackerStarted = false;
+const activityResumeListeners = new Set<() => void>();
+
+function ensureIdleTrackerStarted() {
+  if (idleTrackerStarted || typeof document === 'undefined') return;
+  idleTrackerStarted = true;
+  const markActive = () => {
+    const wasIdle = Date.now() - lastActivityAt > IDLE_THRESHOLD_MS;
+    lastActivityAt = Date.now();
+    if (wasIdle) {
+      activityResumeListeners.forEach((fn) => {
+        try {
+          fn();
+        } catch (err) {
+          console.error('[Idle Tracker] Activity-resume listener error:', err);
+        }
+      });
+    }
+  };
+  ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'wheel'].forEach((evt) =>
+    document.addEventListener(evt, markActive, { passive: true })
+  );
+}
+
+function isUserIdle(): boolean {
+  return Date.now() - lastActivityAt > IDLE_THRESHOLD_MS;
+}
+
 // Core Real-Time subscription simulation (using standard polling interval abstraction)
-export function onSnapshot(ref: any, callback: (snapshot: any) => void, errorCallback?: (error: any) => void) {
+export function onSnapshot(
+  ref: any,
+  callback: (snapshot: any) => void,
+  errorCallback?: (error: any) => void,
+  options?: { idleAware?: boolean }
+) {
   let isUnsubscribed = false;
   let intervalId: any = null;
+  const idleAware = !!options?.idleAware;
+  if (idleAware) ensureIdleTrackerStarted();
 
   const runQuery = async () => {
     try {
@@ -512,7 +555,26 @@ export function onSnapshot(ref: any, callback: (snapshot: any) => void, errorCal
     pollInterval = 12000; // Slow: 12 seconds for lists that rarely change
   }
 
-  intervalId = setInterval(runQuery, pollInterval);
+  const tick = () => {
+    // Idle-aware subscribers skip the fetch while the user hasn't touched mouse/keyboard —
+    // the activity-resume listener below catches up immediately once they do.
+    if (idleAware && isUserIdle()) return;
+    runQuery();
+  };
+
+  const startPolling = () => {
+    if (intervalId) return;
+    intervalId = setInterval(tick, pollInterval);
+  };
+
+  const stopPolling = () => {
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  };
+
+  startPolling();
 
   // Trigger immediate query execution when a local database write event is detected
   const handleDbWrite = () => {
@@ -521,15 +583,41 @@ export function onSnapshot(ref: any, callback: (snapshot: any) => void, errorCal
     }
   };
 
+  // Backgrounded/minimized tabs don't need to keep polling the API every few seconds —
+  // pause while hidden, and catch up with an immediate refetch the moment the tab is
+  // visible again instead of waiting for the next tick.
+  const handleVisibilityChange = () => {
+    if (document.hidden) {
+      stopPolling();
+    } else if (!isUnsubscribed) {
+      runQuery();
+      startPolling();
+    }
+  };
+
+  const handleActivityResume = () => {
+    if (!isUnsubscribed && !document.hidden) {
+      runQuery();
+    }
+  };
+  if (idleAware) activityResumeListeners.add(handleActivityResume);
+
   if (typeof window !== 'undefined') {
     window.addEventListener('firestore-db-write', handleDbWrite);
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
   }
 
   return () => {
     isUnsubscribed = true;
-    if (intervalId) clearInterval(intervalId);
+    stopPolling();
+    if (idleAware) activityResumeListeners.delete(handleActivityResume);
     if (typeof window !== 'undefined') {
       window.removeEventListener('firestore-db-write', handleDbWrite);
+    }
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     }
   };
 }
