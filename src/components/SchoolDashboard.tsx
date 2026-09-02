@@ -329,7 +329,7 @@ export const SchoolDashboard: React.FC = () => {
 
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-400/20 px-3.5 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider text-indigo-300">
+            <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-400/20 px-3.5 py-1.5 rounded-full text-[12px] md:text-[11px] font-black uppercase tracking-wider text-indigo-300">
               <Sparkles className="h-3.5 w-3.5 animate-pulse" />
               Institutes Intelligence Portal
             </div>
@@ -350,12 +350,12 @@ export const SchoolDashboard: React.FC = () => {
                 schoolInfo.code value (unlike the capped substring(0,8) fallback) refused to
                 shrink as a flex child and pushed the whole card wider than the viewport. */}
             <div className="min-w-0">
-              <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Hub ID Code</p>
+              <p className="text-[11px] md:text-[10px] uppercase font-black tracking-widest text-slate-400">Hub ID Code</p>
               <p className="text-sm font-mono font-bold text-white uppercase mt-0.5 truncate max-w-[160px]">
                 {schoolInfo?.code || profile?.schoolId?.substring(0, 8) || 'CORE_1'}
               </p>
             </div>
-            <Badge className="bg-emerald-500/10 text-emerald-400 border-0 font-bold text-[10px] uppercase px-3 py-1 rounded-md self-center ml-2 shrink-0">
+            <Badge className="bg-emerald-500/10 text-emerald-400 border-0 font-bold text-[11px] md:text-[10px] uppercase px-3 py-1 rounded-md self-center ml-2 shrink-0">
               Verified Center
             </Badge>
           </div>
@@ -371,13 +371,13 @@ export const SchoolDashboard: React.FC = () => {
               <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-indigo-600 transition-colors">
+                    <p className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-indigo-600 transition-colors">
                       Candidate Density
                     </p>
                     <h3 className="text-3xl font-black text-slate-900 tracking-tight mt-1">
                       {loading ? '...' : intelligenceMetrics.totalStudentsCount}
                     </h3>
-                    <p className="text-[10px] text-slate-400 font-semibold mt-1">Enrolled directory records</p>
+                    <p className="text-[11px] md:text-[10px] text-slate-400 font-semibold mt-1">Enrolled directory records</p>
                   </div>
                   <div className="h-10 w-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
                     <Users className="h-5 w-5" />
@@ -390,13 +390,13 @@ export const SchoolDashboard: React.FC = () => {
               <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-emerald-500 transition-colors">
+                    <p className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-emerald-500 transition-colors">
                       Academy Average
                     </p>
                     <h3 className="text-3xl font-black text-slate-900 tracking-tight mt-1">
                       {intelligenceMetrics.averagePerformancePercent}%
                     </h3>
-                    <p className="text-[10px] text-emerald-600 font-bold mt-1 flex items-center gap-1">
+                    <p className="text-[11px] md:text-[10px] text-emerald-600 font-bold mt-1 flex items-center gap-1">
                       <TrendingUp className="h-3 w-3" />
                       Cognitive performance benchmark
                     </p>
@@ -412,11 +412,11 @@ export const SchoolDashboard: React.FC = () => {
               <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-amber-500 transition-colors">
+                    <p className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-amber-500 transition-colors">
                       Access Redemptions
                     </p>
                     <h3 className="text-3xl font-black text-slate-900 tracking-tight mt-1">{intelligenceMetrics.inviteRedemptionRate}%</h3>
-                    <p className="text-[10px] text-amber-600 font-bold mt-1">
+                    <p className="text-[11px] md:text-[10px] text-amber-600 font-bold mt-1">
                       {intelligenceMetrics.usedInvitesCount} used / {intelligenceMetrics.pendingInvitesCount} unused keys
                     </p>
                   </div>
@@ -431,11 +431,11 @@ export const SchoolDashboard: React.FC = () => {
               <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-sky-500 transition-colors">
+                    <p className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-sky-500 transition-colors">
                       Integrity Rating
                     </p>
                     <h3 className="text-3xl font-black text-slate-900 tracking-tight mt-1">{intelligenceMetrics.integrityScore}%</h3>
-                    <p className="text-[10px] text-sky-600 font-bold mt-1 flex items-center gap-1">
+                    <p className="text-[11px] md:text-[10px] text-sky-600 font-bold mt-1 flex items-center gap-1">
                       <ShieldCheck className="h-3 w-3" />
                       Proctoring compliance safety index
                     </p>
@@ -496,7 +496,7 @@ export const SchoolDashboard: React.FC = () => {
                     Comparing academic averages and student density indices across grades.
                   </CardDescription>
                 </div>
-                <Badge className="bg-indigo-50 border border-indigo-100 text-indigo-600 font-bold text-[9px] uppercase px-2.5 py-0.5 rounded-md">
+                <Badge className="bg-indigo-50 border border-indigo-100 text-indigo-600 font-bold text-[11px] md:text-[9px] uppercase px-2.5 py-0.5 rounded-md">
                   Active Sectors
                 </Badge>
               </CardHeader>
@@ -535,7 +535,7 @@ export const SchoolDashboard: React.FC = () => {
 
                   {/* Micro list mapping scholar counts per grade level */}
                   <div className="md:col-span-2 space-y-4">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Academic Density</p>
+                    <p className="text-[11px] md:text-[10px] font-black uppercase tracking-wider text-slate-400">Academic Density</p>
                     <div className="space-y-3 font-semibold text-slate-800 text-xs">
                       {intelligenceMetrics.displayClassAnalytics.map((g, idx) => (
                         <div
@@ -600,7 +600,7 @@ export const SchoolDashboard: React.FC = () => {
                         <p className="text-xs font-black uppercase tracking-tight truncate max-w-full">
                           {perf.studentName || 'Unknown Student'}
                         </p>
-                        <p className="text-[9px] font-bold text-slate-400 truncate max-w-full">
+                        <p className="text-[11px] md:text-[9px] font-bold text-slate-400 truncate max-w-full">
                           {perf.className}
                           {perf.rollNumber ? ` · ${perf.rollNumber}` : ''}
                         </p>
@@ -694,18 +694,18 @@ export const SchoolDashboard: React.FC = () => {
                           <p className="font-bold text-slate-800 truncate group-hover:text-indigo-650 transition-colors flex items-center gap-1">
                             {a.studentName || 'Student attempt'}
                           </p>
-                          <p className="text-[10px] text-slate-400 mt-0.5 font-medium truncate">
+                          <p className="text-[11px] md:text-[10px] text-slate-400 mt-0.5 font-medium truncate">
                             {a.status === 'completed' ? `Score: ${a.score} marks (Click to view what they did)` : 'Actively answering'}
                           </p>
                         </div>
-                        <span className="text-[9px] font-mono font-black text-slate-400">{a.status?.toUpperCase()}</span>
+                        <span className="text-[11px] md:text-[9px] font-mono font-black text-slate-400">{a.status?.toUpperCase()}</span>
                       </div>
                     ))
                   ) : (
                     <div className="text-center py-12 text-slate-400 space-y-2">
                       <ClipboardList className="h-8 w-8 mx-auto opacity-20" />
                       <p className="text-xs font-semibold">No recent assessment attempts tracked.</p>
-                      <p className="text-[10px] text-slate-400 leading-normal">
+                      <p className="text-[11px] md:text-[10px] text-slate-400 leading-normal">
                         Onboard candidates and trigger direct login passes to build the live monitor.
                       </p>
                     </div>

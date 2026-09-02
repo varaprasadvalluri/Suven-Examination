@@ -1,4 +1,5 @@
 import CircuitBreaker from 'opossum';
+import { logger } from './logger';
 
 // Shared factory so every external dependency (Firestore REST, GCP APIs, Cloudinary,
 // Firebase Storage) gets the same trip/reset behavior instead of hand-rolled retry logic
@@ -24,9 +25,9 @@ export function createBreaker<T extends (...args: any[]) => Promise<any>>(name: 
     ...options
   });
 
-  breaker.on('open', () => console.warn(`[CircuitBreaker:${name}] OPEN — failing fast, dependency looks down`));
-  breaker.on('halfOpen', () => console.warn(`[CircuitBreaker:${name}] HALF-OPEN — probing dependency`));
-  breaker.on('close', () => console.log(`[CircuitBreaker:${name}] CLOSED — dependency recovered`));
+  breaker.on('open', () => logger.warn('Circuit breaker OPEN — failing fast, dependency looks down', { breaker: name }));
+  breaker.on('halfOpen', () => logger.warn('Circuit breaker HALF-OPEN — probing dependency', { breaker: name }));
+  breaker.on('close', () => logger.info('Circuit breaker CLOSED — dependency recovered', { breaker: name }));
 
   const wrapped = ((...args: Parameters<T>) => breaker.fire(...args)) as T;
   return wrapped;

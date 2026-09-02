@@ -110,7 +110,7 @@ export const RoleSelection: React.FC = () => {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
           <Loader2 className="h-10 w-10 text-indigo-600 animate-spin" />
-          <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Finalizing admin access...</p>
+          <p className="text-slate-500 font-bold uppercase tracking-widest text-[11px] md:text-[10px]">Finalizing admin access...</p>
         </div>
       );
     }
@@ -128,7 +128,7 @@ export const RoleSelection: React.FC = () => {
 
           <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Institutional Branch</label>
+              <label className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-400">Institutional Branch</label>
               <Select value={selectedSchool} onValueChange={setSelectedSchool}>
                 <SelectTrigger className="h-12 bg-white border-2 border-slate-300 rounded-xl font-bold text-sm text-slate-900 px-4 justify-between shadow-sm hover:border-indigo-500 transition-all">
                   <SelectValue placeholder="Browse and Select School" />

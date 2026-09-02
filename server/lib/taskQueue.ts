@@ -1,5 +1,12 @@
 import { CloudTasksClient } from '@google-cloud/tasks';
-import { firebaseConfig, CLOUD_TASKS_LOCATION, CLOUD_TASKS_QUEUE, CLOUD_TASKS_INVOKER_SA, CLOUD_RUN_SERVICE_URL } from '../config';
+import {
+  firebaseConfig,
+  CLOUD_TASKS_LOCATION,
+  CLOUD_TASKS_QUEUE,
+  CLOUD_TASKS_INVOKER_SA,
+  CLOUD_RUN_SERVICE_URL,
+  GRADING_WORKER_PATHS
+} from '../config';
 import { recomputeAttemptScore } from './scoreVerification';
 import { enqueueWrite } from '../db/writeQueue';
 import { clientDb, clientDoc, clientGetDoc } from '../firestoreClient';
@@ -45,7 +52,7 @@ class TaskQueueService {
 
     const client = this.getClient();
     const parent = client.queuePath(firebaseConfig.projectId, CLOUD_TASKS_LOCATION!, CLOUD_TASKS_QUEUE!);
-    const url = `${CLOUD_RUN_SERVICE_URL}/api/v1/internal/grading-tasks`;
+    const url = `${CLOUD_RUN_SERVICE_URL}${GRADING_WORKER_PATHS[0]}`;
 
     await client.createTask({
       parent,

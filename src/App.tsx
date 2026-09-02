@@ -5,7 +5,6 @@ import { Toaster } from './components/ui/sonner';
 import { Layout } from './components/Layout';
 import { RoleSelection } from './components/RoleSelection';
 import { ExamInterface } from './components/ExamInterface';
-import { ResultDetails } from './components/ResultDetails';
 import { LoginPage } from './components/LoginPage';
 import { StudentLinkEntry } from './components/StudentLinkEntry';
 import { StudentDashboard } from './components/StudentDashboard';
@@ -17,6 +16,14 @@ import { StudentDashboard } from './components/StudentDashboard';
 // SchoolStudentOnboarding (2000+ lines) itself — leaving it out of this lazy split was what
 // was actually dragging both into the main bundle despite AdminExams already being lazy here
 // (Vite/Rollup can't split a module out of a chunk that also statically pulls it in).
+// ResultDetails is the one screen on the student path worth splitting out. It is the only
+// eagerly-imported component that pulls in recharts, and recharts alone was a large share of
+// the main bundle every visitor downloads — including a student sitting on the login screen
+// and every admin who never opens a result. Unlike the rest of the student path, it is only
+// reached AFTER an exam is submitted, so paying for one chunk fetch there risks nothing: no
+// exam is in progress and no answers are in flight.
+const ResultDetails = lazy(() => import('./components/ResultDetails').then((m) => ({ default: m.ResultDetails })));
+
 const SchoolDashboard = lazy(() => import('./components/SchoolDashboard').then((m) => ({ default: m.SchoolDashboard })));
 const AdminExams = lazy(() => import('./components/AdminExams').then((m) => ({ default: m.AdminExams })));
 const AdminCreateExam = lazy(() => import('./components/AdminCreateExam').then((m) => ({ default: m.AdminCreateExam })));
@@ -42,7 +49,7 @@ const RouteLoadingFallback: React.FC = () => (
     <div className="relative">
       <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
     </div>
-    <p className="text-slate-400 font-mono text-[10px] tracking-widest uppercase animate-pulse">Loading module...</p>
+    <p className="text-slate-400 font-mono text-[11px] md:text-[10px] tracking-widest uppercase animate-pulse">Loading module...</p>
   </div>
 );
 
@@ -72,7 +79,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; roles?: string[] }> 
         <div className="relative">
           <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
         </div>
-        <p className="text-slate-400 font-mono text-[10px] tracking-widest uppercase animate-pulse">Syncing Security Node...</p>
+        <p className="text-slate-400 font-mono text-[11px] md:text-[10px] tracking-widest uppercase animate-pulse">
+          Syncing Security Node...
+        </p>
       </div>
     );
   }

@@ -4,18 +4,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { PerformanceStressTester } from './PerformanceStressTester';
 import { DatabaseMigrator } from './DatabaseMigrator';
-import {
-  Play,
-  Terminal,
-  Activity,
-  Database,
-  Cpu,
-  RefreshCw,
-  ShieldCheck,
-  FileCode,
-  CheckCircle2,
-  AlertCircle
-} from 'lucide-react';
+import { Play, Terminal, Activity, Database, Cpu, RefreshCw, ShieldCheck, FileCode, CheckCircle2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 
@@ -232,7 +221,7 @@ test.describe('SuvenEdu QA Automation', () => {
         <div>
           <Badge
             variant="outline"
-            className="bg-purple-100 text-purple-800 border-purple-200 font-black text-[10px] px-2.5 py-1 rounded-md uppercase tracking-wider mb-2"
+            className="bg-purple-100 text-purple-800 border-purple-200 font-black text-[11px] md:text-[10px] px-2.5 py-1 rounded-md uppercase tracking-wider mb-2"
           >
             Forensic Suite
           </Badge>
@@ -280,7 +269,7 @@ test.describe('SuvenEdu QA Automation', () => {
         <Card className="border border-indigo-100 bg-gradient-to-br from-indigo-50/40 via-white to-white shadow-xl rounded-[28px] overflow-hidden">
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-between items-center">
-              <Badge className="bg-indigo-100 text-indigo-800 font-bold text-[10px] uppercase">Defect Node-01</Badge>
+              <Badge className="bg-indigo-100 text-indigo-800 font-bold text-[11px] md:text-[10px] uppercase">Defect Node-01</Badge>
               <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-semibold">
                 <ShieldCheck size={14} /> Resolved in Base View
               </span>
@@ -298,7 +287,7 @@ test.describe('SuvenEdu QA Automation', () => {
         <Card className="border border-purple-100 bg-gradient-to-br from-purple-50/40 via-white to-white shadow-xl rounded-[28px] overflow-hidden">
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-between items-center">
-              <Badge className="bg-purple-100 text-purple-800 font-bold text-[10px] uppercase">Defect Node-02</Badge>
+              <Badge className="bg-purple-100 text-purple-800 font-bold text-[11px] md:text-[10px] uppercase">Defect Node-02</Badge>
               <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-semibold">
                 <ShieldCheck size={14} /> Session Guard Implemented
               </span>
@@ -395,29 +384,29 @@ test.describe('SuvenEdu QA Automation', () => {
                       >
                         <div>
                           <p className="text-xs font-black text-slate-800 tracking-tight">{tc.label}</p>
-                          <p className="text-[10px] text-slate-400 font-medium leading-normal">{tc.desc}</p>
+                          <p className="text-[11px] md:text-[10px] text-slate-400 font-medium leading-normal">{tc.desc}</p>
                         </div>
                         <div className="flex items-center gap-2 pt-2">
                           {status === 'idle' && (
-                            <Badge variant="outline" className="text-slate-400 text-[9px] font-bold">
+                            <Badge variant="outline" className="text-slate-400 text-[11px] md:text-[9px] font-bold">
                               IDLE
                             </Badge>
                           )}
                           {status === 'running' && (
                             <Badge
                               variant="outline"
-                              className="border-purple-300 text-purple-700 bg-purple-50 text-[9px] font-black animate-pulse"
+                              className="border-purple-300 text-purple-700 bg-purple-50 text-[11px] md:text-[9px] font-black animate-pulse"
                             >
                               RUNNING
                             </Badge>
                           )}
                           {status === 'success' && (
-                            <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-black tracking-wider">
+                            <span className="flex items-center gap-1 text-[11px] md:text-[10px] text-emerald-600 font-black tracking-wider">
                               <CheckCircle2 size={14} /> PASSED
                             </span>
                           )}
                           {status === 'failed' && (
-                            <span className="flex items-center gap-1 text-[10px] text-rose-600 font-black tracking-wider">
+                            <span className="flex items-center gap-1 text-[11px] md:text-[10px] text-rose-600 font-black tracking-wider">
                               <AlertCircle size={14} /> FAILED
                             </span>
                           )}
@@ -436,17 +425,19 @@ test.describe('SuvenEdu QA Automation', () => {
                   </div>
                   <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-4">
                     <Terminal size={14} className="text-purple-400" />
-                    <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">QA System Diagnostics Console</span>
+                    <span className="text-[11px] md:text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                      QA System Diagnostics Console
+                    </span>
                   </div>
                   <div className="space-y-2 max-h-[320px] overflow-y-auto scroller-hide">
                     {testLogs.length === 0 ? (
-                      <p className="text-slate-600 italic text-[11px] py-4 text-center">
+                      <p className="text-slate-600 italic text-[12px] md:text-[11px] py-4 text-center">
                         Diagnostics system offline. Trigger execution to launch headless validation node.
                       </p>
                     ) : (
                       testLogs.map((log) => (
                         <div key={log.id} className="leading-relaxed whitespace-pre-wrap">
-                          <span className="text-slate-600 text-[10px] mr-2">[{log.timestamp}]</span>
+                          <span className="text-slate-600 text-[11px] md:text-[10px] mr-2">[{log.timestamp}]</span>
                           {log.type === 'cmd' && <span className="text-purple-400 font-bold">$ {log.text}</span>}
                           {log.type === 'info' && <span className="text-slate-300">{log.text}</span>}
                           {log.type === 'success' && <span className="text-emerald-400 font-semibold">{log.text}</span>}
@@ -486,7 +477,7 @@ test.describe('SuvenEdu QA Automation', () => {
                 </Badge>
               </CardHeader>
               <CardContent className="p-0">
-                <pre className="bg-slate-950 p-4 sm:p-6 md:p-8 text-[11px] font-mono text-slate-300 overflow-x-auto leading-relaxed max-h-[500px] overflow-y-auto scroller-hide select-all">
+                <pre className="bg-slate-950 p-4 sm:p-6 md:p-8 text-[12px] md:text-[11px] font-mono text-slate-300 overflow-x-auto leading-relaxed max-h-[500px] overflow-y-auto scroller-hide select-all">
                   <code>{rawPlaywrightCode}</code>
                 </pre>
               </CardContent>

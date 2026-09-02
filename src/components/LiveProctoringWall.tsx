@@ -79,7 +79,7 @@ export const LiveProctoringWall: React.FC = () => {
           <div className="flex items-center gap-2 mb-1">
             <Badge
               variant="outline"
-              className="bg-rose-50 text-rose-700 border-rose-100 font-black text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider"
+              className="bg-rose-50 text-rose-700 border-rose-100 font-black text-[11px] md:text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider"
             >
               Live Monitoring
             </Badge>
@@ -97,14 +97,14 @@ export const LiveProctoringWall: React.FC = () => {
             variant="outline"
             disabled
             title="Coming soon"
-            className="border-slate-200 h-12 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 opacity-60 cursor-not-allowed"
+            className="border-slate-200 h-12 rounded-xl font-black text-[11px] md:text-[10px] uppercase tracking-widest flex items-center gap-2 opacity-60 cursor-not-allowed"
           >
             <Bell size={14} /> Alerts Log <span className="font-bold normal-case tracking-normal text-slate-400">· Soon</span>
           </Button>
           <Button
             disabled
             title="Coming soon"
-            className="bg-slate-400 text-white h-12 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 cursor-not-allowed"
+            className="bg-slate-400 text-white h-12 rounded-xl font-black text-[11px] md:text-[10px] uppercase tracking-widest flex items-center gap-2 cursor-not-allowed"
           >
             <Terminal size={14} /> System Console <span className="font-bold normal-case tracking-normal text-slate-200">· Soon</span>
           </Button>
@@ -126,7 +126,7 @@ export const LiveProctoringWall: React.FC = () => {
                 />
                 <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
                   <Badge
-                    className={`${getRiskColor(attempt.violationsCount)} font-black text-[9px] uppercase border px-2 py-0.5 rounded-lg flex items-center gap-1.5 shadow-sm`}
+                    className={`${getRiskColor(attempt.violationsCount)} font-black text-[11px] md:text-[9px] uppercase border px-2 py-0.5 rounded-lg flex items-center gap-1.5 shadow-sm`}
                   >
                     <div className={`h-1.5 w-1.5 rounded-full ${getRiskPulse(attempt.violationsCount)}`} />
                     {attempt.violationsCount && attempt.violationsCount > 0 ? 'Anomaly Detected' : 'Secure'}
@@ -142,15 +142,15 @@ export const LiveProctoringWall: React.FC = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <p className="text-sm font-black text-slate-900 uppercase tracking-tight">{attempt.studentName}</p>
-                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">{attempt.examTitle || 'Entrance Prep'}</p>
+                    <p className="text-[11px] md:text-[10px] font-bold text-slate-400 mt-0.5">{attempt.examTitle || 'Entrance Prep'}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
+                    <p className="text-[11px] md:text-[10px] font-black text-indigo-600 uppercase tracking-widest">
                       {Math.round((attempt.score / 100) * 100)}% Match
                     </p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-[9px] text-slate-500 font-black uppercase tracking-widest">
+                <div className="grid grid-cols-2 gap-2 text-[11px] md:text-[9px] text-slate-500 font-black uppercase tracking-widest">
                   <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-center gap-2">
                     <Eye size={10} className="text-slate-400" /> Focus: 98%
                   </div>
@@ -166,14 +166,14 @@ export const LiveProctoringWall: React.FC = () => {
                     variant="outline"
                     disabled
                     title="Coming soon"
-                    className="flex-grow border-slate-100 h-10 rounded-xl font-black text-[9px] uppercase tracking-widest text-slate-400 opacity-60 cursor-not-allowed"
+                    className="flex-grow border-slate-100 h-10 rounded-xl font-black text-[11px] md:text-[9px] uppercase tracking-widest text-slate-400 opacity-60 cursor-not-allowed"
                   >
                     Flag Student · Soon
                   </Button>
                   <Button
                     disabled
                     title="Coming soon"
-                    className="flex-grow bg-slate-400 text-white h-10 rounded-xl font-black text-[9px] uppercase tracking-widest cursor-not-allowed"
+                    className="flex-grow bg-slate-400 text-white h-10 rounded-xl font-black text-[11px] md:text-[9px] uppercase tracking-widest cursor-not-allowed"
                   >
                     Watch Live · Soon
                   </Button>
@@ -201,11 +201,9 @@ export const LiveProctoringWall: React.FC = () => {
         <CardHeader className="p-6 sm:p-10 border-b border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <CardTitle className="text-xl font-black uppercase tracking-tighter">System Incident Log</CardTitle>
-            <CardDescription className="text-slate-500 font-semibold">
-              Live system issues tracked by severity.
-            </CardDescription>
+            <CardDescription className="text-slate-500 font-semibold">Live system issues tracked by severity.</CardDescription>
           </div>
-          <Badge className="bg-indigo-600 text-white font-black text-[10px] uppercase">Processing Live</Badge>
+          <Badge className="bg-indigo-600 text-white font-black text-[11px] md:text-[10px] uppercase">Processing Live</Badge>
         </CardHeader>
         <CardContent className="p-0 max-h-[300px] overflow-y-auto custom-scrollbar">
           <div className="divide-y divide-white/5">
@@ -227,7 +225,7 @@ export const LiveProctoringWall: React.FC = () => {
                       />
                       <div>
                         <p className="text-sm font-bold tracking-tight">{log.description || log.type}</p>
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">
+                        <p className="text-[11px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">
                           Student: {log.studentId} • Attempt: {log.attemptId}
                         </p>
                       </div>

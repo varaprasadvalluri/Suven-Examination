@@ -71,13 +71,12 @@ export const ManageNamedListDialog: React.FC<ManageNamedListDialogProps> = ({
         </DialogHeader>
 
         <form onSubmit={handleAdd} className="flex gap-2 mt-2">
-          <Input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="e.g. B.Tech"
-            className="h-10 text-sm"
-          />
-          <Button type="submit" disabled={isSaving || !newName.trim()} className="h-10 px-4 rounded-lg text-xs font-bold shrink-0 cursor-pointer">
+          <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. B.Tech" className="h-10 text-sm" />
+          <Button
+            type="submit"
+            disabled={isSaving || !newName.trim()}
+            className="h-10 px-4 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
+          >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           </Button>
         </form>
@@ -107,7 +106,12 @@ export const ManageNamedListDialog: React.FC<ManageNamedListDialogProps> = ({
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => setOpen(false)} className="h-9 rounded-lg text-xs font-bold cursor-pointer">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setOpen(false)}
+            className="h-9 rounded-lg text-xs font-bold cursor-pointer"
+          >
             Close
           </Button>
         </DialogFooter>

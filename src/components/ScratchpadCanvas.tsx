@@ -186,12 +186,12 @@ export const ScratchpadCanvas: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] uppercase font-black text-slate-400">Brush Size:</span>
+          <span className="text-[11px] md:text-[10px] uppercase font-black text-slate-400">Brush Size:</span>
           {[2, 4, 8].map((size) => (
             <button
               key={size}
               onClick={() => setLineWidth(size)}
-              className={`w-6 h-6 rounded-full flex items-center justify-center border font-bold text-[10px] transition-colors cursor-pointer ${lineWidth === size ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+              className={`w-6 h-6 rounded-full flex items-center justify-center border font-bold text-[11px] md:text-[10px] transition-colors cursor-pointer ${lineWidth === size ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
             >
               {size}px
             </button>
@@ -202,7 +202,7 @@ export const ScratchpadCanvas: React.FC = () => {
           variant="ghost"
           size="sm"
           onClick={clearCanvas}
-          className="text-destructive hover:bg-rose-50 font-black text-[10px] uppercase tracking-wider h-8 rounded-lg cursor-pointer px-2"
+          className="text-destructive hover:bg-rose-50 font-black text-[11px] md:text-[10px] uppercase tracking-wider h-8 rounded-lg cursor-pointer px-2"
         >
           <Trash2 className="h-3.5 w-3.5 mr-1" /> Clear
         </Button>

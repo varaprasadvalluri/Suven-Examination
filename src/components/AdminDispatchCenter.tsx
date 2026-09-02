@@ -272,7 +272,7 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
           <DialogHeader>
             <div className="flex justify-between items-center z-10">
               <div>
-                <span className="bg-indigo-500/20 border border-indigo-400/20 text-[#FFE28A] text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full flex items-center gap-1.5 w-fit">
+                <span className="bg-indigo-500/20 border border-indigo-400/20 text-[#FFE28A] text-[11px] md:text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full flex items-center gap-1.5 w-fit">
                   <Fingerprint size={12} className="text-indigo-300" /> Administrative Link Dispatch Center
                 </span>
                 <DialogTitle className="text-2xl font-display font-black tracking-tight text-white mt-2">
@@ -307,7 +307,7 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                     >
                       <User size={18} className={`mb-1.5 ${linkType === 'single' ? 'text-indigo-600' : 'text-slate-400'}`} />
                       <p className="text-xs font-black uppercase tracking-tight">Single Unique</p>
-                      <p className="text-[9px] font-semibold text-slate-400 mt-0.5">One unique link per student.</p>
+                      <p className="text-[11px] md:text-[9px] font-semibold text-slate-400 mt-0.5">One unique link per student.</p>
                     </button>
 
                     <button
@@ -317,13 +317,13 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                     >
                       <LinkIcon size={18} className={`mb-1.5 ${linkType === 'bulk' ? 'text-amber-500' : 'text-slate-400'}`} />
                       <p className="text-xs font-black uppercase tracking-tight">Bulk Master</p>
-                      <p className="text-[9px] font-semibold text-slate-400 mt-0.5">Class shared entry gateway.</p>
+                      <p className="text-[11px] md:text-[9px] font-semibold text-slate-400 mt-0.5">Class shared entry gateway.</p>
                     </button>
                   </div>
 
                   <div className="p-3 bg-slate-50 border rounded-xl flex items-start gap-2.5">
                     <Info size={14} className="text-indigo-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                    <p className="text-[11px] md:text-[10px] text-slate-500 font-medium leading-relaxed">
                       {linkType === 'single'
                         ? 'Generates individual credentials inside URLs. Perfect for full student auditing to prevent impersonation.'
                         : 'Creates a single shared landing URL. Students register themselves with validation ID at the Entry Gate.'}
@@ -341,42 +341,46 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Access Expiration (Time Lock)</Label>
+                    <Label className="text-[11px] md:text-[10px] font-black uppercase text-slate-500">Access Expiration (Time Lock)</Label>
                     <Input
                       type="datetime-local"
                       value={expirationTime}
                       onChange={(e) => setExpirationTime(e.target.value)}
                       className="h-10 border-slate-200 text-xs rounded-xl"
                     />
-                    <p className="text-[9px] text-slate-400 font-semibold leading-none">
+                    <p className="text-[11px] md:text-[9px] text-slate-400 font-semibold leading-none">
                       Server locks the link instantly past this timestamp.
                     </p>
                   </div>
 
                   {linkType === 'bulk' && (
                     <div className="grid gap-2">
-                      <Label className="text-[10px] font-black uppercase text-slate-500">Maximum Admissions (Max Uses)</Label>
+                      <Label className="text-[11px] md:text-[10px] font-black uppercase text-slate-500">
+                        Maximum Admissions (Max Uses)
+                      </Label>
                       <Input
                         type="number"
                         value={maxUses}
                         onChange={(e) => setMaxUses(Number(e.target.value))}
                         className="h-10 border-slate-200 text-xs rounded-xl"
                       />
-                      <p className="text-[9px] text-slate-400 font-semibold leading-none font-sans">
+                      <p className="text-[11px] md:text-[9px] text-slate-400 font-semibold leading-none font-sans">
                         Blocks onboarding once this tally is completed.
                       </p>
                     </div>
                   )}
 
                   <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Allowed IP CIDR Range (Institutional Labs)</Label>
+                    <Label className="text-[11px] md:text-[10px] font-black uppercase text-slate-500">
+                      Allowed IP CIDR Range (Institutional Labs)
+                    </Label>
                     <Input
                       placeholder="e.g. 192.168.10.0/24"
                       value={ipRestrictions}
                       onChange={(e) => setIpRestrictions(e.target.value)}
                       className="h-10 border-slate-200 text-xs font-mono rounded-xl"
                     />
-                    <p className="text-[9px] text-slate-400 font-semibold leading-none">
+                    <p className="text-[11px] md:text-[9px] text-slate-400 font-semibold leading-none">
                       Optional protection locking access to laboratory subnets only.
                     </p>
                   </div>
@@ -413,14 +417,16 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                 <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-slate-50/50">
                   <div>
                     <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">Onboarded Directory Lists</h3>
-                    <p className="text-[9px] text-slate-400 font-bold mt-0.5 leading-none">Ready for credential triggering</p>
+                    <p className="text-[11px] md:text-[9px] text-slate-400 font-bold mt-0.5 leading-none">
+                      Ready for credential triggering
+                    </p>
                   </div>
                   <div className="flex gap-2">
                     <Button
                       size="sm"
                       disabled={sendingAll || students.length === 0}
                       onClick={() => handleBulkTrigger('email')}
-                      className="h-8 text-[10px] font-black uppercase tracking-wider bg-indigo-600 rounded-lg hover:bg-slate-950"
+                      className="h-8 text-[11px] md:text-[10px] font-black uppercase tracking-wider bg-indigo-600 rounded-lg hover:bg-slate-950"
                     >
                       Bulk Email
                     </Button>
@@ -428,7 +434,7 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                       size="sm"
                       disabled={sendingAll || students.length === 0}
                       onClick={() => handleBulkTrigger('sms')}
-                      className="h-8 text-[10px] font-black uppercase tracking-wider bg-slate-900 text-white rounded-lg hover:bg-slate-950"
+                      className="h-8 text-[11px] md:text-[10px] font-black uppercase tracking-wider bg-slate-900 text-white rounded-lg hover:bg-slate-950"
                     >
                       Bulk SMS
                     </Button>
@@ -448,7 +454,7 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                         <div key={std.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-black text-slate-800 uppercase truncate">{std.name}</p>
-                            <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono mt-1">
+                            <div className="flex items-center gap-3 text-[11px] md:text-[10px] text-slate-400 font-mono mt-1">
                               <span className="font-bold">{std.rollNumber}</span>
                               <span className="truncate">{std.email}</span>
                             </div>
@@ -491,12 +497,12 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
                 <h4 className="text-xs font-black uppercase tracking-widest text-slate-700">Live Distributed Carrier Dispatch Monitor</h4>
-                <p className="text-[10px] text-slate-400 font-bold leading-normal">
+                <p className="text-[11px] md:text-[10px] text-slate-400 font-bold leading-normal">
                   Operational telemetry stream monitoring distributed network dispatches.
                 </p>
               </div>
               <div className="flex items-center gap-1">
-                <Badge className="bg-emerald-500/10 text-emerald-600 px-3 py-1 font-mono hover:bg-emerald-500/10 text-[9px] uppercase tracking-wider">
+                <Badge className="bg-emerald-500/10 text-emerald-600 px-3 py-1 font-mono hover:bg-emerald-500/10 text-[11px] md:text-[9px] uppercase tracking-wider">
                   Carrier Server Active
                 </Badge>
               </div>
@@ -507,12 +513,12 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                 <table className="w-full text-left text-xs border-collapse font-mono">
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-200 font-sans">
-                      <th className="px-5 py-3 text-[9px] font-black uppercase text-slate-500">Student Name</th>
-                      <th className="px-5 py-3 text-[9px] font-black uppercase text-slate-500">Channel Info</th>
-                      <th className="px-5 py-3 text-[9px] font-black uppercase text-slate-500">Carrier Address</th>
-                      <th className="px-5 py-3 text-[9px] font-black uppercase text-slate-500">Status</th>
-                      <th className="px-5 py-3 text-[9px] font-black uppercase text-slate-500">Latency / Logs</th>
-                      <th className="px-5 py-3 text-[9px] font-black uppercase text-slate-500 text-right">Actions</th>
+                      <th className="px-5 py-3 text-[11px] md:text-[9px] font-black uppercase text-slate-500">Student Name</th>
+                      <th className="px-5 py-3 text-[11px] md:text-[9px] font-black uppercase text-slate-500">Channel Info</th>
+                      <th className="px-5 py-3 text-[11px] md:text-[9px] font-black uppercase text-slate-500">Carrier Address</th>
+                      <th className="px-5 py-3 text-[11px] md:text-[9px] font-black uppercase text-slate-500">Status</th>
+                      <th className="px-5 py-3 text-[11px] md:text-[9px] font-black uppercase text-slate-500">Latency / Logs</th>
+                      <th className="px-5 py-3 text-[11px] md:text-[9px] font-black uppercase text-slate-500 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -528,7 +534,7 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                           <td className="px-5 py-3 font-sans font-black text-slate-800 text-xs uppercase">{notif.studentName}</td>
                           <td className="px-5 py-3">
                             <Badge
-                              className={`rounded-xl px-2 py-0.5 uppercase text-[9px] ${notif.channel === 'sms' ? 'bg-indigo-50 text-indigo-700' : 'bg-amber-50 text-amber-700'}`}
+                              className={`rounded-xl px-2 py-0.5 uppercase text-[11px] md:text-[9px] ${notif.channel === 'sms' ? 'bg-indigo-50 text-indigo-700' : 'bg-amber-50 text-amber-700'}`}
                             >
                               {notif.channel}
                             </Badge>
@@ -537,23 +543,23 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                           <td className="px-5 py-3">
                             <div className="flex items-center gap-1.5">
                               {notif.deliveryStatus === 'pending' && (
-                                <span className="flex items-center gap-1.5 text-slate-500 font-sans text-[11px] font-extrabold uppercase">
+                                <span className="flex items-center gap-1.5 text-slate-500 font-sans text-[12px] md:text-[11px] font-extrabold uppercase">
                                   <Clock className="h-3 w-3 animate-pulse text-slate-600" /> Queued
                                 </span>
                               )}
                               {notif.deliveryStatus === 'processing' && (
-                                <span className="flex items-center gap-1.5 text-[#FFE28A] font-sans text-[11px] font-extrabold uppercase">
+                                <span className="flex items-center gap-1.5 text-[#FFE28A] font-sans text-[12px] md:text-[11px] font-extrabold uppercase">
                                   <RefreshCw className="h-3 w-3 animate-spin text-amber-600" /> Locking...
                                 </span>
                               )}
                               {notif.deliveryStatus === 'sent' && (
-                                <span className="flex items-center gap-1.5 text-emerald-600 font-sans text-[11px] font-extrabold uppercase">
+                                <span className="flex items-center gap-1.5 text-emerald-600 font-sans text-[12px] md:text-[11px] font-extrabold uppercase">
                                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Dispatched
                                 </span>
                               )}
                               {notif.deliveryStatus === 'failed' && (
                                 <span
-                                  className="flex items-center gap-1.5 text-rose-600 font-sans text-[11px] font-extrabold uppercase"
+                                  className="flex items-center gap-1.5 text-rose-600 font-sans text-[12px] md:text-[11px] font-extrabold uppercase"
                                   title={notif.errorReason}
                                 >
                                   <ShieldAlert className="h-3.5 w-3.5 text-rose-500" /> Failed
@@ -561,9 +567,11 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                               )}
                             </div>
                           </td>
-                          <td className="px-5 py-3 text-[10px] text-slate-400 max-w-[200px] truncate leading-none">
+                          <td className="px-5 py-3 text-[11px] md:text-[10px] text-slate-400 max-w-[200px] truncate leading-none">
                             {notif.deliveryStatus === 'failed' ? (
-                              <span className="text-rose-500 font-sans text-[9px] block leading-tight font-bold">{notif.errorReason}</span>
+                              <span className="text-rose-500 font-sans text-[11px] md:text-[9px] block leading-tight font-bold">
+                                {notif.errorReason}
+                              </span>
                             ) : (
                               `Thread synced (T${notif.retryCount || 0})`
                             )}
@@ -573,13 +581,13 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
                               <Button
                                 size="sm"
                                 onClick={() => handleRetry(notif)}
-                                className="h-7 px-2.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1"
+                                className="h-7 px-2.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-[11px] md:text-[9px] font-black uppercase tracking-wider flex items-center gap-1"
                               >
                                 <RefreshCw size={10} /> Retry Send
                               </Button>
                             )}
                             {notif.deliveryStatus === 'sent' && (
-                              <span className="text-emerald-600 text-[10px] font-black uppercase tracking-tight flex items-center justify-end gap-1 font-sans">
+                              <span className="text-emerald-600 text-[11px] md:text-[10px] font-black uppercase tracking-tight flex items-center justify-end gap-1 font-sans">
                                 <Check size={11} /> Ok
                               </span>
                             )}
@@ -597,7 +605,7 @@ export const AdminDispatchCenter: React.FC<AdminDispatchCenterProps> = ({ exam, 
         {/* Footer controls */}
         <div className="p-5 bg-slate-100 border-t border-slate-200 flex justify-end">
           <Button
-            className="px-6 h-11 bg-slate-900 hover:bg-black rounded-xl font-bold uppercase text-[11px] tracking-wider text-white cursor-pointer"
+            className="px-6 h-11 bg-slate-900 hover:bg-black rounded-xl font-bold uppercase text-[12px] md:text-[11px] tracking-wider text-white cursor-pointer"
             onClick={onClose}
           >
             Dismiss Console

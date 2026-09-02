@@ -248,7 +248,7 @@ router.patch(
   asyncHandler(async (req: any, res) => {
     const { attemptId } = req.params;
     if (req.body && req.body.status === 'completed') {
-      throw new BadRequestError("Use POST /api/v1/attempts/:attemptId/submit to complete an attempt, not PATCH.");
+      throw new BadRequestError('Use POST /api/v1/attempts/:attemptId/submit to complete an attempt, not PATCH.');
     }
 
     const decision = await authorizeWrite(req.auth, 'update', 'attempts', attemptId, req.body);
@@ -312,7 +312,7 @@ router.post(
       return res.status(403).json({ error: 'Forbidden' });
     }
     if (req.auth.role === 'school' && req.auth.schoolId !== schoolId) {
-      return res.status(403).json({ error: "Forbidden: you may only trigger links for your own school" });
+      return res.status(403).json({ error: 'Forbidden: you may only trigger links for your own school' });
     }
     if (studentIds.length === 0) {
       throw new BadRequestError('studentIds must be a non-empty array.');
@@ -364,7 +364,11 @@ router.post(
         // attempt sits in 'submitted' before it reaches 'completed'. Matching only 'completed'
         // meant a re-trigger during the grading window fell through both branches and issued a
         // brand-new invite for an exam the student had in fact already sat.
-        if (attempt?.status === 'started' || attempt?.status === 'in-progress' || (isAttemptFinished(attempt?.status) && attempt?.canReattempt)) {
+        if (
+          attempt?.status === 'started' ||
+          attempt?.status === 'in-progress' ||
+          (isAttemptFinished(attempt?.status) && attempt?.canReattempt)
+        ) {
           skipped++;
           return;
         }

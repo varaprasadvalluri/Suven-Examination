@@ -32,7 +32,12 @@ import { ManageNamedListDialog } from './ManageNamedListDialog';
 export const ExamQuestions: React.FC = () => {
   const { examId } = useParams<{ examId: string }>();
   const navigate = useNavigate();
-  const { items: subjectCategories, loading: loadingSubjects, addItem: addSubjectCategory, removeItem: removeSubjectCategory } = useSubjectCategories();
+  const {
+    items: subjectCategories,
+    loading: loadingSubjects,
+    addItem: addSubjectCategory,
+    removeItem: removeSubjectCategory
+  } = useSubjectCategories();
   const [exam, setExam] = useState<Exam | null>(null);
   const [isEditingInfo, setIsEditingInfo] = useState(false);
   const [editedInfo, setEditedInfo] = useState({ title: '', description: '' });
@@ -551,6 +556,7 @@ export const ExamQuestions: React.FC = () => {
                 variant="ghost"
                 size="icon"
                 className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                aria-label="Edit exam information"
                 onClick={() => setIsEditingInfo(true)}
               >
                 <Edit3 className="h-4 w-4 text-slate-400" />
@@ -581,13 +587,13 @@ export const ExamQuestions: React.FC = () => {
                     <CardTitle className="text-base font-bold text-slate-900">Question {globalIdx + 1}</CardTitle>
                   </div>
                   <div className="flex items-center gap-2 pt-1.5 flex-wrap">
-                    <span className="px-2.5 py-0.5 bg-indigo-50 border border-indigo-200 text-[10px] uppercase font-black tracking-wider text-indigo-600 rounded-md">
+                    <span className="px-2.5 py-0.5 bg-indigo-50 border border-indigo-200 text-[11px] md:text-[10px] uppercase font-black tracking-wider text-indigo-600 rounded-md">
                       Subject: {q.subject || exam?.subject || 'General'}
                     </span>
-                    <span className="px-2.5 py-0.5 bg-slate-100 text-[10px] uppercase font-black tracking-wider text-slate-600 rounded-md">
+                    <span className="px-2.5 py-0.5 bg-slate-100 text-[11px] md:text-[10px] uppercase font-black tracking-wider text-slate-600 rounded-md">
                       Type: {q.type || 'single'}
                     </span>
-                    <span className="px-2.5 py-0.5 bg-emerald-50 text-[10px] uppercase font-black tracking-wider text-emerald-600 rounded-md font-mono">
+                    <span className="px-2.5 py-0.5 bg-emerald-50 text-[11px] md:text-[10px] uppercase font-black tracking-wider text-emerald-600 rounded-md font-mono">
                       +{q.marks} Mark(s)
                     </span>
                   </div>
@@ -596,6 +602,7 @@ export const ExamQuestions: React.FC = () => {
                   variant="ghost"
                   size="icon"
                   onClick={() => handleDeleteQuestion(q.id!)}
+                  aria-label={`Delete question ${globalIdx + 1}`}
                   className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 h-8 w-8 rounded-lg"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -626,7 +633,7 @@ export const ExamQuestions: React.FC = () => {
                     <div className="p-3 bg-white rounded-lg border border-indigo-100 mt-2 flex items-center justify-center">
                       <MathRenderer math={q.numericalAnswer || ''} block={true} />
                     </div>
-                    <p className="text-[10px] text-slate-500 font-mono mt-1">
+                    <p className="text-[11px] md:text-[10px] text-slate-500 font-mono mt-1">
                       Raw Code: <span className="font-bold">{q.numericalAnswer}</span>
                     </p>
                   </div>
@@ -728,7 +735,13 @@ export const ExamQuestions: React.FC = () => {
               <CardTitle className="text-xl font-display font-black text-indigo-950 uppercase tracking-tight">
                 Construct Secure Test Question
               </CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setIsAdding(false)} className="rounded-xl hover:bg-indigo-100/50">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Close add-question form"
+                onClick={() => setIsAdding(false)}
+                className="rounded-xl hover:bg-indigo-100/50"
+              >
                 <X size={18} />
               </Button>
             </CardHeader>
@@ -794,7 +807,7 @@ export const ExamQuestions: React.FC = () => {
                         Mathematics & Scientific Equation Toolbar
                       </span>
                     </div>
-                    <span className="text-[10px] bg-indigo-100 border border-indigo-200 text-indigo-700 px-2.5 py-0.5 rounded-full font-black uppercase">
+                    <span className="text-[11px] md:text-[10px] bg-indigo-100 border border-indigo-200 text-indigo-700 px-2.5 py-0.5 rounded-full font-black uppercase">
                       ACTIVE:{' '}
                       {activeInputName
                         ? activeInputName === 'text'
@@ -847,7 +860,9 @@ export const ExamQuestions: React.FC = () => {
                     </div>
 
                     <div className="bg-slate-100/60 p-3 rounded-xl space-y-2">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Powers & Superscripts (POW)</div>
+                      <div className="text-[11px] md:text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Powers & Superscripts (POW)
+                      </div>
                       <div className="flex flex-wrap gap-1.5">
                         {[
                           { sym: 'xʸ', label: 'inserts ^ for powers' },
@@ -882,7 +897,7 @@ export const ExamQuestions: React.FC = () => {
                     </div>
 
                     <div className="bg-slate-100/60 p-3 rounded-xl space-y-2">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Subscripts (SUB)</div>
+                      <div className="text-[11px] md:text-[10px] font-black uppercase tracking-wider text-slate-500">Subscripts (SUB)</div>
                       <div className="flex flex-wrap gap-1.5">
                         {[
                           { sym: 'xᵢ', label: 'inserts _ for subscripts' },
@@ -917,7 +932,7 @@ export const ExamQuestions: React.FC = () => {
                   {/* Interactive conversion guidelines */}
                   <div className="text-[10.5px] bg-white border border-slate-200 p-3.5 rounded-xl space-y-3 text-slate-600 leading-relaxed">
                     <div className="space-y-1">
-                      <p className="font-extrabold text-[#6366F1] flex items-center gap-1 uppercase tracking-wider text-[9px]">
+                      <p className="font-extrabold text-[#6366F1] flex items-center gap-1 uppercase tracking-wider text-[11px] md:text-[9px]">
                         <Wand2 className="h-5 w-5 text-[#6366F1]" /> Dynamic LaTeX & Text Autocorrect
                       </p>
                       <p className="font-bold text-slate-500">
@@ -933,10 +948,10 @@ export const ExamQuestions: React.FC = () => {
 
                     <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-4">
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-[10px] font-black text-slate-700 uppercase tracking-wide">
+                        <span className="text-[11px] md:text-[10px] font-black text-slate-700 uppercase tracking-wide">
                           Auto-convert plain-text keywords
                         </span>
-                        <span className="text-[9px] text-slate-400">
+                        <span className="text-[11px] md:text-[9px] text-slate-400">
                           If enabled, typing plain words followed by space (e.g. 'sum ', 'times ') converts them to symbols. Keep this off
                           to write English phrases like '3 times' or 'sum of'.
                         </span>
@@ -998,7 +1013,7 @@ export const ExamQuestions: React.FC = () => {
                     onFocus={() => setActiveInputName(null)}
                     className="bg-white border-amber-300 rounded-xl h-11 text-center font-mono text-lg font-black focus-visible:ring-amber-500"
                   />
-                  <p className="text-[10px] text-amber-600 font-medium">
+                  <p className="text-[11px] md:text-[10px] text-amber-600 font-medium">
                     Students will input this exact value using an interactive, secure on-screen numeric keypad during live testing.
                   </p>
                 </div>
@@ -1014,7 +1029,7 @@ export const ExamQuestions: React.FC = () => {
                     onFocus={() => setActiveInputName(null)}
                     className="bg-white border-indigo-300 rounded-xl h-11 text-center font-mono text-lg font-bold focus-visible:ring-indigo-500"
                   />
-                  <p className="text-[10px] text-indigo-600 font-semibold">
+                  <p className="text-[11px] md:text-[10px] text-indigo-600 font-semibold">
                     Students will use a rich mathematical symbol toolbar and virtual keyboard to input their equations for this question.
                   </p>
                 </div>
@@ -1041,7 +1056,7 @@ export const ExamQuestions: React.FC = () => {
                             toast.error('MCQs must have at least 2 options!');
                           }
                         }}
-                        className="h-8 text-[9px] font-black uppercase rounded-lg border-slate-200 px-3 cursor-pointer bg-white"
+                        className="h-8 text-[11px] md:text-[9px] font-black uppercase rounded-lg border-slate-200 px-3 cursor-pointer bg-white"
                       >
                         - Delete Option
                       </Button>
@@ -1058,7 +1073,7 @@ export const ExamQuestions: React.FC = () => {
                             toast.error('MCQs supports maximum 10 choices!');
                           }
                         }}
-                        className="h-8 text-[9px] font-black uppercase rounded-lg border-slate-200 px-3 cursor-pointer bg-white"
+                        className="h-8 text-[11px] md:text-[9px] font-black uppercase rounded-lg border-slate-200 px-3 cursor-pointer bg-white"
                       >
                         + Append Option
                       </Button>
@@ -1070,7 +1085,7 @@ export const ExamQuestions: React.FC = () => {
                         <Label className="flex items-center justify-between text-xs font-bold text-slate-700">
                           Option {String.fromCharCode(65 + i)}
                           <button
-                            className={`text-[9px] uppercase font-black px-2.5 py-1 rounded-md transition-all ${newQuestion.correctAnswerIndex === i ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-200 hover:bg-slate-300'}`}
+                            className={`text-[11px] md:text-[9px] uppercase font-black px-2.5 py-1 rounded-md transition-all ${newQuestion.correctAnswerIndex === i ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-200 hover:bg-slate-300'}`}
                             onClick={() => setNewQuestion({ ...newQuestion, correctAnswerIndex: i })}
                             type="button"
                           >
@@ -1132,7 +1147,7 @@ export const ExamQuestions: React.FC = () => {
               <div className="h-12 w-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:scale-110 transition-transform">
                 <Plus className="h-6 w-6" />
               </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Manual Entry Console</span>
+              <span className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-400">Manual Entry Console</span>
             </Button>
 
             <div className="relative flex-grow group">
@@ -1153,7 +1168,7 @@ export const ExamQuestions: React.FC = () => {
                   <div className="h-12 w-12 rounded-2xl bg-indigo-500 flex items-center justify-center text-white shadow-xl shadow-indigo-900/50 group-hover/doc:scale-110 transition-transform mx-auto">
                     {isDocxLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : <FileUp className="h-6 w-6" />}
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover/doc:text-white transition-colors block">
+                  <span className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover/doc:text-white transition-colors block">
                     {isDocxLoading ? 'Parsing Document...' : 'Word Doc / TXT Importer'}
                   </span>
                 </div>

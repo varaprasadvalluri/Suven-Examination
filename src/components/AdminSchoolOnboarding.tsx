@@ -52,9 +52,12 @@ const TagInput: React.FC<{
           className="flex-1 bg-transparent border-none outline-none text-xs px-2 h-7 min-w-[140px] text-slate-900 font-medium placeholder:text-slate-400"
         />
       </div>
-      <p className="text-[11px] text-slate-500 font-medium">
-        Press <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-600">Enter</kbd> to
-        restrict registration to domains like <span className="font-mono text-indigo-600 font-bold">dpsrkp.net</span>
+      <p className="text-[12px] md:text-[11px] text-slate-500 font-medium">
+        Press{' '}
+        <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[11px] md:text-[10px] font-mono text-slate-600">
+          Enter
+        </kbd>{' '}
+        to restrict registration to domains like <span className="font-mono text-indigo-600 font-bold">dpsrkp.net</span>
       </p>
     </div>
   );
@@ -256,7 +259,7 @@ export const AdminSchoolOnboarding: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 px-3 py-1 rounded-full text-[11px] font-mono">
+          <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 px-3 py-1 rounded-full text-[12px] md:text-[11px] font-mono">
             Direct Firestore
           </Badge>
         </div>
@@ -282,7 +285,7 @@ export const AdminSchoolOnboarding: React.FC = () => {
                 {/* 1. Core Identity */}
                 <div className="space-y-4 pt-2 border-t border-slate-100">
                   <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">
+                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[11px] md:text-[10px] font-black">
                       1
                     </span>
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">School Identity</h3>
@@ -324,7 +327,7 @@ export const AdminSchoolOnboarding: React.FC = () => {
                           <Label className="text-xs font-bold text-slate-700 flex items-center gap-1">
                             Center Code <Lock size={11} className="text-slate-400" />
                           </Label>
-                          <span className="text-[10px] text-slate-400 font-medium">Auto-generated</span>
+                          <span className="text-[11px] md:text-[10px] text-slate-400 font-medium">Auto-generated</span>
                         </div>
                         <Input
                           value={formData.centerCode || 'Pending School Name'}
@@ -360,7 +363,7 @@ export const AdminSchoolOnboarding: React.FC = () => {
                 {/* 2. Admin & Domain Whitelist */}
                 <div className="space-y-4 pt-4 border-t border-slate-100">
                   <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">
+                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[11px] md:text-[10px] font-black">
                       2
                     </span>
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">Admin & Access Controls</h3>
@@ -446,7 +449,7 @@ export const AdminSchoolOnboarding: React.FC = () => {
                 <div className="space-y-3 pt-4 border-t border-slate-100">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">
+                      <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[11px] md:text-[10px] font-black">
                         3
                       </span>
                       <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">Enrolled Student Seat Quota</h3>
@@ -469,7 +472,7 @@ export const AdminSchoolOnboarding: React.FC = () => {
                       />
                     </div>
                     <div className="sm:col-span-7 flex flex-wrap gap-1.5 items-center">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">Presets:</span>
+                      <span className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase mr-1">Presets:</span>
                       {[250, 500, 1000, 2500, 5000].map((seats) => (
                         <button
                           key={seats}
@@ -511,8 +514,8 @@ export const AdminSchoolOnboarding: React.FC = () => {
             <div className="lg:col-span-5 space-y-4 sticky top-8">
               <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Live Node Preview</span>
-                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">Ready to Commit</Badge>
+                  <span className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-indigo-600">Live Node Preview</span>
+                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px] md:text-[10px]">Ready to Commit</Badge>
                 </div>
 
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
@@ -530,17 +533,17 @@ export const AdminSchoolOnboarding: React.FC = () => {
 
                   <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-200/60 font-medium">
                     <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                      <span className="text-[10px] text-slate-400 uppercase block font-bold">Center Code</span>
+                      <span className="text-[11px] md:text-[10px] text-slate-400 uppercase block font-bold">Center Code</span>
                       <span className="font-mono text-indigo-600 font-bold">{formData.centerCode || 'AUTO'}</span>
                     </div>
                     <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                      <span className="text-[10px] text-slate-400 uppercase block font-bold">Candidate Seats</span>
+                      <span className="text-[11px] md:text-[10px] text-slate-400 uppercase block font-bold">Candidate Seats</span>
                       <span className="text-slate-900 font-bold">{Number(formData.totalStudents || 0).toLocaleString()} Enrolled</span>
                     </div>
                   </div>
 
                   <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
-                    <span className="text-[10px] text-slate-400 uppercase block font-bold">Master Admin</span>
+                    <span className="text-[11px] md:text-[10px] text-slate-400 uppercase block font-bold">Master Admin</span>
                     <p className="text-xs text-slate-800 truncate font-mono">{formData.adminEmail || 'admin@school.edu'}</p>
                   </div>
                 </div>
@@ -611,11 +614,13 @@ export const AdminSchoolOnboarding: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
                   <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
-                    <span className="text-[10px] text-slate-400 font-sans uppercase block font-bold">Admin Email</span>
+                    <span className="text-[11px] md:text-[10px] text-slate-400 font-sans uppercase block font-bold">Admin Email</span>
                     <span className="text-slate-900 font-bold block truncate">{createdSchoolData.adminEmail}</span>
                   </div>
                   <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
-                    <span className="text-[10px] text-slate-400 font-sans uppercase block font-bold">Temporary Password</span>
+                    <span className="text-[11px] md:text-[10px] text-slate-400 font-sans uppercase block font-bold">
+                      Temporary Password
+                    </span>
                     <span className="text-emerald-600 font-bold block truncate">{createdSchoolData.tempPassword}</span>
                   </div>
                 </div>

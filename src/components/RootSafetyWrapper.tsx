@@ -194,7 +194,7 @@ export class RootSafetyWrapper extends Component<Props, State> {
                 <IconComponent className="h-8 w-8" />
               </div>
 
-              <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+              <span className="text-[11px] md:text-[10px] font-black tracking-widest text-slate-400 uppercase">
                 {errorType === 'http' ? `HTTP STATUS NODE ${httpStatus}` : 'PORTAL DIAGNOSTIC'}
               </span>
             </div>
@@ -226,7 +226,9 @@ export class RootSafetyWrapper extends Component<Props, State> {
             </div>
 
             {/* Safe Humble Identifier Disclaimer */}
-            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">SuvenEdu Safety Node • Active Guard Rails Active</p>
+            <p className="text-[11px] md:text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+              SuvenEdu Safety Node • Active Guard Rails Active
+            </p>
           </div>
         </div>
       );

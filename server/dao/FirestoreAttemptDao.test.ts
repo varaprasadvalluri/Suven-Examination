@@ -110,7 +110,11 @@ describe('findByFilters — paging happens in Firestore, not in Node', () => {
     await attemptDao.findByFilters({ examId: 'e', schoolId: 's', studentId: 'u', status: 'completed', page: 1, pageSize: 10 });
 
     const countQuery = countMock.mock.calls[0][0];
-    expect(constraintsOf(countQuery, 'where').map((c: any) => c.field).sort()).toEqual(['examId', 'schoolId', 'status', 'studentId']);
+    expect(
+      constraintsOf(countQuery, 'where')
+        .map((c: any) => c.field)
+        .sort()
+    ).toEqual(['examId', 'schoolId', 'status', 'studentId']);
   });
 
   it('reports at least one page even when nothing matches', async () => {
@@ -130,9 +134,7 @@ describe('findByFilters — fallback when the composite index is missing', () =>
     // Firestore rejects a filter+orderBy query outright when no composite index exists. A
     // school opening a dashboard must not see an error because an index was never deployed.
     getDocsMock.mockReset();
-    getDocsMock
-      .mockRejectedValueOnce(new Error('FAILED_PRECONDITION: The query requires an index.'))
-      .mockResolvedValue(docsFor(30));
+    getDocsMock.mockRejectedValueOnce(new Error('FAILED_PRECONDITION: The query requires an index.')).mockResolvedValue(docsFor(30));
     const { attemptDao } = await import('./FirestoreAttemptDao');
 
     const result = await attemptDao.findByFilters({ examId: 'exam_1', page: 1, pageSize: 10 });
@@ -216,7 +218,11 @@ describe('findByStudent — paged the same way as findByFilters', () => {
 
     await attemptDao.findByStudent('student_1', { status: 'completed', page: 1, pageSize: 10 });
     countQuery = countMock.mock.calls[0][0];
-    expect(constraintsOf(countQuery, 'where').map((c: any) => c.field).sort()).toEqual(['status', 'studentId']);
+    expect(
+      constraintsOf(countQuery, 'where')
+        .map((c: any) => c.field)
+        .sort()
+    ).toEqual(['status', 'studentId']);
   });
 
   it('takes the total from the COUNT aggregation', async () => {

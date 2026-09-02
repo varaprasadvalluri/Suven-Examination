@@ -5,14 +5,7 @@ import { Attempt, School, Exam } from '../types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import {
-  Award,
-  BrainCircuit,
-  Building,
-  AlertTriangle,
-  ChevronRight,
-  Download
-} from 'lucide-react';
+import { Award, BrainCircuit, Building, AlertTriangle, ChevronRight, Download } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import {
   ResponsiveContainer,
@@ -264,10 +257,10 @@ export const AdminAnalytics: React.FC = () => {
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 font-black text-[10px] px-2.5 py-0.5 rounded-md uppercase tracking-wider">
+              <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 font-black text-[11px] md:text-[10px] px-2.5 py-0.5 rounded-md uppercase tracking-wider">
                 System Core Ready
               </Badge>
-              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">Analytics Portal</span>
+              <span className="text-[11px] md:text-[10px] font-mono text-slate-400 uppercase tracking-widest">Analytics Portal</span>
             </div>
             <h1 className="text-3xl md:text-4xl font-display font-black text-slate-900 tracking-tight uppercase flex items-center gap-3">
               System Insights
@@ -342,9 +335,9 @@ export const AdminAnalytics: React.FC = () => {
                 <stat.icon size={26} />
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{stat.title}</p>
+                <p className="text-[11px] md:text-[10px] font-black uppercase tracking-wider text-slate-400">{stat.title}</p>
                 <h3 className="text-3xl font-black text-slate-900 tracking-tight mt-0.5">{stat.value}</h3>
-                <p className="text-[10px] text-slate-500 font-medium mt-0.5">{stat.desc}</p>
+                <p className="text-[11px] md:text-[10px] text-slate-500 font-medium mt-0.5">{stat.desc}</p>
               </div>
             </Card>
           ))}
@@ -362,7 +355,7 @@ export const AdminAnalytics: React.FC = () => {
                     Comparing academic metrics and exam volume by school cluster node.
                   </CardDescription>
                 </div>
-                <Badge className="bg-slate-100 text-slate-600 border-none px-3 py-1 font-bold text-[9px] uppercase tracking-wider self-start sm:self-auto">
+                <Badge className="bg-slate-100 text-slate-600 border-none px-3 py-1 font-bold text-[11px] md:text-[9px] uppercase tracking-wider self-start sm:self-auto">
                   Snapshot
                 </Badge>
               </div>
@@ -413,11 +406,11 @@ export const AdminAnalytics: React.FC = () => {
               </ResponsiveContainer>
             </CardContent>
             <div className="bg-slate-50 border-t border-slate-100 p-6 md:p-8 space-y-4">
-              <div className="flex justify-between items-center text-[11px] font-bold">
+              <div className="flex justify-between items-center text-[12px] md:text-[11px] font-bold">
                 <span className="text-slate-400">HIGHEST COGNITIVE LOAD</span>
                 <span className="text-indigo-600">Computer Science (92%)</span>
               </div>
-              <div className="flex justify-between items-center text-[11px] font-bold">
+              <div className="flex justify-between items-center text-[12px] md:text-[11px] font-bold">
                 <span className="text-slate-400">TOTAL SUBJECT FIELDS ACTIVE</span>
                 <span className="text-indigo-600">{subjectDistribution.length} Realms</span>
               </div>
@@ -476,7 +469,7 @@ export const AdminAnalytics: React.FC = () => {
                 </div>
                 <div>
                   <CardTitle className="text-lg font-black uppercase tracking-tight">Security Gateway</CardTitle>
-                  <CardDescription className="text-slate-400 font-medium text-[10px] uppercase mt-0.5">
+                  <CardDescription className="text-slate-400 font-medium text-[11px] md:text-[10px] uppercase mt-0.5">
                     Integrity node metrics
                   </CardDescription>
                 </div>
@@ -486,13 +479,15 @@ export const AdminAnalytics: React.FC = () => {
               <div className="flex justify-between items-center py-4 border-b border-slate-900">
                 <div>
                   <p className="text-xl font-bold tracking-tight text-white">{computedStats.avgViolations}</p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Assessed Anomaly Metric</p>
+                  <p className="text-[11px] md:text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                    Assessed Anomaly Metric
+                  </p>
                 </div>
-                <Badge className="bg-rose-500/15 text-rose-400 border border-rose-500/10 font-black text-[9px] uppercase px-2.5 py-0.5">
+                <Badge className="bg-rose-500/15 text-rose-400 border border-rose-500/10 font-black text-[11px] md:text-[9px] uppercase px-2.5 py-0.5">
                   Target &lt; 1.0
                 </Badge>
               </div>
-              <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+              <p className="text-[11px] md:text-[10px] text-slate-500 font-medium leading-relaxed">
                 Combined tab-switch and flagged-violation count across the {computedStats.totalAttempts}-attempt sample above.
               </p>
             </CardContent>
@@ -500,7 +495,7 @@ export const AdminAnalytics: React.FC = () => {
               <Button
                 onClick={() => navigate('/admin/proctoring')}
                 variant="outline"
-                className="w-full text-slate-300 hover:text-white border-slate-800 hover:bg-slate-900 rounded-2xl h-12 uppercase font-black text-[10px] tracking-widest flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full text-slate-300 hover:text-white border-slate-800 hover:bg-slate-900 rounded-2xl h-12 uppercase font-black text-[11px] md:text-[10px] tracking-widest flex items-center justify-center gap-2 cursor-pointer"
               >
                 Review Security Logs <ChevronRight size={14} />
               </Button>

@@ -222,8 +222,11 @@ export const DatabaseMigrator: React.FC = () => {
           <h4 className="font-bold text-amber-900 text-sm">Target Database Architecture Active</h4>
           <p className="text-xs text-amber-800 leading-relaxed font-semibold">
             The application is currently configured to connect to your new custom database{' '}
-            <Badge className="bg-amber-100 text-amber-950 font-black text-[10px] uppercase border-amber-200">suven-edu</Badge> under Google
-            Cloud Project <span className="font-mono text-[11px] bg-amber-100 px-1 py-0.5 rounded">project-02bb6275-51ac-45e7-940</span>.
+            <Badge className="bg-amber-100 text-amber-950 font-black text-[11px] md:text-[10px] uppercase border-amber-200">
+              suven-edu
+            </Badge>{' '}
+            under Google Cloud Project{' '}
+            <span className="font-mono text-[12px] md:text-[11px] bg-amber-100 px-1 py-0.5 rounded">project-02bb6275-51ac-45e7-940</span>.
           </p>
         </div>
       </div>
@@ -233,7 +236,7 @@ export const DatabaseMigrator: React.FC = () => {
         <Card className="border border-slate-200 rounded-[24px] bg-white shadow-sm flex flex-col justify-between">
           <CardHeader className="p-6">
             <div className="flex justify-between items-start">
-              <Badge className="bg-slate-100 text-slate-800 font-bold text-[10px]">STEP 1</Badge>
+              <Badge className="bg-slate-100 text-slate-800 font-bold text-[11px] md:text-[10px]">STEP 1</Badge>
               <Database className="text-indigo-500" size={20} />
             </div>
             <CardTitle className="text-base font-black text-slate-900 mt-3">Create "suven-edu" Database</CardTitle>
@@ -246,7 +249,7 @@ export const DatabaseMigrator: React.FC = () => {
               Open the Google Cloud console link to provision the database with exact custom ID{' '}
               <strong className="text-indigo-600">suven-edu</strong>:
             </p>
-            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] font-mono text-slate-600 break-all leading-normal">
+            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[12px] md:text-[11px] font-mono text-slate-600 break-all leading-normal">
               Firestore DB ID: <span className="font-bold text-slate-800">suven-edu</span>
             </div>
           </CardContent>
@@ -266,7 +269,7 @@ export const DatabaseMigrator: React.FC = () => {
         <Card className="border border-slate-200 rounded-[24px] bg-white shadow-sm flex flex-col justify-between">
           <CardHeader className="p-6">
             <div className="flex justify-between items-start">
-              <Badge className="bg-slate-100 text-slate-800 font-bold text-[10px]">STEP 2</Badge>
+              <Badge className="bg-slate-100 text-slate-800 font-bold text-[11px] md:text-[10px]">STEP 2</Badge>
               <Key className="text-amber-500" size={20} />
             </div>
             <CardTitle className="text-base font-black text-slate-900 mt-3">Configure API Credentials</CardTitle>
@@ -279,7 +282,7 @@ export const DatabaseMigrator: React.FC = () => {
               Verify that the Web app is registered in your Firebase project and set these environment variables (see{' '}
               <code className="text-amber-600 font-bold">.env.example</code>):
             </p>
-            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[10px] font-mono text-slate-600 whitespace-pre scroll-x-auto">
+            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] md:text-[10px] font-mono text-slate-600 whitespace-pre scroll-x-auto">
               {`FIREBASE_PROJECT_ID=project-02bb6275...
 FIRESTORE_DATABASE_ID=suven-edu
 FIREBASE_APP_ID=1:your-custom-app-id...
@@ -302,7 +305,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
         <Card className="border border-slate-200 rounded-[24px] bg-white shadow-sm flex flex-col justify-between">
           <CardHeader className="p-6">
             <div className="flex justify-between items-start">
-              <Badge className="bg-slate-100 text-slate-800 font-bold text-[10px]">STEP 3</Badge>
+              <Badge className="bg-slate-100 text-slate-800 font-bold text-[11px] md:text-[10px]">STEP 3</Badge>
               <Users className="text-emerald-500" size={20} />
             </div>
             <CardTitle className="text-base font-black text-slate-900 mt-3">GCP IAM Access Policy</CardTitle>
@@ -316,7 +319,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
               <code className="text-emerald-600 font-bold">Cloud Datastore Owner</code> /{' '}
               <code className="text-emerald-600 font-bold">Firebase Admin</code>) for complete management.
             </p>
-            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] font-mono text-slate-600 leading-normal">
+            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[12px] md:text-[11px] font-mono text-slate-600 leading-normal">
               Role: <span className="font-bold text-slate-800">Firebase Admin</span> /{' '}
               <span className="font-bold text-slate-800">Datastore Owner</span>
             </div>
@@ -366,11 +369,14 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
                 {Object.entries(migrationStats).map(([collection, count]) => (
                   <div key={collection} className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-center space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-tight truncate" title={collection}>
+                    <span
+                      className="text-[11px] md:text-[10px] font-bold text-slate-400 block uppercase tracking-tight truncate"
+                      title={collection}
+                    >
                       {collection}
                     </span>
                     <strong className="text-lg font-black text-indigo-650 block">{count}</strong>
-                    <span className="text-[9px] text-emerald-600 font-bold block uppercase">Migrated</span>
+                    <span className="text-[11px] md:text-[9px] text-emerald-600 font-bold block uppercase">Migrated</span>
                   </div>
                 ))}
               </div>
@@ -386,16 +392,18 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             </div>
             <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-4">
               <Terminal size={14} className="text-indigo-400" />
-              <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Migration Stream Console Output</span>
+              <span className="text-[11px] md:text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                Migration Stream Console Output
+              </span>
             </div>
             <div className="space-y-2 max-h-[240px] overflow-y-auto scroller-hide">
               {migrationLogs.length === 0 ? (
-                <p className="text-slate-600 italic text-[11px] py-4 text-center">
+                <p className="text-slate-600 italic text-[12px] md:text-[11px] py-4 text-center">
                   Migration console offline. Click "Start Firestore Migration" to execute dynamic cross-tenant data pipeline.
                 </p>
               ) : (
                 migrationLogs.map((log, index) => (
-                  <div key={index} className="leading-relaxed whitespace-pre-wrap text-[11px]">
+                  <div key={index} className="leading-relaxed whitespace-pre-wrap text-[12px] md:text-[11px]">
                     {log.includes('[ERROR]') || log.includes('⚠️') ? (
                       <span className="text-rose-400 font-semibold">{log}</span>
                     ) : log.includes('success') || log.includes('successfully') || log.includes('completed') ? (
@@ -448,11 +456,14 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
                 {Object.entries(seedingStats).map(([collection, count]) => (
                   <div key={collection} className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-center space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-tight truncate" title={collection}>
+                    <span
+                      className="text-[11px] md:text-[10px] font-bold text-slate-400 block uppercase tracking-tight truncate"
+                      title={collection}
+                    >
                       {collection}
                     </span>
                     <strong className="text-lg font-black text-amber-700 block">{count}</strong>
-                    <span className="text-[9px] text-emerald-600 font-bold block uppercase">Created</span>
+                    <span className="text-[11px] md:text-[9px] text-emerald-600 font-bold block uppercase">Created</span>
                   </div>
                 ))}
               </div>
@@ -468,16 +479,18 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             </div>
             <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-4">
               <Terminal size={14} className="text-amber-400" />
-              <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Seeding Engine Console Output</span>
+              <span className="text-[11px] md:text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                Seeding Engine Console Output
+              </span>
             </div>
             <div className="space-y-2 max-h-[240px] overflow-y-auto scroller-hide">
               {seedingLogs.length === 0 ? (
-                <p className="text-slate-600 italic text-[11px] py-4 text-center">
+                <p className="text-slate-600 italic text-[12px] md:text-[11px] py-4 text-center">
                   Seeding engine offline. Click "Bootstrap Clean Database" to construct database collections with pre-configured schemas.
                 </p>
               ) : (
                 seedingLogs.map((log, index) => (
-                  <div key={index} className="leading-relaxed whitespace-pre-wrap text-[11px]">
+                  <div key={index} className="leading-relaxed whitespace-pre-wrap text-[12px] md:text-[11px]">
                     {log.includes('[ERROR]') || log.includes('⚠️') ? (
                       <span className="text-rose-400 font-semibold">{log}</span>
                     ) : log.includes('success') || log.includes('successfully') || log.includes('completed') || log.includes('Success') ? (
@@ -529,19 +542,25 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
               </h5>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Staff Registry Scanned</span>
+                  <span className="text-[11px] md:text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
+                    Staff Registry Scanned
+                  </span>
                   <strong className="text-2xl font-black text-emerald-600 block">{iamStats.usersScanned}</strong>
-                  <span className="text-[9px] text-slate-400 font-bold block uppercase">Accounts Matched</span>
+                  <span className="text-[11px] md:text-[9px] text-slate-400 font-bold block uppercase">Accounts Matched</span>
                 </div>
                 <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">GCP Roles Compiled</span>
+                  <span className="text-[11px] md:text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
+                    GCP Roles Compiled
+                  </span>
                   <strong className="text-2xl font-black text-indigo-600 block">{iamStats.rolesAssigned}</strong>
-                  <span className="text-[9px] text-slate-400 font-bold block uppercase">Roles Mapped</span>
+                  <span className="text-[11px] md:text-[9px] text-slate-400 font-bold block uppercase">Roles Mapped</span>
                 </div>
                 <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Active IAM Bindings</span>
+                  <span className="text-[11px] md:text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
+                    Active IAM Bindings
+                  </span>
                   <strong className="text-2xl font-black text-violet-600 block">{iamStats.bindingsCreated}</strong>
-                  <span className="text-[9px] text-emerald-600 font-bold block uppercase">Policy Bindings Deployed</span>
+                  <span className="text-[11px] md:text-[9px] text-emerald-600 font-bold block uppercase">Policy Bindings Deployed</span>
                 </div>
               </div>
             </div>
@@ -556,17 +575,19 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             </div>
             <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-4">
               <Terminal size={14} className="text-emerald-400" />
-              <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">GCP Resource Manager IAM Output</span>
+              <span className="text-[11px] md:text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                GCP Resource Manager IAM Output
+              </span>
             </div>
             <div className="space-y-2 max-h-[240px] overflow-y-auto scroller-hide">
               {iamLogs.length === 0 ? (
-                <p className="text-slate-600 italic text-[11px] py-4 text-center">
+                <p className="text-slate-600 italic text-[12px] md:text-[11px] py-4 text-center">
                   IAM Policy Gateway offline. Click "Sync IAM Permissions" to compile, verify, and synchronize all user-specific GCP roles
                   automatically.
                 </p>
               ) : (
                 iamLogs.map((log, index) => (
-                  <div key={index} className="leading-relaxed whitespace-pre-wrap text-[11px]">
+                  <div key={index} className="leading-relaxed whitespace-pre-wrap text-[12px] md:text-[11px]">
                     {log.includes('[ERROR]') || log.includes('⚠️') ? (
                       <span className="text-rose-400 font-semibold">{log}</span>
                     ) : log.includes('success') ||
@@ -652,7 +673,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                     onChange={(e) => setExamsPerMonth(parseInt(e.target.value, 10))}
                     className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-650"
                   />
-                  <div className="flex justify-between text-[9px] text-slate-400 font-bold">
+                  <div className="flex justify-between text-[11px] md:text-[9px] text-slate-400 font-bold">
                     <span>1 exam</span>
                     <span>50 exams</span>
                     <span>100 exams</span>
@@ -672,7 +693,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                     onChange={(e) => setAvgStudentsPerExam(parseInt(e.target.value, 10))}
                     className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-650"
                   />
-                  <div className="flex justify-between text-[9px] text-slate-400 font-bold">
+                  <div className="flex justify-between text-[11px] md:text-[9px] text-slate-400 font-bold">
                     <span>5 students</span>
                     <span>250 students</span>
                     <span>500 students</span>
@@ -692,7 +713,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                     onChange={(e) => setQuestionsPerExam(parseInt(e.target.value, 10))}
                     className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-650"
                   />
-                  <div className="flex justify-between text-[9px] text-slate-400 font-bold">
+                  <div className="flex justify-between text-[11px] md:text-[9px] text-slate-400 font-bold">
                     <span>10 questions</span>
                     <span>55 questions</span>
                     <span>100 questions</span>
@@ -709,8 +730,8 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                     onClick={() => setSyncFrequency('every_question')}
                     className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${syncFrequency === 'every_question' ? 'bg-indigo-50/50 border-indigo-200 text-indigo-900 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'}`}
                   >
-                    <span className="text-[11px] font-extrabold block">Instant Sync</span>
-                    <span className="text-[9px] text-slate-400 font-bold leading-tight mt-1">
+                    <span className="text-[12px] md:text-[11px] font-extrabold block">Instant Sync</span>
+                    <span className="text-[11px] md:text-[9px] text-slate-400 font-bold leading-tight mt-1">
                       Writes to Cloud on every click (No caching)
                     </span>
                   </button>
@@ -720,12 +741,12 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                     className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${syncFrequency === 'every_5_mins' ? 'bg-indigo-50/50 border-indigo-200 text-indigo-900 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'}`}
                   >
                     <div className="flex items-center gap-1">
-                      <span className="text-[11px] font-extrabold block">Interval Cache</span>
-                      <Badge className="bg-emerald-100 text-emerald-800 text-[8px] px-1 py-0 font-bold leading-none shrink-0">
+                      <span className="text-[12px] md:text-[11px] font-extrabold block">Interval Cache</span>
+                      <Badge className="bg-emerald-100 text-emerald-800 text-[11px] md:text-[8px] px-1 py-0 font-bold leading-none shrink-0">
                         RECOMMENDED
                       </Badge>
                     </div>
-                    <span className="text-[9px] text-slate-400 font-bold leading-tight mt-1">
+                    <span className="text-[11px] md:text-[9px] text-slate-400 font-bold leading-tight mt-1">
                       Debounces and batches writes every 5 mins
                     </span>
                   </button>
@@ -734,8 +755,10 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                     onClick={() => setSyncFrequency('on_submit_only')}
                     className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${syncFrequency === 'on_submit_only' ? 'bg-indigo-50/50 border-indigo-200 text-indigo-900 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'}`}
                   >
-                    <span className="text-[11px] font-extrabold block">Submit Only</span>
-                    <span className="text-[9px] text-slate-400 font-bold leading-tight mt-1">Writes only on final submission event</span>
+                    <span className="text-[12px] md:text-[11px] font-extrabold block">Submit Only</span>
+                    <span className="text-[11px] md:text-[9px] text-slate-400 font-bold leading-tight mt-1">
+                      Writes only on final submission event
+                    </span>
                   </button>
                 </div>
               </div>
@@ -778,7 +801,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                   <div
                     className={`absolute left-0 top-0 bottom-0 w-2.5 ${calculatedCost > targetBudget ? 'bg-rose-500' : calculatedCost > targetBudget * 0.75 ? 'bg-amber-500' : 'bg-emerald-500'}`}
                   />
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                  <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-wider block">
                     Estimated Monthly Firestore Bill
                   </span>
                   <div className="flex items-baseline justify-center gap-1">
@@ -791,7 +814,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
 
                   {/* Progress bar budget utilization */}
                   <div className="space-y-1 pt-2">
-                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                    <div className="flex justify-between items-center text-[11px] md:text-[10px] font-bold text-slate-400">
                       <span>Budget Utilization</span>
                       <span className={calculatedCost > targetBudget ? 'text-rose-600' : 'text-emerald-600'}>
                         {budgetUtilizationPercent.toFixed(1)}% of {currency === 'INR' ? '₹' : '$'}
@@ -806,7 +829,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                     </div>
                   </div>
 
-                  <span className="text-[11px] font-bold text-slate-500 block leading-normal pt-1">
+                  <span className="text-[12px] md:text-[11px] font-bold text-slate-500 block leading-normal pt-1">
                     {calculatedCost === 0 ? (
                       <span className="text-emerald-600 font-extrabold flex items-center justify-center gap-1">
                         <Sparkles size={12} /> Completely covered by Firestore Free Tier! (₹0.00 bill)
@@ -825,32 +848,32 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
 
                 {/* Operations breakdown list */}
                 <div className="space-y-2">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                  <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-wider block">
                     Usage Breakdowns & Allocations
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold text-slate-600">
                     <div className="p-3 bg-white border border-slate-100 rounded-xl space-y-1">
-                      <span className="text-[9px] text-slate-400 block font-bold uppercase">Monthly Student Sessions</span>
+                      <span className="text-[11px] md:text-[9px] text-slate-400 block font-bold uppercase">Monthly Student Sessions</span>
                       <strong className="text-sm font-extrabold text-slate-800">{totalSubmissions.toLocaleString()} runs</strong>
                     </div>
                     <div className="p-3 bg-white border border-slate-100 rounded-xl space-y-1">
-                      <span className="text-[9px] text-slate-400 block font-bold uppercase">Optimized Cloud Reads</span>
+                      <span className="text-[11px] md:text-[9px] text-slate-400 block font-bold uppercase">Optimized Cloud Reads</span>
                       <strong className="text-sm font-extrabold text-slate-800">{calculatedMonthlyReads.toLocaleString()} reads</strong>
-                      <span className="text-[8px] text-slate-400 block leading-none font-medium mt-0.5">
+                      <span className="text-[11px] md:text-[8px] text-slate-400 block leading-none font-medium mt-0.5">
                         Free: 1.5M/mo ({Math.round(Math.min(100, (calculatedMonthlyReads / 1500000) * 100))}% used)
                       </span>
                     </div>
                     <div className="p-3 bg-white border border-slate-100 rounded-xl space-y-1">
-                      <span className="text-[9px] text-slate-400 block font-bold uppercase">Estimated Cloud Writes</span>
+                      <span className="text-[11px] md:text-[9px] text-slate-400 block font-bold uppercase">Estimated Cloud Writes</span>
                       <strong className="text-sm font-extrabold text-slate-800">{calculatedMonthlyWrites.toLocaleString()} writes</strong>
-                      <span className="text-[8px] text-slate-400 block leading-none font-medium mt-0.5">
+                      <span className="text-[11px] md:text-[8px] text-slate-400 block leading-none font-medium mt-0.5">
                         Free: 600k/mo ({Math.round(Math.min(100, (calculatedMonthlyWrites / 600000) * 100))}% used)
                       </span>
                     </div>
                     <div className="p-3 bg-white border border-slate-100 rounded-xl space-y-1">
-                      <span className="text-[9px] text-slate-400 block font-bold uppercase">GCP Cost Category</span>
+                      <span className="text-[11px] md:text-[9px] text-slate-400 block font-bold uppercase">GCP Cost Category</span>
                       <strong className="text-sm font-extrabold text-slate-800">Firestore NoSQL</strong>
-                      <span className="text-[8px] text-emerald-600 block leading-none font-bold mt-0.5 uppercase">
+                      <span className="text-[11px] md:text-[8px] text-emerald-600 block leading-none font-bold mt-0.5 uppercase">
                         Highly cost-effective
                       </span>
                     </div>
@@ -860,10 +883,10 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
 
               {/* Actionable Recommendations block */}
               <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-2xl space-y-2">
-                <h5 className="text-[10px] font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
+                <h5 className="text-[11px] md:text-[10px] font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
                   <TrendingDown size={14} className="text-indigo-600" /> cost optimization architecture advice
                 </h5>
-                <ul className="space-y-1.5 text-[10px] text-slate-600 font-semibold leading-relaxed">
+                <ul className="space-y-1.5 text-[11px] md:text-[10px] text-slate-600 font-semibold leading-relaxed">
                   <li className="flex items-start gap-1.5">
                     <span className="text-indigo-600 font-bold shrink-0">•</span>
                     <span>
@@ -931,7 +954,9 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
 
               <div className="space-y-3.5 pt-2">
                 <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-2">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Configuration Checklist</span>
+                  <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    Configuration Checklist
+                  </span>
                   <ul className="space-y-2 text-xs text-slate-600 font-medium leading-relaxed">
                     <li className="flex items-start gap-2">
                       <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
@@ -971,27 +996,29 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                 </div>
 
                 <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100 space-y-2.5">
-                  <span className="text-[10px] font-black text-indigo-950 uppercase tracking-wider block">
+                  <span className="text-[11px] md:text-[10px] font-black text-indigo-950 uppercase tracking-wider block">
                     Recommended Threshold Triggers
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                     <div className="p-2 bg-white rounded-xl border border-slate-100">
-                      <strong className="text-[11px] font-extrabold text-slate-700 block">50% Threshold</strong>
-                      <span className="text-[10px] font-black text-emerald-600 font-mono">₹2,500</span>
-                      <span className="text-[8px] text-slate-400 block leading-tight mt-0.5">Early warning notification</span>
+                      <strong className="text-[12px] md:text-[11px] font-extrabold text-slate-700 block">50% Threshold</strong>
+                      <span className="text-[11px] md:text-[10px] font-black text-emerald-600 font-mono">₹2,500</span>
+                      <span className="text-[11px] md:text-[8px] text-slate-400 block leading-tight mt-0.5">
+                        Early warning notification
+                      </span>
                     </div>
                     <div className="p-2 bg-white rounded-xl border border-slate-100">
-                      <strong className="text-[11px] font-extrabold text-slate-700 block">90% Threshold</strong>
-                      <span className="text-[10px] font-black text-amber-600 font-mono">₹4,500</span>
-                      <span className="text-[8px] text-slate-400 block leading-tight mt-0.5">Critical review warning</span>
+                      <strong className="text-[12px] md:text-[11px] font-extrabold text-slate-700 block">90% Threshold</strong>
+                      <span className="text-[11px] md:text-[10px] font-black text-amber-600 font-mono">₹4,500</span>
+                      <span className="text-[11px] md:text-[8px] text-slate-400 block leading-tight mt-0.5">Critical review warning</span>
                     </div>
                     <div className="p-2 bg-white rounded-xl border border-slate-100">
-                      <strong className="text-[11px] font-extrabold text-slate-700 block">100% Threshold</strong>
-                      <span className="text-[10px] font-black text-rose-600 font-mono">₹5,000</span>
-                      <span className="text-[8px] text-slate-400 block leading-tight mt-0.5">Budget completely spent</span>
+                      <strong className="text-[12px] md:text-[11px] font-extrabold text-slate-700 block">100% Threshold</strong>
+                      <span className="text-[11px] md:text-[10px] font-black text-rose-600 font-mono">₹5,000</span>
+                      <span className="text-[11px] md:text-[8px] text-slate-400 block leading-tight mt-0.5">Budget completely spent</span>
                     </div>
                   </div>
-                  <span className="text-[9px] text-slate-500 block leading-relaxed">
+                  <span className="text-[11px] md:text-[9px] text-slate-500 block leading-relaxed">
                     💡 <strong>Pro-Tip:</strong> Check the box for <em>"Email alerts to billing admins and users"</em> to ensure
                     notifications are sent directly to <strong>suveen2619@gmail.com</strong>.
                   </span>
@@ -1014,7 +1041,9 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
 
               <div className="space-y-3.5 pt-2">
                 <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-2">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Setting Up Hard Caps</span>
+                  <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    Setting Up Hard Caps
+                  </span>
                   <ul className="space-y-2 text-xs text-slate-600 font-medium leading-relaxed">
                     <li className="flex items-start gap-2">
                       <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
@@ -1046,27 +1075,31 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                 </div>
 
                 <div className="p-4 bg-amber-50/30 rounded-2xl border border-amber-100 space-y-2">
-                  <span className="text-[10px] font-black text-amber-950 uppercase tracking-wider block">
+                  <span className="text-[11px] md:text-[10px] font-black text-amber-950 uppercase tracking-wider block">
                     Recommended Safe Circuit-Breakers
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div className="p-2.5 bg-white rounded-xl border border-slate-100 text-center space-y-0.5">
-                      <strong className="text-[10px] font-extrabold text-slate-600 block">Read Cap</strong>
+                      <strong className="text-[11px] md:text-[10px] font-extrabold text-slate-600 block">Read Cap</strong>
                       <strong className="text-[12px] text-indigo-700 font-black font-mono">500,000 / day</strong>
-                      <span className="text-[8px] text-slate-400 block leading-none">(Costs ~₹15/day max above free tier)</span>
+                      <span className="text-[11px] md:text-[8px] text-slate-400 block leading-none">
+                        (Costs ~₹15/day max above free tier)
+                      </span>
                     </div>
                     <div className="p-2.5 bg-white rounded-xl border border-slate-100 text-center space-y-0.5">
-                      <strong className="text-[10px] font-extrabold text-slate-600 block">Write Cap</strong>
+                      <strong className="text-[11px] md:text-[10px] font-extrabold text-slate-600 block">Write Cap</strong>
                       <strong className="text-[12px] text-indigo-700 font-black font-mono">200,000 / day</strong>
-                      <span className="text-[8px] text-slate-400 block leading-none">(Costs ~₹25/day max above free tier)</span>
+                      <span className="text-[11px] md:text-[8px] text-slate-400 block leading-none">
+                        (Costs ~₹25/day max above free tier)
+                      </span>
                     </div>
                     <div className="p-2.5 bg-white rounded-xl border border-slate-100 text-center space-y-0.5">
-                      <strong className="text-[10px] font-extrabold text-slate-600 block">Delete Cap</strong>
+                      <strong className="text-[11px] md:text-[10px] font-extrabold text-slate-600 block">Delete Cap</strong>
                       <strong className="text-[12px] text-indigo-700 font-black font-mono">100,000 / day</strong>
-                      <span className="text-[8px] text-slate-400 block leading-none">(Virtually free)</span>
+                      <span className="text-[11px] md:text-[8px] text-slate-400 block leading-none">(Virtually free)</span>
                     </div>
                   </div>
-                  <span className="text-[9px] text-amber-800 font-semibold block leading-normal mt-1 flex items-start gap-1">
+                  <span className="text-[11px] md:text-[9px] text-amber-800 font-semibold block leading-normal mt-1 flex items-start gap-1">
                     <AlertTriangle size={12} className="shrink-0 text-amber-600 mt-0.5" />
                     <span>
                       When a hard cap is hit, Firestore responds with error code <strong>RESOURCE_EXHAUSTED</strong> for that day. It resets
@@ -1089,19 +1122,19 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
               <div className="p-3 bg-indigo-900/40 border border-indigo-800 rounded-xl space-y-1">
                 <strong className="text-xs font-bold text-white block">Offline Offline-First Persistence</strong>
-                <span className="text-[11px] text-indigo-200/90 leading-normal block">
+                <span className="text-[12px] md:text-[11px] text-indigo-200/90 leading-normal block">
                   Saves local student states so intermittent network drops do not generate multiple redundant reload writes.
                 </span>
               </div>
               <div className="p-3 bg-indigo-900/40 border border-indigo-800 rounded-xl space-y-1">
                 <strong className="text-xs font-bold text-white block">Debounced Write Queue</strong>
-                <span className="text-[11px] text-indigo-200/90 leading-normal block">
+                <span className="text-[12px] md:text-[11px] text-indigo-200/90 leading-normal block">
                   Ensures student answers are cached and synced in 5-minute batches rather than on every single button press.
                 </span>
               </div>
               <div className="p-3 bg-indigo-900/40 border border-indigo-800 rounded-xl space-y-1">
                 <strong className="text-xs font-bold text-white block">Automatic Index Sanitization</strong>
-                <span className="text-[11px] text-indigo-200/90 leading-normal block">
+                <span className="text-[12px] md:text-[11px] text-indigo-200/90 leading-normal block">
                   Removes unneeded collection queries so we never execute costly sequential field scans.
                 </span>
               </div>
@@ -1111,7 +1144,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
         <CardFooter className="p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
             <Info size={14} className="text-slate-400" />
-            <span className="text-[11px] font-bold text-slate-400">
+            <span className="text-[12px] md:text-[11px] font-bold text-slate-400">
               All direct project links point specifically to Project ID project-02bb6275-51ac-45e7-940
             </span>
           </div>
@@ -1147,7 +1180,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             {/* Export Auth */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                <span className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[11px] md:text-[10px] font-bold text-slate-600">
                   1
                 </span>
                 <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider">Export Existing User Accounts</h5>
@@ -1156,10 +1189,11 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                 Run this command in your development terminal to securely export all login profiles (emails, names, salt, password hashes)
                 from the old project:
               </p>
-              <div className="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl p-4 font-mono text-[11px] relative group flex items-center justify-between">
+              <div className="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl p-4 font-mono text-[12px] md:text-[11px] relative group flex items-center justify-between">
                 <span className="select-all break-all pr-10">{exportAuthCommand}</span>
                 <Button
                   onClick={() => handleCopy(exportAuthCommand, 'export')}
+                  aria-label="Copy export command"
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 text-slate-400 hover:text-slate-100 shrink-0 hover:bg-slate-800"
@@ -1167,7 +1201,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                   <Copy size={14} />
                 </Button>
                 {copiedCommand === 'export' && (
-                  <span className="absolute bottom-1 right-2 text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-sans font-bold">
+                  <span className="absolute bottom-1 right-2 text-[11px] md:text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-sans font-bold">
                     Copied!
                   </span>
                 )}
@@ -1177,7 +1211,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             {/* Import Auth */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                <span className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[11px] md:text-[10px] font-bold text-slate-600">
                   2
                 </span>
                 <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider">Import User Accounts to New Project</h5>
@@ -1186,10 +1220,11 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                 Import the backup file directly into your new project. Firebase Auth SCRYPT password algorithm variables are fully
                 pre-configured:
               </p>
-              <div className="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl p-4 font-mono text-[11px] relative group flex items-center justify-between">
+              <div className="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl p-4 font-mono text-[12px] md:text-[11px] relative group flex items-center justify-between">
                 <span className="select-all break-all pr-10">{importAuthCommand}</span>
                 <Button
                   onClick={() => handleCopy(importAuthCommand, 'import')}
+                  aria-label="Copy import command"
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 text-slate-400 hover:text-slate-100 shrink-0 hover:bg-slate-800"
@@ -1197,7 +1232,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
                   <Copy size={14} />
                 </Button>
                 {copiedCommand === 'import' && (
-                  <span className="absolute bottom-1 right-2 text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-sans font-bold">
+                  <span className="absolute bottom-1 right-2 text-[11px] md:text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-sans font-bold">
                     Copied!
                   </span>
                 )}
@@ -1209,7 +1244,7 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             <h6 className="text-xs font-bold text-slate-800 flex items-center gap-2">
               <FileText size={14} className="text-indigo-500" /> Web Console Alternative
             </h6>
-            <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
+            <p className="text-[12px] md:text-[11px] text-slate-500 font-semibold leading-relaxed">
               If you don't use CLI, you can simply open the authentication page of your project at{' '}
               <a
                 href="https://console.firebase.google.com/project/project-02bb6275-51ac-45e7-940/authentication/users?authuser=1"

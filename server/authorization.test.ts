@@ -24,8 +24,20 @@ function found(data: any) {
 }
 
 const admin: RequestAuth = { uid: 'admin-1', email: 'admin@x.com', role: 'admin', schoolId: null, sessionId: 'sess-admin' };
-const schoolA: RequestAuth = { uid: 'school-uid-a', email: 'a@school.com', role: 'school', schoolId: 'school-A', sessionId: 'sess-school-a' };
-const schoolB: RequestAuth = { uid: 'school-uid-b', email: 'b@school.com', role: 'school', schoolId: 'school-B', sessionId: 'sess-school-b' };
+const schoolA: RequestAuth = {
+  uid: 'school-uid-a',
+  email: 'a@school.com',
+  role: 'school',
+  schoolId: 'school-A',
+  sessionId: 'sess-school-a'
+};
+const schoolB: RequestAuth = {
+  uid: 'school-uid-b',
+  email: 'b@school.com',
+  role: 'school',
+  schoolId: 'school-B',
+  sessionId: 'sess-school-b'
+};
 const studentA: RequestAuth = { uid: 'student-a', email: 's@a.com', role: 'student', schoolId: 'school-A', sessionId: 'sess-student-a' };
 
 beforeEach(() => {

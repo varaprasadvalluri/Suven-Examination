@@ -33,7 +33,7 @@ import {
 } from '../firestoreClient';
 import { cleanupCloudinaryAsset } from './cloudinary';
 import { cleanupFirebaseStorageAsset, FIREBASE_STORAGE_ID_PREFIX } from './firebaseStorage';
-import { mockLoadTestStore } from './gatekeeper';
+import { mockLoadTestStore } from '../lib/loadTestStore';
 import { LOAD_TEST_SECRET } from '../config';
 
 const router = express.Router();
@@ -211,201 +211,229 @@ router.delete(
  */
 // Proxy Route for Standard Reads (Direct Queries, Document GETs, or snapshot requests)
 export const handleCollectionQuery = asyncHandler(async (req: any, res: any) => {
-    const { collectionName, constraints = [], docId, countOnly } = req.body;
-    if (!collectionName) {
-      throw new BadRequestError('Missing collectionName specification.');
+  const { collectionName, constraints = [], docId, countOnly } = req.body;
+  if (!collectionName) {
+    throw new BadRequestError('Missing collectionName specification.');
+  }
+
+  // Single-doc reads for synthetic load-test identities resolve from mockLoadTestStore instead
+  // of hitting Firestore, so a load test never burns real read quota for docs it wrote itself.
+  //
+  // Gated on LOAD_TEST_SECRET, the same server-side secret /api/db/write's isLoadTestWrite
+  // branch requires — its comment claimed to mirror that branch while in fact triggering on a
+  // bare client-supplied `x-load-test` header, or on nothing more than the substrings
+  // "test-roll-"/"StressTester" appearing in an attacker-chosen docId. It leaked nothing (an
+  // unknown key answers `exists: false`), but it let any caller force a phantom not-found for
+  // a real document whose id happened to contain either substring, and it left a
+  // client-controlled switch on a production read path. Unset secret disables it entirely.
+  const isLoadTestRead =
+    !!docId && !!LOAD_TEST_SECRET && req.headers['x-load-test'] === 'true' && req.headers['x-load-test-secret'] === LOAD_TEST_SECRET;
+
+  if (isLoadTestRead) {
+    const key = `${collectionName}_${docId}`;
+    const stored = mockLoadTestStore.get(key);
+    if (stored) {
+      return res.status(200).json({ success: true, data: { id: docId, exists: true, data: stored } });
     }
+    return res.status(200).json({ success: true, data: { id: docId, exists: false } });
+  }
 
-    // Mirrors /api/db/write's isLoadTestWrite branch: single-doc reads for synthetic
-    // load-test identities resolve from mockLoadTestStore instead of hitting Firestore,
-    // so a load test never burns real read quota for docs it wrote itself.
-    const isLoadTestRead =
-      !!docId && (req.headers['x-load-test'] === 'true' || docId.includes('test-roll-') || docId.includes('StressTester'));
+  const isPublic = PUBLIC_READ_COLLECTIONS.has(collectionName);
+  let auth: RequestAuth | null = null;
 
-    if (isLoadTestRead) {
-      const key = `${collectionName}_${docId}`;
-      const stored = mockLoadTestStore.get(key);
-      if (stored) {
-        return res.status(200).json({ success: true, data: { id: docId, exists: true, data: stored } });
+  // Best-effort session check on the public `questions` path (skipped for every other public
+  // collection — exams/schools/syllabus/login_options never need it, so there's no reason to
+  // pay for JWT verification on those hot, high-volume reads). Kept entirely separate from
+  // `auth` (which must stay null for public reads so the existing scoping/access logic below
+  // is unaffected) — used only to decide questions sanitization, per-role, below.
+  const publicQuestionsAuth: RequestAuth | null = isPublic && collectionName === 'questions' ? await resolveAuth(req) : null;
+
+  // A bare valid session isn't enough to unlock the answer key for an arbitrary exam — a
+  // session is proof of *some* identity, not proof of enrollment in *this* exam. Admin/school
+  // stay unrestricted (existing trust boundary for staff/content-owner roles). A student must
+  // have their own attempts/att_{examId}_{uid} doc for the exact examId being queried, or the
+  // read is sanitized just like a fully anonymous one — otherwise any validly-signed student
+  // token (including one obtained via legitimate enrollment in an unrelated exam) could read
+  // every other exam's correctAnswerIndex ahead of time by simply changing the examId filter.
+  async function shouldSanitizeQuestionsForExam(examId: string | undefined): Promise<boolean> {
+    if (collectionName !== 'questions') return false;
+    const caller = publicQuestionsAuth;
+    if (!caller) return true;
+    if (caller.role !== 'student') return false;
+    if (!examId) return true;
+    const attemptSnap = await clientGetDoc(clientDoc(clientDb, 'attempts', `att_${examId}_${caller.uid}`));
+    if (!attemptSnap.exists()) return true;
+    // Checking existence alone was wrong: the attempt doc is created the moment enrollment
+    // happens, before the student answers a single question, so this returned "don't sanitize"
+    // (i.e. include correctAnswerIndex/numericalAnswer/explanation) from the very first
+    // questions fetch of a live, in-progress exam — verified live, a fresh 'started' attempt's
+    // own session could read every correct answer over the API the instant the exam opened.
+    // Only a genuinely finished attempt should see answers, for the post-submission review.
+    const status = (attemptSnap.data() as any)?.status;
+    return status !== 'completed';
+  }
+
+  // Applied only to the outgoing response, never to what gets stored in queryCache — the
+  // 15s cache for `questions` is keyed without regard to caller identity, so sanitizing
+  // before caching would risk serving answer-stripped data to a later caller (of any role)
+  // who IS authorized for this exam but happens to land within that cache window, or vice
+  // versa leaking full data to one who isn't.
+  async function sanitizeQuestionsPayload(rawData: any, examId: string | undefined): Promise<any> {
+    if (collectionName !== 'questions') return rawData;
+    const shouldSanitize = await shouldSanitizeQuestionsForExam(examId);
+    if (!shouldSanitize) return rawData;
+    if (Array.isArray(rawData)) {
+      return rawData.map((item: any) => ({ ...item, data: sanitizeForPublicRead('questions', item.data) }));
+    }
+    if (rawData && typeof rawData === 'object' && 'data' in rawData) {
+      return { ...rawData, data: sanitizeForPublicRead('questions', rawData.data) };
+    }
+    return rawData;
+  }
+
+  if (!isPublic) {
+    auth = await resolveAuth(req);
+    if (!auth) {
+      // Pre-session exception: a visitor following a shared exam-invite link needs to look
+      // up the one secure_exam_links doc matching their token before they have a session —
+      // but only a targeted lookup by that token, never an unscoped collection dump.
+      const isTokenLookup =
+        TOKEN_LOOKUP_COLLECTIONS.has(collectionName) &&
+        !docId &&
+        constraints.length === 1 &&
+        constraints[0]?.type === 'where' &&
+        constraints[0]?.op === '==' &&
+        (constraints[0]?.field === 'id' || constraints[0]?.field === 'token') &&
+        !!constraints[0]?.value;
+
+      if (!isTokenLookup) {
+        throw new UnauthorizedError('Unauthorized: Missing, invalid, or expired session');
       }
-      return res.status(200).json({ success: true, data: { id: docId, exists: false } });
-    }
-
-    const isPublic = PUBLIC_READ_COLLECTIONS.has(collectionName);
-    let auth: RequestAuth | null = null;
-
-    // Best-effort session check on the public `questions` path (skipped for every other public
-    // collection — exams/schools/syllabus/login_options never need it, so there's no reason to
-    // pay for JWT verification on those hot, high-volume reads). Kept entirely separate from
-    // `auth` (which must stay null for public reads so the existing scoping/access logic below
-    // is unaffected) — used only to decide questions sanitization, per-role, below.
-    const publicQuestionsAuth: RequestAuth | null = isPublic && collectionName === 'questions' ? await resolveAuth(req) : null;
-
-    // A bare valid session isn't enough to unlock the answer key for an arbitrary exam — a
-    // session is proof of *some* identity, not proof of enrollment in *this* exam. Admin/school
-    // stay unrestricted (existing trust boundary for staff/content-owner roles). A student must
-    // have their own attempts/att_{examId}_{uid} doc for the exact examId being queried, or the
-    // read is sanitized just like a fully anonymous one — otherwise any validly-signed student
-    // token (including one obtained via legitimate enrollment in an unrelated exam) could read
-    // every other exam's correctAnswerIndex ahead of time by simply changing the examId filter.
-    async function shouldSanitizeQuestionsForExam(examId: string | undefined): Promise<boolean> {
-      if (collectionName !== 'questions') return false;
-      const caller = publicQuestionsAuth;
-      if (!caller) return true;
-      if (caller.role !== 'student') return false;
-      if (!examId) return true;
-      const attemptSnap = await clientGetDoc(clientDoc(clientDb, 'attempts', `att_${examId}_${caller.uid}`));
-      if (!attemptSnap.exists()) return true;
-      // Checking existence alone was wrong: the attempt doc is created the moment enrollment
-      // happens, before the student answers a single question, so this returned "don't sanitize"
-      // (i.e. include correctAnswerIndex/numericalAnswer/explanation) from the very first
-      // questions fetch of a live, in-progress exam — verified live, a fresh 'started' attempt's
-      // own session could read every correct answer over the API the instant the exam opened.
-      // Only a genuinely finished attempt should see answers, for the post-submission review.
-      const status = (attemptSnap.data() as any)?.status;
-      return status !== 'completed';
-    }
-
-    // Applied only to the outgoing response, never to what gets stored in queryCache — the
-    // 15s cache for `questions` is keyed without regard to caller identity, so sanitizing
-    // before caching would risk serving answer-stripped data to a later caller (of any role)
-    // who IS authorized for this exam but happens to land within that cache window, or vice
-    // versa leaking full data to one who isn't.
-    async function sanitizeQuestionsPayload(rawData: any, examId: string | undefined): Promise<any> {
-      if (collectionName !== 'questions') return rawData;
-      const shouldSanitize = await shouldSanitizeQuestionsForExam(examId);
-      if (!shouldSanitize) return rawData;
-      if (Array.isArray(rawData)) {
-        return rawData.map((item: any) => ({ ...item, data: sanitizeForPublicRead('questions', item.data) }));
-      }
-      if (rawData && typeof rawData === 'object' && 'data' in rawData) {
-        return { ...rawData, data: sanitizeForPublicRead('questions', rawData.data) };
-      }
-      return rawData;
-    }
-
-    if (!isPublic) {
-      auth = await resolveAuth(req);
-      if (!auth) {
-        // Pre-session exception: a visitor following a shared exam-invite link needs to look
-        // up the one secure_exam_links doc matching their token before they have a session —
-        // but only a targeted lookup by that token, never an unscoped collection dump.
-        const isTokenLookup =
-          TOKEN_LOOKUP_COLLECTIONS.has(collectionName) &&
-          !docId &&
-          constraints.length === 1 &&
-          constraints[0]?.type === 'where' &&
-          constraints[0]?.op === '==' &&
-          (constraints[0]?.field === 'id' || constraints[0]?.field === 'token') &&
-          !!constraints[0]?.value;
-
-        if (!isTokenLookup) {
-          throw new UnauthorizedError('Unauthorized: Missing, invalid, or expired session');
-        }
-      } else {
-        const access = COLLECTION_ACCESS[collectionName];
-        if (!access || !access.read.includes(auth.role as ProxyRole)) {
-          throw new ForbiddenError('Forbidden: role cannot read this collection');
-        }
-      }
-    }
-
-    const scopedNonAdmin = !!auth && auth.role !== 'admin';
-    const scopeField = scopedNonAdmin ? scopeFieldFor(collectionName, auth!.role as ProxyRole) : undefined;
-    const scopeValue = scopedNonAdmin ? scopeValueFor(auth!, auth!.role as ProxyRole) : null;
-
-    // A. Single Document Fetch
-    if (docId) {
-      const docRef = clientDoc(clientDb, collectionName, docId);
-      const snap = await clientGetDoc(docRef);
-      if (snap.exists()) {
-        const docData = snap.data();
-        const scopeFieldValue = scopeField ? (docData as any)?.[scopeField] : undefined;
-        if (scopeField && scopeFieldValue !== undefined && scopeFieldValue !== scopeValue) {
-          // Report as not-found rather than 403 to avoid confirming out-of-scope doc existence.
-          return res.status(200).json({ success: true, data: { id: docId, exists: false } });
-        }
-        const singleDocResult = { id: snap.id, exists: true, data: docData };
-        if (!scopeField) {
-          const ttl = CACHE_TTLS[collectionName] || 0;
-          if (ttl > 0) {
-            const cacheKey = JSON.stringify({ collectionName, docId });
-            queryCache.set(cacheKey, { timestamp: Date.now(), data: singleDocResult });
-          }
-        }
-        return res.status(200).json({ success: true, data: await sanitizeQuestionsPayload(singleDocResult, (docData as any)?.examId) });
-      } else {
-        const notFoundResult = { id: docId, exists: false };
-        return res.status(200).json({ success: true, data: notFoundResult });
+    } else {
+      const access = COLLECTION_ACCESS[collectionName];
+      if (!access || !access.read.includes(auth.role as ProxyRole)) {
+        throw new ForbiddenError('Forbidden: role cannot read this collection');
       }
     }
+  }
 
-    // B. Structured Collection Queries with sorting/filtering limits
-    let effectiveConstraints = constraints;
-    if (scopeField) {
-      const injected = injectReadScope(auth!, collectionName, constraints);
-      if (injected === null) {
-        throw new ForbiddenError('Forbidden: query scope does not match your account');
-      }
-      effectiveConstraints = injected;
-    }
+  const scopedNonAdmin = !!auth && auth.role !== 'admin';
+  const scopeField = scopedNonAdmin ? scopeFieldFor(collectionName, auth!.role as ProxyRole) : undefined;
+  const scopeValue = scopedNonAdmin ? scopeValueFor(auth!, auth!.role as ProxyRole) : null;
 
-    // Only meaningful for `questions` (see shouldSanitizeQuestionsForExam) — the exact examId
-    // being filtered on, if any, so a student's enrollment can be checked against it.
-    const queriedExamId = effectiveConstraints.find(
-      (constraint: any) => constraint.type === 'where' && constraint.field === 'examId' && constraint.op === '=='
-    )?.value;
+  // A. Single Document Fetch
+  if (docId) {
+    const singleDocCacheKey = JSON.stringify({ collectionName, docId });
+    const singleDocTtl = CACHE_TTLS[collectionName] || 0;
 
-    const cacheKey = JSON.stringify({ collectionName, constraints: effectiveConstraints, docId, countOnly });
-    const cached = queryCache.get(cacheKey);
-    const ttl = CACHE_TTLS[collectionName] || 0;
-
-    if (ttl > 0 && cached && Date.now() - cached.timestamp < ttl) {
-      return res.status(200).json({ success: true, data: await sanitizeQuestionsPayload(cached.data, queriedExamId), fromCache: true });
-    }
-
-    const colRef = clientCollection(clientDb, collectionName);
-    const queryArgs: any[] = [colRef];
-
-    for (const constraint of effectiveConstraints) {
-      if (constraint.type === 'where') {
-        queryArgs.push(clientWhere(constraint.field, constraint.op, constraint.value));
-      } else if (constraint.type === 'orderBy') {
-        queryArgs.push(clientOrderBy(constraint.field, constraint.direction || 'asc'));
-      } else if (constraint.type === 'limit') {
-        queryArgs.push(clientLimit(constraint.value));
-      } else if (constraint.type === 'startAfter' && constraint.id) {
-        const cursorRef = clientDoc(clientDb, collectionName, constraint.id);
-        const cursorSnap = await clientGetDoc(cursorRef);
-        if (cursorSnap.exists()) {
-          queryArgs.push(clientStartAfter(cursorSnap));
-        }
+    // READ-through, not just write-through. This block populated queryCache below and never
+    // once consulted it, so the cache cost a write per request and saved nothing — every
+    // single-document GET went to Firestore.
+    //
+    // That is the app's single largest read source during an exam. ExamInterface.tsx polls the
+    // EXAM document every 6 seconds per student (apiService.ts's onSnapshot is a poller, not a
+    // listener) to pick up the admin pause/extra-time flags — a document that changes almost
+    // never. At 100k concurrent students that is ~17k reads/sec of one document; the cache
+    // collapses it to one read per collection TTL per worker, shared by every student that
+    // worker is serving.
+    //
+    // Gated on `!scopeField` to exactly match the write side below: a tenant-scoped read
+    // filters the document against THIS caller's scope, so its result is not shareable and is
+    // never cached in the first place.
+    if (!scopeField && singleDocTtl > 0) {
+      const cachedDoc = queryCache.get(singleDocCacheKey);
+      if (cachedDoc && Date.now() - cachedDoc.timestamp < singleDocTtl) {
+        const cachedData = cachedDoc.data as any;
+        return res.status(200).json({ success: true, data: await sanitizeQuestionsPayload(cachedData, cachedData?.data?.examId) });
       }
     }
 
-    const builtQuery = clientQuery(...(queryArgs as any));
-
-    if (countOnly) {
-      const countSnap = await clientGetCountFromServer(builtQuery);
-      const countData = { count: countSnap.data().count };
-      if (ttl > 0) {
-        queryCache.set(cacheKey, { timestamp: Date.now(), data: countData });
+    const docRef = clientDoc(clientDb, collectionName, docId);
+    const snap = await clientGetDoc(docRef);
+    if (snap.exists()) {
+      const docData = snap.data();
+      const scopeFieldValue = scopeField ? (docData as any)?.[scopeField] : undefined;
+      if (scopeField && scopeFieldValue !== undefined && scopeFieldValue !== scopeValue) {
+        // Report as not-found rather than 403 to avoid confirming out-of-scope doc existence.
+        return res.status(200).json({ success: true, data: { id: docId, exists: false } });
       }
-      return res.status(200).json({ success: true, data: countData });
+      const singleDocResult = { id: snap.id, exists: true, data: docData };
+      if (!scopeField && singleDocTtl > 0) {
+        queryCache.set(singleDocCacheKey, { timestamp: Date.now(), data: singleDocResult });
+      }
+      return res.status(200).json({ success: true, data: await sanitizeQuestionsPayload(singleDocResult, (docData as any)?.examId) });
+    } else {
+      const notFoundResult = { id: docId, exists: false };
+      return res.status(200).json({ success: true, data: notFoundResult });
     }
+  }
 
-    const snap = await clientGetDocs(builtQuery);
+  // B. Structured Collection Queries with sorting/filtering limits
+  let effectiveConstraints = constraints;
+  if (scopeField) {
+    const injected = injectReadScope(auth!, collectionName, constraints);
+    if (injected === null) {
+      throw new ForbiddenError('Forbidden: query scope does not match your account');
+    }
+    effectiveConstraints = injected;
+  }
 
-    const docList = snap.docs.map((doc: any) => ({
-      id: doc.id,
-      data: doc.data()
-    }));
+  // Only meaningful for `questions` (see shouldSanitizeQuestionsForExam) — the exact examId
+  // being filtered on, if any, so a student's enrollment can be checked against it.
+  const queriedExamId = effectiveConstraints.find(
+    (constraint: any) => constraint.type === 'where' && constraint.field === 'examId' && constraint.op === '=='
+  )?.value;
 
+  const cacheKey = JSON.stringify({ collectionName, constraints: effectiveConstraints, docId, countOnly });
+  const cached = queryCache.get(cacheKey);
+  const ttl = CACHE_TTLS[collectionName] || 0;
+
+  if (ttl > 0 && cached && Date.now() - cached.timestamp < ttl) {
+    return res.status(200).json({ success: true, data: await sanitizeQuestionsPayload(cached.data, queriedExamId), fromCache: true });
+  }
+
+  const colRef = clientCollection(clientDb, collectionName);
+  const queryArgs: any[] = [colRef];
+
+  for (const constraint of effectiveConstraints) {
+    if (constraint.type === 'where') {
+      queryArgs.push(clientWhere(constraint.field, constraint.op, constraint.value));
+    } else if (constraint.type === 'orderBy') {
+      queryArgs.push(clientOrderBy(constraint.field, constraint.direction || 'asc'));
+    } else if (constraint.type === 'limit') {
+      queryArgs.push(clientLimit(constraint.value));
+    } else if (constraint.type === 'startAfter' && constraint.id) {
+      const cursorRef = clientDoc(clientDb, collectionName, constraint.id);
+      const cursorSnap = await clientGetDoc(cursorRef);
+      if (cursorSnap.exists()) {
+        queryArgs.push(clientStartAfter(cursorSnap));
+      }
+    }
+  }
+
+  const builtQuery = clientQuery(...(queryArgs as any));
+
+  if (countOnly) {
+    const countSnap = await clientGetCountFromServer(builtQuery);
+    const countData = { count: countSnap.data().count };
     if (ttl > 0) {
-      queryCache.set(cacheKey, { timestamp: Date.now(), data: docList });
+      queryCache.set(cacheKey, { timestamp: Date.now(), data: countData });
     }
+    return res.status(200).json({ success: true, data: countData });
+  }
 
-    return res.status(200).json({ success: true, data: await sanitizeQuestionsPayload(docList, queriedExamId) });
+  const snap = await clientGetDocs(builtQuery);
+
+  const docList = snap.docs.map((doc: any) => ({
+    id: doc.id,
+    data: doc.data()
+  }));
+
+  if (ttl > 0) {
+    queryCache.set(cacheKey, { timestamp: Date.now(), data: docList });
+  }
+
+  return res.status(200).json({ success: true, data: await sanitizeQuestionsPayload(docList, queriedExamId) });
 });
 
 /**
@@ -456,59 +484,59 @@ export const handleCollectionQuery = asyncHandler(async (req: any, res: any) => 
  */
 // Proxy Route for Cushioning and Batching Writes
 export const handleCollectionWrite = asyncHandler(async (req: any, res: any) => {
-    const { type, collectionName, docId, data } = req.body;
-    if (!type || !collectionName) {
-      throw new BadRequestError('Missing type or collectionName parameters.');
-    }
+  const { type, collectionName, docId, data } = req.body;
+  if (!type || !collectionName) {
+    throw new BadRequestError('Missing type or collectionName parameters.');
+  }
 
-    // Same trusted-secret gate as gatekeeper.ts's isLoadTestRequest — the old check matched
-    // attacker-controlled docId/data substrings ("test-roll-", "StressTester"), letting anyone
-    // silently mock a real write (data never persisted) by naming their own doc/fields that way.
-    const isLoadTestWrite =
-      !!LOAD_TEST_SECRET && req.headers['x-load-test'] === 'true' && req.headers['x-load-test-secret'] === LOAD_TEST_SECRET;
+  // Same trusted-secret gate as gatekeeper.ts's isLoadTestRequest — the old check matched
+  // attacker-controlled docId/data substrings ("test-roll-", "StressTester"), letting anyone
+  // silently mock a real write (data never persisted) by naming their own doc/fields that way.
+  const isLoadTestWrite =
+    !!LOAD_TEST_SECRET && req.headers['x-load-test'] === 'true' && req.headers['x-load-test-secret'] === LOAD_TEST_SECRET;
 
-    if (isLoadTestWrite) {
-      const key = `${collectionName}_${docId || 'autogen'}`;
-      const existing = mockLoadTestStore.get(key) || {};
-      mockLoadTestStore.set(key, { ...existing, ...data, updatedAt: new Date().toISOString() });
-      return res.status(200).json({ success: true, id: docId || 'mock_task_id', isSimulatedLoadTest: true });
-    }
+  if (isLoadTestWrite) {
+    const key = `${collectionName}_${docId || 'autogen'}`;
+    const existing = mockLoadTestStore.get(key) || {};
+    mockLoadTestStore.set(key, { ...existing, ...data, updatedAt: new Date().toISOString() });
+    return res.status(200).json({ success: true, id: docId || 'mock_task_id', isSimulatedLoadTest: true });
+  }
 
-    // Same rule as the named /api/attempts/:id/submit route: a final exam submission's score/
-    // accuracy is never trusted from the client, even coming through this generic proxy — closes
-    // what would otherwise be a second, unguarded path to a fabricated grade. Grading itself now
-    // happens off the request path (server/lib/taskQueue.ts, /api/internal/grade-attempt) so a
-    // burst of submissions at exam-end doesn't hold open one HTTP request per student for the
-    // full recompute+write chain — see this branch below.
-    const isSubmission = collectionName === 'attempts' && (type === 'update' || type === 'set') && data && data.status === 'completed';
+  // Same rule as the named /api/attempts/:id/submit route: a final exam submission's score/
+  // accuracy is never trusted from the client, even coming through this generic proxy — closes
+  // what would otherwise be a second, unguarded path to a fabricated grade. Grading itself now
+  // happens off the request path (server/lib/taskQueue.ts, /api/internal/grade-attempt) so a
+  // burst of submissions at exam-end doesn't hold open one HTTP request per student for the
+  // full recompute+write chain — see this branch below.
+  const isSubmission = collectionName === 'attempts' && (type === 'update' || type === 'set') && data && data.status === 'completed';
 
-    if (isSubmission && docId) {
-      // Delegates to the SINGLE submission implementation shared with
-      // POST /api/v1/attempts/:id/submit — see server/services/AttemptSubmissionService.ts for
-      // why the two paths were collapsed. This route is kept (not rejected in favour of the v1
-      // one) because ExamInterface.tsx uses it as its fallback channel when the primary
-      // submission call fails, which is a real recovery path on a flaky network.
-      try {
-        const outcome = await attemptSubmissionService.submit(req.auth, docId, type, data);
-        if ('ok' in outcome && outcome.ok === false) {
-          return res.status(outcome.status).json({ error: outcome.error });
-        }
-        return res.status(200).json(outcome);
-      } catch (err: any) {
-        throw new InternalServerError('Submission saved, but grading could not be queued: ' + (err.message || String(err)));
+  if (isSubmission && docId) {
+    // Delegates to the SINGLE submission implementation shared with
+    // POST /api/v1/attempts/:id/submit — see server/services/AttemptSubmissionService.ts for
+    // why the two paths were collapsed. This route is kept (not rejected in favour of the v1
+    // one) because ExamInterface.tsx uses it as its fallback channel when the primary
+    // submission call fails, which is a real recovery path on a flaky network.
+    try {
+      const outcome = await attemptSubmissionService.submit(req.auth, docId, type, data);
+      if ('ok' in outcome && outcome.ok === false) {
+        return res.status(outcome.status).json({ error: outcome.error });
       }
+      return res.status(200).json(outcome);
+    } catch (err: any) {
+      throw new InternalServerError('Submission saved, but grading could not be queued: ' + (err.message || String(err)));
     }
+  }
 
-    let authorizedData = data;
-    const decision = await authorizeWrite(req.auth, type, collectionName, docId, data);
-    if (decision.ok === false) {
-      return res.status(decision.status).json({ error: decision.error });
-    }
-    authorizedData = decision.data;
+  let authorizedData = data;
+  const decision = await authorizeWrite(req.auth, type, collectionName, docId, data);
+  if (decision.ok === false) {
+    return res.status(decision.status).json({ error: decision.error });
+  }
+  authorizedData = decision.data;
 
-    // Push to write queue, creating a promise that resolves upon the queue flush cycle
-    const result = await enqueueWrite({ type, collectionName, docId, data: authorizedData });
-    return res.status(200).json(result);
+  // Push to write queue, creating a promise that resolves upon the queue flush cycle
+  const result = await enqueueWrite({ type, collectionName, docId, data: authorizedData });
+  return res.status(200).json(result);
 });
 
 // The original generic proxy paths. Kept mounted so nothing that still calls them breaks, but

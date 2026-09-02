@@ -1,0 +1,46 @@
+name: E2E (on demand)
+
+# Kept separate from ci.yml on purpose. This suite drives a REAL deployment and signs in with
+# REAL school credentials, so it cannot run on every push: it needs a seeded school to exist
+# and it writes records (it onboards a student) into whatever environment it points at.
+# Run it from the Actions tab against a chosen environment, or nightly.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Base URL to run the suite against'
+        required: true
+        default: 'http://localhost:3000'
+  schedule:
+    # 02:00 UTC nightly against whatever PLAYWRIGHT_BASE_URL the repo variable names.
+    - cron: '0 2 * * *'
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+      - run: npm run test:e2e:install
+
+      - name: Run Playwright suite
+        env:
+          # Falls back to the repo variable for the scheduled run, which has no inputs.
+          PLAYWRIGHT_BASE_URL: ${{ inputs.base_url || vars.PLAYWRIGHT_BASE_URL }}
+          QA_SCHOOL_EMAIL: ${{ secrets.QA_SCHOOL_EMAIL }}
+          QA_SCHOOL_PASSWORD: ${{ secrets.QA_SCHOOL_PASSWORD }}
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14

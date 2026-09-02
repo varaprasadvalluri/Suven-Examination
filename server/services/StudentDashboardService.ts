@@ -1,6 +1,16 @@
 import { attemptDao, examDao, invitationDao, secureExamLinkDao } from '../dao';
 import { isAttemptFinished } from '../../shared/attemptStatus';
 
+// How much of a student's own attempt history the dashboard reads. Newest first, so the
+// entries that decide what the dashboard shows — live attempts to resume, recently completed
+// exams to lock out — are always the ones kept.
+//
+// Was 10,000, which bypassed pagination.ts's MAX_PAGE_SIZE by calling the DAO directly. No
+// student has ten thousand attempts, so it never truncated anything; it was a request for an
+// unbounded read that happened to be answered by a small collection. On a route every student
+// hits at login, the bound needs to be real rather than nominal.
+const DASHBOARD_ATTEMPT_HISTORY_LIMIT = 200;
+
 export type ExamCandidate = { exam: any; attempt: any | null };
 export type UpcomingListItem =
   { examId: string; subject: string; locked: false; exam: any; attempt: any | null } | { examId: string; subject: string; locked: true };
@@ -20,7 +30,7 @@ class StudentDashboardService {
   // Bounded, not paginated — the candidate set is however many exams are actively triggered
   // right now, which stays small regardless of platform scale (see [[project-scale-target]]).
   async getAccessibleExamCandidates(studentId: string, schoolId: string | null): Promise<ExamCandidate[]> {
-    const attemptsPage = await attemptDao.findByStudent(studentId, { page: 1, pageSize: 10000 });
+    const attemptsPage = await attemptDao.findByStudent(studentId, { page: 1, pageSize: DASHBOARD_ATTEMPT_HISTORY_LIMIT });
     const attemptsByExamId = new Map<string, any>();
     attemptsPage.items.forEach((rec) => attemptsByExamId.set((rec.data as any).examId, { id: rec.id, ...rec.data }));
 
@@ -45,17 +55,29 @@ class StudentDashboardService {
       });
     }
 
-    const candidates: ExamCandidate[] = [];
-    for (const examId of examIds.keys()) {
-      const attempt = attemptsByExamId.get(examId) || null;
-      // 'submitted' and 'grading_failed' lock the exam out of the dashboard's candidate list
-      // exactly like 'completed' does — otherwise an exam the student just handed in pops back
-      // up as available to start while grading is still running.
-      const isLockedComplete = attempt && isAttemptFinished(attempt.status) && !attempt.canReattempt;
-      if (isLockedComplete) continue;
+    // The locked-out check runs BEFORE any exam is fetched, so a student with a long history of
+    // completed exams costs no reads for them.
+    // 'submitted' and 'grading_failed' lock the exam out of the dashboard's candidate list
+    // exactly like 'completed' does — otherwise an exam the student just handed in pops back
+    // up as available to start while grading is still running.
+    const unlockedExamIds = [...examIds.keys()].filter((examId) => {
+      const attempt = attemptsByExamId.get(examId);
+      return !(attempt && isAttemptFinished(attempt.status) && !attempt.canReattempt);
+    });
 
-      const examResult = await examDao.findById(examId);
+    // One round trip deep instead of N. These reads are independent, and awaiting them one at
+    // a time held the request open for the SUM of their latencies — on the route every student
+    // loads at login, that is per-student latency multiplied by the whole cohort arriving at
+    // once. The candidate set stays small (only actively triggered exams), so this is a bounded
+    // fan-out, not an unbounded one.
+    const examResults = await Promise.all(unlockedExamIds.map((examId) => examDao.findById(examId)));
+
+    const candidates: ExamCandidate[] = [];
+    for (let i = 0; i < unlockedExamIds.length; i++) {
+      const examResult = examResults[i];
       if (!examResult.exists) continue;
+
+      const attempt = attemptsByExamId.get(unlockedExamIds[i]) || null;
       const exam = { id: examResult.id, ...(examResult.data as any) };
 
       // A triggered link/invite doesn't override the exam's own time window — a school that

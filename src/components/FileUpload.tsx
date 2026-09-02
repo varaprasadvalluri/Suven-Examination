@@ -276,10 +276,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
           <div className="text-center">
             {imagePublicId === 'external-url' ? (
-              <p className="text-[10px] text-slate-500 font-medium">Using external direct image URL link reference</p>
+              <p className="text-[11px] md:text-[10px] text-slate-500 font-medium">Using external direct image URL link reference</p>
             ) : (
               imagePublicId && (
-                <p className="text-[10px] text-slate-500 font-mono">
+                <p className="text-[11px] md:text-[10px] text-slate-500 font-mono">
                   {imagePublicId.startsWith('firebase:') ? 'Stored securely in Firebase Storage' : 'Stored securely on Cloudinary Cloud'}{' '}
                   (ID: <code className="bg-slate-100 px-1 py-0.5 rounded font-bold text-indigo-600">{imagePublicId}</code>)
                 </p>
@@ -304,7 +304,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
               <UploadCloud size={24} className={dragActive ? 'animate-bounce' : ''} />
             </div>
             <p className="text-xs font-bold text-slate-700">Drag and drop diagram image here</p>
-            <p className="text-[11px] text-slate-400">or click below to search local files (max 5MB)</p>
+            <p className="text-[12px] md:text-[11px] text-slate-400">or click below to search local files (max 5MB)</p>
           </div>
 
           <div className="mt-4 flex flex-col items-center gap-3 w-full">
@@ -320,7 +320,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
             <div className="flex items-center gap-2 w-full max-w-xs px-4 mt-1">
               <div className="h-[1px] bg-slate-200 flex-1"></div>
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">or paste direct image URL</span>
+              <span className="text-[11px] md:text-[9px] text-slate-400 font-bold uppercase tracking-wider">or paste direct image URL</span>
               <div className="h-[1px] bg-slate-200 flex-1"></div>
             </div>
 
@@ -345,7 +345,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             </div>
           </div>
 
-          <p className="text-[10px] text-slate-400 mt-3 text-center font-medium">
+          <p className="text-[11px] md:text-[10px] text-slate-400 mt-3 text-center font-medium">
             Supports PNG, JPG, JPEG, GIF. Paste direct image link if storage upload is not available.
           </p>
         </div>

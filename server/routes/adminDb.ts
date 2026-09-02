@@ -1,9 +1,18 @@
 import express from 'express';
 import { requireSession, requireRole } from '../auth/middleware';
-import { firebaseConfig } from '../config';
-import { clientDb, clientCollection, clientDoc, clientGetDocs, clientSetDoc, clientWriteBatch, createDatabaseHandle } from '../firestoreClient';
+import { firebaseConfig, LEGACY_MIGRATION_SOURCE } from '../config';
+import {
+  clientDb,
+  clientCollection,
+  clientDoc,
+  clientGetDocs,
+  clientSetDoc,
+  clientWriteBatch,
+  createDatabaseHandle
+} from '../firestoreClient';
 import { asyncHandler } from '../middleware/errorHandler';
-import { InternalServerError } from '../lib/errors';
+import { logger } from '../lib/logger';
+import { BadRequestError, InternalServerError } from '../lib/errors';
 
 const router = express.Router();
 
@@ -29,7 +38,7 @@ const router = express.Router();
  *             properties:
  *               sourceConfigOverride:
  *                 type: object
- *                 description: Optional Firebase config for the source project; defaults to a hardcoded legacy project config if omitted
+ *                 description: Firebase config for the source project. Required unless the LEGACY_FIREBASE_* env vars are set.
  *     responses:
  *       200:
  *         description: Migration logs and per-collection document counts
@@ -47,23 +56,23 @@ router.post(
   asyncHandler(async (req, res) => {
     const { sourceConfigOverride } = req.body;
 
-    // Default to the previous Firebase configuration details
-    const sourceConfig = sourceConfigOverride || {
-      projectId: 'gen-lang-client-0086284509',
-      appId: '1:486328864423:web:6a971b689b5a81e51c5582',
-      apiKey: 'AIzaSyD-AzMGuVYnFwhFLOStoerl21LSD7vkIvc',
-      authDomain: 'gen-lang-client-0086284509.firebaseapp.com',
-      firestoreDatabaseId: 'ai-studio-8391c2ab-94ef-4c90-9d99-eebfe3329077',
-      storageBucket: 'gen-lang-client-0086284509.firebasestorage.app',
-      messagingSenderId: '486328864423'
-    };
+    // Falls back to the LEGACY_* env vars rather than a config object hardcoded here. If
+    // neither is present, refuse: a migration that silently runs against an unspecified
+    // source project is far worse than one that asks to be told which project to read.
+    const sourceConfig = sourceConfigOverride || LEGACY_MIGRATION_SOURCE;
+    if (!sourceConfig.projectId || !sourceConfig.apiKey) {
+      throw new BadRequestError(
+        'No migration source configured. Pass sourceConfigOverride in the request body, or set ' +
+          'LEGACY_FIREBASE_PROJECT_ID and LEGACY_FIREBASE_API_KEY in the environment.'
+      );
+    }
 
     const logs: string[] = [];
     const stats: Record<string, number> = {};
 
     const addLog = (msg: string) => {
       const timestamp = new Date().toLocaleTimeString();
-      console.log(`[Migration] ${msg}`);
+      logger.info('Migration', { detail: msg });
       logs.push(`[${timestamp}] ${msg}`);
     };
 
@@ -206,7 +215,7 @@ router.post(
 
     const addLog = (msg: string) => {
       const timestamp = new Date().toLocaleTimeString();
-      console.log(`[Seeder] ${msg}`);
+      logger.info('Seeder', { detail: msg });
       logs.push(`[${timestamp}] ${msg}`);
     };
 

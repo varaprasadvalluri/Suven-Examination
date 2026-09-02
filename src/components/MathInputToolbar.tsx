@@ -188,7 +188,7 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
             <button
               key={category.id}
               onClick={() => setActiveTab(category.id)}
-              className={`px-3.5 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-full text-[12px] md:text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                 activeTab === category.id
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'bg-white text-slate-500 hover:text-slate-800 border border-slate-200'
@@ -201,7 +201,7 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
 
         <button
           onClick={() => setShowHelper(!showHelper)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] md:text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer ${
             showHelper ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-400 hover:text-slate-600 border-slate-200'
           }`}
         >
@@ -230,14 +230,14 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
       {/* Helper Panel */}
       {showHelper && (
         <div className="bg-amber-50/70 border border-amber-200 p-4 rounded-2xl text-amber-900 text-xs leading-relaxed space-y-2 animate-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center gap-2 font-black uppercase text-[10px] tracking-wider text-amber-800 mb-1">
+          <div className="flex items-center gap-2 font-black uppercase text-[11px] md:text-[10px] tracking-wider text-amber-800 mb-1">
             <Sparkles className="h-4 w-4" /> LaTeX Conversion Superpowers
           </div>
           <p className="font-medium text-slate-600">
             You can type standard LaTeX strings, or write natural shorthand math directly in the inputs. The portal will automatically
             format variables.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] font-mono mt-1 text-slate-700 bg-white/70 p-3 rounded-xl border border-amber-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px] md:text-[11px] font-mono mt-1 text-slate-700 bg-white/70 p-3 rounded-xl border border-amber-100">
             <div>
               • <code className="bg-slate-100 px-1 py-0.5 rounded font-bold">\frac&#123;a&#125;&#123;b&#125;</code> &rarr; Fractions
             </div>
@@ -281,9 +281,11 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
         <div className="p-5 border-2 border-indigo-100 bg-white rounded-2xl shadow-xs transition-all relative">
           <div className="absolute right-3.5 top-3.5 flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-full pointer-events-none">
             <span className="h-1.5 w-1.5 bg-indigo-500 rounded-full animate-heartbeat" />
-            <span className="text-[9px] font-black uppercase text-indigo-700 tracking-wider">Visual Formula Renderer</span>
+            <span className="text-[11px] md:text-[9px] font-black uppercase text-indigo-700 tracking-wider">Visual Formula Renderer</span>
           </div>
-          <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-3">Live Active Preview</p>
+          <p className="text-[11px] md:text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-3">
+            Live Active Preview
+          </p>
           <div className="min-h-[50px] flex items-center justify-center p-3 text-slate-800 bg-slate-50/50 border border-dashed border-slate-100 rounded-xl overflow-x-auto text-lg font-semibold selection:bg-indigo-100">
             {value.trim() ? (
               <MathRenderer math={value} block={true} />

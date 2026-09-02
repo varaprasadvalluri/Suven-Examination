@@ -67,7 +67,10 @@ router.get(
       return res.status(403).json({ error: 'Forbidden: you may only view your own dashboard' });
     }
 
-    const candidates = await studentDashboardService.getAccessibleExamCandidates(studentId, req.auth.role === 'student' ? req.auth.schoolId : null);
+    const candidates = await studentDashboardService.getAccessibleExamCandidates(
+      studentId,
+      req.auth.role === 'student' ? req.auth.schoolId : null
+    );
     const topInProgressCandidate = candidates[0] || null;
     return res.status(200).json({ success: true, data: { inProgress: topInProgressCandidate } });
   })

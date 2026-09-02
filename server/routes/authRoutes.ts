@@ -14,6 +14,7 @@ import {
   clientWhere
 } from '../firestoreClient';
 import { asyncHandler } from '../middleware/errorHandler';
+import { logger } from '../lib/logger';
 import { authLimiter } from '../middleware/rateLimit';
 import { UnauthorizedError, BadRequestError, ForbiddenError, NotFoundError, InternalServerError } from '../lib/errors';
 
@@ -68,7 +69,7 @@ router.post(
       email = decoded.email;
       displayName = decoded.name || req.body.displayName || null;
     } catch (err: any) {
-      console.error('[Auth] Firebase ID token verification failed:', err?.message || err);
+      logger.error('Firebase ID token verification failed', { err });
       throw new UnauthorizedError('Invalid or expired authentication token');
     }
 
@@ -87,7 +88,7 @@ router.post(
           matchedProfile = uSnap.docs[0].data();
         }
       } catch (err) {
-        console.error('fetchProfile query existing users error in server:', err);
+        logger.error('fetchProfile: existing-users query failed', { err });
       }
     }
 
@@ -115,7 +116,7 @@ router.post(
           }
         }
       } catch (e) {
-        console.error('fetchProfile school verification error in server:', e);
+        logger.error('fetchProfile: school verification failed', { err: e });
       }
     }
 
@@ -154,7 +155,7 @@ router.post(
         isAdminInFirestore = !snapAdmin.empty;
       }
     } catch (err) {
-      console.error('admins/super_admins verification error in server:', err);
+      logger.error('admins/super_admins verification failed', { err });
     }
 
     const isSchoolAdmin =
@@ -309,7 +310,7 @@ router.post(
       uid = decoded.uid;
       email = decoded.email || '';
     } catch (err: any) {
-      console.error('[Auth] Firebase ID token verification failed:', err?.message || err);
+      logger.error('Firebase ID token verification failed', { err });
       throw new UnauthorizedError('Invalid or expired authentication token');
     }
 
@@ -371,7 +372,7 @@ router.post(
           }
         }
       } catch (err) {
-        console.error('School validation error:', err);
+        logger.error('School validation failed', { err });
         throw new InternalServerError('Internal server error during validation');
       }
 

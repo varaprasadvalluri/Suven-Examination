@@ -3,6 +3,7 @@ import { requireSession, requireRole } from '../auth/middleware';
 import { auth, detectedContainerProjectId, clientDb, clientCollection, clientGetDocs } from '../firestoreClient';
 import { createBreaker } from '../lib/circuitBreaker';
 import { asyncHandler } from '../middleware/errorHandler';
+import { logger } from '../lib/logger';
 import { InternalServerError } from '../lib/errors';
 
 // Each GCP API called here is already individually try/caught with a graceful per-field
@@ -60,7 +61,7 @@ router.post(
 
     const addLog = (msg: string) => {
       const timestamp = new Date().toLocaleTimeString();
-      console.log(`[IAM Sync] ${msg}`);
+      logger.info('IAM sync', { detail: msg });
       logs.push(`[${timestamp}] ${msg}`);
     };
 
@@ -211,7 +212,7 @@ router.post(['/api/v1/admin/cloud/billing', '/api/gcp/live-billing'], requireSes
       const tokenRes = await client.getAccessToken();
       token = tokenRes.token;
     } catch (e) {
-      console.warn('Could not retrieve ADC token:', e);
+      logger.warn('Could not retrieve ADC token', { err: e });
     }
   }
 

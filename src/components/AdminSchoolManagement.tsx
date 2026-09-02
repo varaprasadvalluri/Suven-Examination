@@ -27,19 +27,7 @@ import { Switch } from './ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { useAcademicLevels } from '../hooks/useNamedList';
 import { ManageNamedListDialog } from './ManageNamedListDialog';
-import {
-  Plus,
-  Building2,
-  Search,
-  X,
-  LayoutGrid,
-  List as ListIcon,
-  ShieldCheck,
-  MailCheck,
-  Edit,
-  Trash,
-  MapPin
-} from 'lucide-react';
+import { Plus, Building2, Search, X, LayoutGrid, List as ListIcon, ShieldCheck, MailCheck, Edit, Trash, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { DataLoader } from './DataLoader';
@@ -117,7 +105,12 @@ const getTeachersCount = (totalStudents: number) => {
 
 export const AdminSchoolManagement: React.FC = () => {
   const navigate = useNavigate();
-  const { items: academicLevels, loading: loadingAcademicLevels, addItem: addAcademicLevel, removeItem: removeAcademicLevel } = useAcademicLevels();
+  const {
+    items: academicLevels,
+    loading: loadingAcademicLevels,
+    addItem: addAcademicLevel,
+    removeItem: removeAcademicLevel
+  } = useAcademicLevels();
   const [schools, setSchools] = useState<School[]>([]);
   const [schoolRealAvgScores, setSchoolRealAvgScores] = useState<Record<string, number | null>>({});
   const [loading, setLoading] = useState(true);
@@ -517,7 +510,7 @@ export const AdminSchoolManagement: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Card 1: TOTAL SCHOOLS */}
         <div className="bg-white border border-slate-200/60 rounded-[20px] p-6 shadow-sm flex flex-col justify-between h-32 hover:shadow-md transition-all">
-          <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">TOTAL SCHOOLS</span>
+          <span className="text-[11px] md:text-[10px] font-bold tracking-wider text-slate-400 uppercase">TOTAL SCHOOLS</span>
           <span className="text-4xl font-extrabold text-slate-900 mt-2 font-sans">
             {totalSchoolsCount > 0 ? `${totalSchoolsCount}+` : `${schools.length || '50'}+`}
           </span>
@@ -526,7 +519,7 @@ export const AdminSchoolManagement: React.FC = () => {
 
         {/* Card 2: ACTIVE TODAY */}
         <div className="bg-white border border-slate-200/60 rounded-[20px] p-6 shadow-sm flex flex-col justify-between h-32 hover:shadow-md transition-all">
-          <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">ACTIVE TODAY</span>
+          <span className="text-[11px] md:text-[10px] font-bold tracking-wider text-slate-400 uppercase">ACTIVE TODAY</span>
           <span className="text-4xl font-extrabold text-slate-900 mt-2 font-sans">
             {schools.filter((s) => s.status === 'active').length || 46}
           </span>
@@ -538,7 +531,7 @@ export const AdminSchoolManagement: React.FC = () => {
 
         {/* Card 3: PENDING REVIEW */}
         <div className="bg-white border border-slate-200/60 rounded-[20px] p-6 shadow-sm flex flex-col justify-between h-32 hover:shadow-md transition-all">
-          <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">PENDING REVIEW</span>
+          <span className="text-[11px] md:text-[10px] font-bold tracking-wider text-slate-400 uppercase">PENDING REVIEW</span>
           <span className="text-4xl font-extrabold text-slate-900 mt-2 font-sans">
             {schools.filter((s) => s.status === 'inactive').length || 4}
           </span>
@@ -585,29 +578,29 @@ export const AdminSchoolManagement: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div className="flex flex-col gap-1.5 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-emerald-50/50 hover:border-emerald-100 transition-colors">
-            <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+            <div className="flex items-center gap-1.5 text-[11px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest">
               <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" /> Fully Provisioned
             </div>
             <span className="text-3xl font-black text-slate-900 font-sans">
               {schools.filter((s) => s.status === 'active' && s.allowedDomains?.length > 0).length}
             </span>
-            <span className="text-[10px] text-slate-400 font-medium">Verified domains & email configured</span>
+            <span className="text-[11px] md:text-[10px] text-slate-400 font-medium">Verified domains & email configured</span>
           </div>
           <div className="flex flex-col gap-1.5 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-amber-50/50 hover:border-amber-100 transition-colors">
-            <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+            <div className="flex items-center gap-1.5 text-[11px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest">
               <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]" /> Domain Unverified
             </div>
             <span className="text-3xl font-black text-slate-900 font-sans">
               {schools.filter((s) => s.status === 'active' && (!s.allowedDomains || s.allowedDomains.length === 0)).length}
             </span>
-            <span className="text-[10px] text-slate-400 font-medium">Missing domain whitelisting</span>
+            <span className="text-[11px] md:text-[10px] text-slate-400 font-medium">Missing domain whitelisting</span>
           </div>
           <div className="flex flex-col gap-1.5 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-rose-50/50 hover:border-rose-100 transition-colors">
-            <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+            <div className="flex items-center gap-1.5 text-[11px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest">
               <div className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]" /> Action Required
             </div>
             <span className="text-3xl font-black text-slate-900 font-sans">{schools.filter((s) => s.status === 'inactive').length}</span>
-            <span className="text-[10px] text-slate-400 font-medium">Node suspended or inactive</span>
+            <span className="text-[11px] md:text-[10px] text-slate-400 font-medium">Node suspended or inactive</span>
           </div>
         </div>
       </div>
@@ -669,7 +662,7 @@ export const AdminSchoolManagement: React.FC = () => {
                         <div className="flex flex-col items-end gap-2">
                           <Badge
                             variant={school.status === 'active' ? 'default' : 'secondary'}
-                            className={`rounded-full px-3 py-1 font-black text-[9px] uppercase tracking-widest ${school.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-slate-100 text-slate-500'}`}
+                            className={`rounded-full px-3 py-1 font-black text-[11px] md:text-[9px] uppercase tracking-widest ${school.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-slate-100 text-slate-500'}`}
                           >
                             {school.status}
                           </Badge>
@@ -679,7 +672,7 @@ export const AdminSchoolManagement: React.FC = () => {
                       <CardTitle className="mt-8 font-display font-black text-3xl text-slate-900 leading-none tracking-tight group-hover:text-indigo-600 transition-colors uppercase truncate">
                         {school.name}
                       </CardTitle>
-                      <CardDescription className="flex items-center gap-1.5 text-slate-400 font-bold text-[10px] uppercase tracking-wider mt-2">
+                      <CardDescription className="flex items-center gap-1.5 text-slate-400 font-bold text-[11px] md:text-[10px] uppercase tracking-wider mt-2">
                         <MapPin size={12} className="text-rose-500" /> {school.region || 'Central Zone'}
                       </CardDescription>
                     </CardHeader>
@@ -687,11 +680,15 @@ export const AdminSchoolManagement: React.FC = () => {
                     <CardContent className="px-8 pb-8 space-y-6">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-indigo-50/30 group-hover:border-indigo-100 transition-colors">
-                          <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Enrolled Kids</div>
+                          <div className="text-[11px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                            Enrolled Kids
+                          </div>
                           <span className="text-xs font-black text-slate-800">{school.totalStudents || 120}</span>
                         </div>
                         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-indigo-50/30 group-hover:border-indigo-100 transition-colors">
-                          <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Attendance</div>
+                          <div className="text-[11px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                            Attendance
+                          </div>
                           <span className="text-xs font-black text-emerald-600">{school.attendanceRate || 97.4}%</span>
                         </div>
                       </div>
@@ -702,7 +699,9 @@ export const AdminSchoolManagement: React.FC = () => {
                             <MailCheck className="h-5 w-5" />
                           </div>
                           <div>
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">System Owner</p>
+                            <p className="text-[11px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                              System Owner
+                            </p>
                             <p className="text-sm font-bold text-slate-900 underline decoration-indigo-200 decoration-2 underline-offset-4 truncate max-w-[180px]">
                               {school.adminEmail}
                             </p>
@@ -721,6 +720,7 @@ export const AdminSchoolManagement: React.FC = () => {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                              aria-label={`Edit ${school.name}`}
                               onClick={() => startEdit(school)}
                             >
                               <Edit size={14} />
@@ -729,6 +729,7 @@ export const AdminSchoolManagement: React.FC = () => {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                              aria-label={`Remove ${school.name}`}
                               onClick={() => handleRemoveSchool(school)}
                             >
                               <Trash size={14} />
@@ -802,14 +803,14 @@ export const AdminSchoolManagement: React.FC = () => {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100">
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">SCHOOL</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">CODE</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">CITY</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">STUDENTS</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">TEACHERS</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">SCORE</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">STATUS</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right"></th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400">SCHOOL</th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400">CODE</th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400">CITY</th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400">STUDENTS</th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400">TEACHERS</th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400">SCORE</th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400">STATUS</th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
@@ -864,7 +865,7 @@ export const AdminSchoolManagement: React.FC = () => {
                             {/* STATUS */}
                             <td className="px-6 py-4">
                               <span
-                                className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider border ${
+                                className={`text-[11px] md:text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider border ${
                                   isStatusActive
                                     ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
                                     : 'bg-amber-50 text-amber-600 border-amber-100'
@@ -882,6 +883,7 @@ export const AdminSchoolManagement: React.FC = () => {
                                   size="icon"
                                   className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-full"
                                   onClick={() => startEdit(school)}
+                                  aria-label={`Edit ${school.name}`}
                                   title="Edit"
                                 >
                                   <Edit size={14} />
@@ -891,6 +893,7 @@ export const AdminSchoolManagement: React.FC = () => {
                                   size="icon"
                                   className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full"
                                   onClick={() => handleRemoveSchool(school)}
+                                  aria-label={`Delete ${school.name}`}
                                   title="Delete"
                                 >
                                   <Trash size={14} />
@@ -1023,7 +1026,7 @@ export const AdminSchoolManagement: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="grid gap-1.5">
-                <Label className="text-[10px] font-bold text-slate-700">Enrolled Kids</Label>
+                <Label className="text-[11px] md:text-[10px] font-bold text-slate-700">Enrolled Kids</Label>
                 <Input
                   type="number"
                   value={editFormData.totalStudents}
@@ -1033,7 +1036,7 @@ export const AdminSchoolManagement: React.FC = () => {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label className="text-[10px] font-bold text-slate-700">Attendance (%)</Label>
+                <Label className="text-[11px] md:text-[10px] font-bold text-slate-700">Attendance (%)</Label>
                 <Input
                   type="number"
                   value={editFormData.attendanceRate}
@@ -1043,7 +1046,7 @@ export const AdminSchoolManagement: React.FC = () => {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label className="text-[10px] font-bold text-slate-700">Mean Score</Label>
+                <Label className="text-[11px] md:text-[10px] font-bold text-slate-700">Mean Score</Label>
                 <Input
                   type="number"
                   value={editFormData.avgScore}
@@ -1069,7 +1072,9 @@ export const AdminSchoolManagement: React.FC = () => {
             <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
               <div>
                 <p className="text-xs font-bold text-slate-900 leading-none">Provision Status</p>
-                <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-tight mt-1">Status flag in platform database</p>
+                <p className="text-[11px] md:text-[9px] text-slate-400 font-semibold uppercase tracking-tight mt-1">
+                  Status flag in platform database
+                </p>
               </div>
               <Switch
                 checked={editFormData.status === 'active'}

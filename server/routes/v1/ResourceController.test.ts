@@ -80,7 +80,10 @@ describe('resource-shaped URLs map onto the shared handlers', () => {
   ])('%s %s becomes a "%s" write on that document', async (method, url, type) => {
     const app = await buildApp();
 
-    const res = await (request(app) as any)[method](url).send({ data: { note: 'x' } }).expect(200);
+    const res = await (request(app) as any)
+      [method](url)
+      .send({ data: { note: 'x' } })
+      .expect(200);
 
     expect(res.body.body).toMatchObject({ type, collectionName: 'error_books', docId: 'e1' });
   });
@@ -89,7 +92,10 @@ describe('resource-shaped URLs map onto the shared handlers', () => {
   it('POST /api/v1/:resource becomes an "add" write with no docId', async () => {
     const app = await buildApp();
 
-    const res = await request(app).post('/api/v1/error_books').send({ data: { note: 'x' } }).expect(200);
+    const res = await request(app)
+      .post('/api/v1/error_books')
+      .send({ data: { note: 'x' } })
+      .expect(200);
 
     expect(res.body.body).toMatchObject({ type: 'add', collectionName: 'error_books' });
     expect(res.body.body.docId).toBeUndefined();

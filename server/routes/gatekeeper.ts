@@ -5,6 +5,8 @@ import { signSessionToken, signGatekeeperTicket, verifyGatekeeperTicket } from '
 import { gatekeeperLookupLimiter, gatekeeperEnrollLimiter } from '../middleware/rateLimit';
 import { LOAD_TEST_SECRET } from '../config';
 import { asyncHandler } from '../middleware/errorHandler';
+import { logger } from '../lib/logger';
+import { mockLoadTestStore } from '../lib/loadTestStore';
 import {
   BadRequestError,
   UnauthorizedError,
@@ -36,10 +38,6 @@ const router = express.Router();
 // un-onboarded student still knows what to do without the response disclosing which one it was.
 const STUDENT_LOGIN_FAILURE_MESSAGE =
   "We couldn't verify those details. Check your Full Name and Register / Roll Number, or ask your school to onboard you if you haven't been added yet.";
-
-// In-Memory Store for High-Concurrency Load Tests to prevent consuming Cloud Firestore quota.
-// Exported: /api/db/write's isLoadTestWrite branch reads/writes the same store.
-export const mockLoadTestStore = new Map<string, any>();
 
 // Pre-session identity verification for the invite-link student flow: resolves (or
 // auto-onboards) a student by roll number + school, exactly mirroring what the client used
@@ -195,7 +193,7 @@ router.post(
       // A school is required to scope this invite — silently defaulting to a placeholder
       // school here would previously have attached the student to the wrong tenant with no
       // visible error. This invite doc is malformed; fail loudly instead.
-      console.error(`Invitation ${inviteToken} is missing schoolId — cannot resolve student.`);
+      logger.error('Invitation is missing schoolId — cannot resolve student', { inviteToken });
       throw new UnprocessableEntityError(
         'This invitation is missing required school information. Please contact your school for a new link.'
       );
@@ -221,7 +219,7 @@ router.post(
         studentProfile = { uid: studentSnap.id, ...studentSnap.data() };
       }
     } catch (studentErr) {
-      console.warn('Could not retrieve/create user profile directly:', studentErr);
+      logger.warn('Could not retrieve/create user profile directly', { err: studentErr });
       studentProfile = {
         uid: resolvedStudentId,
         name: iData.studentName || 'Candidate',
@@ -321,7 +319,7 @@ router.post(
     if (!iData.schoolId) {
       // See invite-metadata's identical guard above — a missing schoolId on the invite doc
       // must fail loudly, not silently default to a placeholder school.
-      console.error(`Invitation ${inviteToken} is missing schoolId — cannot resolve student.`);
+      logger.error('Invitation is missing schoolId — cannot resolve student', { inviteToken });
       throw new UnprocessableEntityError(
         'This invitation is missing required school information. Please contact your school for a new link.'
       );
@@ -822,7 +820,7 @@ router.post(
           consumedAt: now.toISOString()
         });
       } catch (inviteErr) {
-        console.warn('Failed to mark invitation as consumed (non-fatal):', inviteErr);
+        logger.warn('Failed to mark invitation as consumed (non-fatal)', { err: inviteErr });
       }
     }
 

@@ -48,7 +48,12 @@ export const AdminCreateExam: React.FC = () => {
 
   const [newExamMode, setNewExamMode] = useState<'global' | 'specific'>('global');
 
-  const { items: subjectCategories, loading: loadingSubjects, addItem: addSubjectCategory, removeItem: removeSubjectCategory } = useSubjectCategories();
+  const {
+    items: subjectCategories,
+    loading: loadingSubjects,
+    addItem: addSubjectCategory,
+    removeItem: removeSubjectCategory
+  } = useSubjectCategories();
 
   const [newExam, setNewExam] = useState({
     title: '',
@@ -162,7 +167,7 @@ export const AdminCreateExam: React.FC = () => {
           </Button>
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] md:text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100">
                 Standalone Module
               </span>
               <span className="text-xs font-bold text-slate-400">Step {step} of 4</span>
@@ -184,7 +189,7 @@ export const AdminCreateExam: React.FC = () => {
                 </div>
                 <div>
                   <span className="font-black text-xs uppercase tracking-widest text-slate-200 block">Assessment Wizard</span>
-                  <span className="text-[10px] font-medium text-slate-400">Institutional Scheduling</span>
+                  <span className="text-[11px] md:text-[10px] font-medium text-slate-400">Institutional Scheduling</span>
                 </div>
               </div>
 
@@ -213,7 +218,7 @@ export const AdminCreateExam: React.FC = () => {
                       >
                         {s.label}
                       </p>
-                      <p className="text-[10px] font-medium text-slate-500 mt-1">{s.desc}</p>
+                      <p className="text-[11px] md:text-[10px] font-medium text-slate-500 mt-1">{s.desc}</p>
                     </div>
                   </div>
                 ))}
@@ -249,7 +254,9 @@ export const AdminCreateExam: React.FC = () => {
 
                     <div className="space-y-6">
                       <div className="grid gap-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Exam Title *</Label>
+                        <Label className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-500">
+                          Exam Title *
+                        </Label>
                         <Input
                           value={newExam.title}
                           onChange={(e) => setNewExam({ ...newExam, title: e.target.value })}
@@ -260,7 +267,9 @@ export const AdminCreateExam: React.FC = () => {
 
                       <div className="grid gap-2">
                         <div className="flex items-center justify-between">
-                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Subject Category *</Label>
+                          <Label className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-500">
+                            Subject Category *
+                          </Label>
                           <ManageNamedListDialog
                             title="Manage Subject Categories"
                             description="Add or remove subject/course entries admins can pick when creating an exam."
@@ -292,7 +301,7 @@ export const AdminCreateExam: React.FC = () => {
                       </div>
 
                       <div className="grid gap-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                        <Label className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-500">
                           Instructions & Syllabus Description *
                         </Label>
                         <Textarea
@@ -323,7 +332,9 @@ export const AdminCreateExam: React.FC = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="grid gap-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Total Marks *</Label>
+                        <Label className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-500">
+                          Total Marks *
+                        </Label>
                         <Input
                           type="number"
                           value={newExam.totalMarks}
@@ -332,7 +343,9 @@ export const AdminCreateExam: React.FC = () => {
                         />
                       </div>
                       <div className="grid gap-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Time Limit (Minutes) *</Label>
+                        <Label className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-500">
+                          Time Limit (Minutes) *
+                        </Label>
                         <Input
                           type="number"
                           value={newExam.duration}
@@ -343,7 +356,9 @@ export const AdminCreateExam: React.FC = () => {
                     </div>
 
                     <div className="grid gap-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Difficulty Level</Label>
+                      <Label className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-500">
+                        Difficulty Level
+                      </Label>
                       <div className="grid grid-cols-3 gap-3">
                         {['Easy', 'Medium', 'Hard'].map((d) => (
                           <button
@@ -378,7 +393,7 @@ export const AdminCreateExam: React.FC = () => {
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div className="grid gap-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                          <Label className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-500">
                             Release Window (Start Date/Time) *
                           </Label>
                           <Input
@@ -389,7 +404,7 @@ export const AdminCreateExam: React.FC = () => {
                           />
                         </div>
                         <div className="grid gap-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                          <Label className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-500">
                             Lock Window (End Date/Time) *
                           </Label>
                           <Input
@@ -403,7 +418,7 @@ export const AdminCreateExam: React.FC = () => {
 
                       {/* Institution Allocation Targeter */}
                       <div className="pt-4 border-t border-slate-100 space-y-4">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">
+                        <Label className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-500 block">
                           Institution Allocation Scope
                         </Label>
                         <div className="flex flex-col sm:flex-row gap-3">
@@ -500,34 +515,40 @@ export const AdminCreateExam: React.FC = () => {
                     </div>
 
                     <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4 max-h-[340px] overflow-y-auto">
-                      <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest border-b border-slate-200 pb-2">
+                      <p className="text-[11px] md:text-[10px] font-black text-indigo-600 uppercase tracking-widest border-b border-slate-200 pb-2">
                         Summary Verification Checklist
                       </p>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Exam Title</span>
+                          <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                            Exam Title
+                          </span>
                           <span className="text-xs font-bold text-slate-900 bg-white p-2.5 rounded-xl border border-slate-200 block">
                             {newExam.title || '—'}
                           </span>
                         </div>
 
                         <div className="space-y-1">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Subject Category</span>
+                          <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                            Subject Category
+                          </span>
                           <span className="text-xs font-bold text-slate-900 bg-white p-2.5 rounded-xl border border-slate-200 block">
                             {newExam.subject}
                           </span>
                         </div>
 
                         <div className="space-y-1">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Difficulty Heuristic</span>
+                          <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                            Difficulty Heuristic
+                          </span>
                           <span className="text-xs font-black text-indigo-600 uppercase bg-white p-2.5 rounded-xl border border-slate-200 block">
                             {newExam.difficulty}
                           </span>
                         </div>
 
                         <div className="space-y-1">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                          <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-wider block">
                             Total Marks & Duration
                           </span>
                           <span className="text-xs font-bold text-slate-900 bg-white p-2.5 rounded-xl border border-slate-200 block">
@@ -536,14 +557,18 @@ export const AdminCreateExam: React.FC = () => {
                         </div>
 
                         <div className="space-y-1">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Start Release Window</span>
+                          <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                            Start Release Window
+                          </span>
                           <span className="text-xs font-bold text-slate-900 bg-white p-2.5 rounded-xl border border-slate-200 block">
                             {newExam.startTime ? new Date(newExam.startTime).toLocaleString() : 'Not set'}
                           </span>
                         </div>
 
                         <div className="space-y-1">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">End Lock Window</span>
+                          <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                            End Lock Window
+                          </span>
                           <span className="text-xs font-bold text-slate-900 bg-white p-2.5 rounded-xl border border-slate-200 block">
                             {newExam.endTime ? new Date(newExam.endTime).toLocaleString() : 'Not set'}
                           </span>
@@ -551,7 +576,7 @@ export const AdminCreateExam: React.FC = () => {
                       </div>
 
                       <div className="space-y-1">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                        <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-wider block">
                           Institutional Target Allocation
                         </span>
                         <span className="text-xs font-bold text-slate-900 bg-white p-2.5 rounded-xl border border-slate-200 block">
@@ -568,7 +593,7 @@ export const AdminCreateExam: React.FC = () => {
                       </div>
 
                       <div className="space-y-1">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                        <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-wider block">
                           Instructions & Guidelines
                         </span>
                         <p className="text-xs font-medium text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200 whitespace-pre-wrap">

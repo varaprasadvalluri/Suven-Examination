@@ -25,7 +25,11 @@ let isProcessingQueue = false;
 const WRITE_BATCH_SIZE = 500; // Firestore's actual per-batch operation limit
 const MAX_CONCURRENT_BATCHES = 12; // bounds how many batch-commit calls run at once per tick
 
-// Drain rate is ~WRITE_BATCH_SIZE * MAX_CONCURRENT_BATCHES per 1.2s tick (~5,000 ops/sec).
+// Drain rate is ~WRITE_BATCH_SIZE * MAX_CONCURRENT_BATCHES per commit round trip. That figure
+// only became true once clientWriteBatch started issuing a real Firestore `:commit` (one HTTP
+// request for all 500 writes) instead of looping one PATCH per document — under the old
+// implementation a "batch" was 500 serial requests, so the effective ceiling was 12 writes in
+// flight, on the order of 250 ops/sec rather than the ~5,000 assumed here.
 // If Firestore itself slows down (quota throttling, an outage, a slow region) faster than
 // requests keep arriving, this in-memory array has no other bound and will grow until the
 // Cloud Run instance OOMs — taking down every in-flight write for every student on that
@@ -83,11 +87,50 @@ export async function processWriteBatch(batchToProcess: WriteTask[]): Promise<vo
         invalidateCache(task.collectionName);
         task.resolve({ success: true, id: task.docId });
       } catch (individualErr: any) {
-        logger.error('Write task failed', { collectionName: task.collectionName, docId: task.docId, type: task.type, error: individualErr });
+        logger.error('Write task failed', {
+          collectionName: task.collectionName,
+          docId: task.docId,
+          type: task.type,
+          error: individualErr
+        });
         task.reject(individualErr);
       }
     }
   }
+}
+
+// ORDERING — why writes are grouped into rounds instead of sliced straight into batches.
+//
+// This used to splice the queue into up to 12 batches and commit all of them with
+// Promise.all. Two writes to the SAME document could therefore land in different concurrent
+// batches and commit in either order. The case that matters: a student's final submission
+// (status 'submitted') and the autosave tick that follows it (status 'in-progress') both
+// target the same attempt. Committed out of order, the autosave wins, the grading worker sees
+// a status it refuses to grade (server/lib/taskQueue.ts), and the attempt is silently left
+// with no score.
+//
+// Round N holds each document's Nth queued write, in arrival order. Almost every document
+// appears once, so round 0 holds nearly everything and later rounds are tiny — the cost of
+// ordering is a couple of extra small commits, not lost throughput.
+//
+// An 'add' with no docId gets its generated id here rather than inside processWriteBatch, so
+// it has a stable identity to be grouped by (and, being freshly generated, never collides).
+function groupIntoOrderedRounds(tasks: WriteTask[]): WriteTask[][] {
+  const roundByDoc = new Map<string, number>();
+  const rounds: WriteTask[][] = [];
+
+  for (const task of tasks) {
+    if (task.type === 'add' && !task.docId) {
+      task.docId = generateEduKey(task.collectionName);
+    }
+    const docKey = `${task.collectionName}/${task.docId}`;
+    const roundIndex = roundByDoc.get(docKey) ?? 0;
+    roundByDoc.set(docKey, roundIndex + 1);
+    if (!rounds[roundIndex]) rounds[roundIndex] = [];
+    rounds[roundIndex].push(task);
+  }
+
+  return rounds;
 }
 
 // Drains the FULL backlog each call — in parallel batches, bounded by MAX_CONCURRENT_BATCHES
@@ -111,25 +154,39 @@ export async function flushQueue(): Promise<void> {
 
   try {
     while (writeQueue.length > 0) {
-      const group: WriteTask[][] = [];
       // Captured before the splice below empties the queue, so the reported depth/age
       // describe the backlog this flush actually found.
       const depthBeforeFlush = writeQueue.length;
       const oldestTaskAgeMs = Date.now() - writeQueue[0].enqueuedAt;
       const flushStartedAt = Date.now();
 
-      for (let i = 0; i < MAX_CONCURRENT_BATCHES && writeQueue.length > 0; i++) {
-        group.push(writeQueue.splice(0, WRITE_BATCH_SIZE));
+      const drained = writeQueue.splice(0, WRITE_BATCH_SIZE * MAX_CONCURRENT_BATCHES);
+      const totalOps = drained.length;
+      const rounds = groupIntoOrderedRounds(drained);
+      let batchCount = 0;
+
+      // Rounds run in sequence, the batches WITHIN a round run in parallel. Every batch in a
+      // round holds at most one write per document, so parallelism inside a round can't reorder
+      // anything, and a document's second write is always in a later round than its first.
+      for (const round of rounds) {
+        for (let offset = 0; offset < round.length; offset += WRITE_BATCH_SIZE * MAX_CONCURRENT_BATCHES) {
+          const wave = round.slice(offset, offset + WRITE_BATCH_SIZE * MAX_CONCURRENT_BATCHES);
+          const batches: WriteTask[][] = [];
+          for (let i = 0; i < wave.length; i += WRITE_BATCH_SIZE) {
+            batches.push(wave.slice(i, i + WRITE_BATCH_SIZE));
+          }
+          batchCount += batches.length;
+          await Promise.all(batches.map(processWriteBatch));
+        }
       }
-      const totalOps = group.reduce((sum, b) => sum + b.length, 0);
-      await Promise.all(group.map(processWriteBatch));
 
       // Structured, so Cloud Logging can turn these into log-based metrics. queueDepth and
       // oldestTaskAgeMs are the two numbers to alert on during an exam window — a sustained
       // rise in either means writes are arriving faster than Firestore is accepting them,
       // and the MAX_QUEUE_SIZE rejection below is where that ends if it isn't caught.
       logger.info('Write queue flush', {
-        batches: group.length,
+        batches: batchCount,
+        rounds: rounds.length,
         operations: totalOps,
         queueDepth: depthBeforeFlush,
         queueRemaining: writeQueue.length,

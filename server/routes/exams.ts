@@ -15,6 +15,7 @@ import {
   clientAddDoc
 } from '../firestoreClient';
 import { asyncHandler } from '../middleware/errorHandler';
+import { logger } from '../lib/logger';
 import { BadRequestError, ForbiddenError, NotFoundError, InternalServerError } from '../lib/errors';
 
 const router = express.Router();
@@ -222,12 +223,12 @@ router.post(
               fs.unlinkSync(tempFilePath);
             }
           } catch (cleanupErr) {
-            console.error('Temp file cleanup failed:', cleanupErr);
+            logger.error('Temp file cleanup failed', { err: cleanupErr });
           }
 
           if (error) {
-            console.error('Python docx_parser exec error:', error);
-            console.error('Python stderr:', stderr);
+            logger.error('Python docx_parser exec failed', { err: error });
+            logger.error('Python docx_parser stderr', { stderr });
             return res.status(500).json({ error: 'Document parser execution failed.', details: stderr });
           }
 
@@ -269,7 +270,7 @@ router.post(
               message: `Successfully imported ${savedCount} questions to assessment.`
             });
           } catch (_parseErr) {
-            console.error('Failed to parse Python parser output or save questions:', stdout);
+            logger.error('Failed to parse docx_parser output or save questions', { stdout });
             return res.status(500).json({
               error: 'Invalid response from document parser or save questions failure.',
               rawOutput: stdout,
@@ -279,7 +280,7 @@ router.post(
         }
       );
     } catch (err: any) {
-      console.error('Failed in document upload API handler:', err);
+      logger.error('Document upload handler failed', { err });
       try {
         if (fs.existsSync(tempFilePath)) {
           fs.unlinkSync(tempFilePath);
@@ -287,7 +288,7 @@ router.post(
       } catch (cleanupErr) {
         // Best-effort cleanup — a leftover temp file isn't worth failing the request over,
         // but silently swallowing it made a real disk/permissions problem invisible.
-        console.warn('Failed to clean up temp upload file:', tempFilePath, cleanupErr);
+        logger.warn('Failed to clean up temp upload file', { tempFilePath, err: cleanupErr });
       }
       throw new InternalServerError(err.message || String(err));
     }

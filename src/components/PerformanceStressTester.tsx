@@ -21,17 +21,7 @@ import {
   Flame,
   Gauge
 } from 'lucide-react';
-import {
-  ResponsiveContainer,
-  Area,
-  Line,
-  ComposedChart,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend
-} from 'recharts';
+import { ResponsiveContainer, Area, Line, ComposedChart, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { toast } from 'sonner';
 
 interface SimulatedUser {
@@ -395,11 +385,11 @@ export const PerformanceStressTester: React.FC = () => {
                 <span className="text-xs font-black uppercase text-indigo-950 tracking-wider flex items-center gap-1">
                   <Zap className="h-3.5 w-3.5 text-indigo-600 fill-indigo-100" /> Live Database Ping
                 </span>
-                <Badge variant="outline" className="text-[10px] bg-white text-indigo-700 border-indigo-200">
+                <Badge variant="outline" className="text-[11px] md:text-[10px] bg-white text-indigo-700 border-indigo-200">
                   {actualPing !== null ? `${actualPing}ms` : 'Not Measured'}
                 </Badge>
               </div>
-              <p className="text-[10px] text-slate-500 font-semibold leading-relaxed">
+              <p className="text-[11px] md:text-[10px] text-slate-500 font-semibold leading-relaxed">
                 Connect and check real-time latency by triggering a localized benchmark read/write cycle.
               </p>
               <Button
@@ -416,7 +406,9 @@ export const PerformanceStressTester: React.FC = () => {
 
             {/* Scenario Select */}
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Scenario Simulation</label>
+              <label className="text-[11px] md:text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                Scenario Simulation
+              </label>
               <select
                 value={selectedScenario}
                 onChange={(e) => setSelectedScenario(e.target.value as any)}
@@ -432,7 +424,7 @@ export const PerformanceStressTester: React.FC = () => {
 
             {/* Concurrent Users Slider */}
             <div className="space-y-2">
-              <div className="flex justify-between items-center text-[10px] font-black text-slate-500 uppercase tracking-wider">
+              <div className="flex justify-between items-center text-[11px] md:text-[10px] font-black text-slate-500 uppercase tracking-wider">
                 <span>Target Concurrent Sessions</span>
                 <span className="text-indigo-600 font-black">{targetUsers} Users</span>
               </div>
@@ -450,7 +442,7 @@ export const PerformanceStressTester: React.FC = () => {
 
             {/* Ramp up Slider */}
             <div className="space-y-2">
-              <div className="flex justify-between items-center text-[10px] font-black text-slate-500 uppercase tracking-wider">
+              <div className="flex justify-between items-center text-[11px] md:text-[10px] font-black text-slate-500 uppercase tracking-wider">
                 <span>Ramp Up Duration</span>
                 <span className="text-indigo-600 font-black">{rampUpDuration} Seconds</span>
               </div>
@@ -468,7 +460,9 @@ export const PerformanceStressTester: React.FC = () => {
 
             {/* Intensity / Frequency Mode */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Write Frequency Intensity</label>
+              <label className="text-[11px] md:text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                Write Frequency Intensity
+              </label>
               <div className="grid grid-cols-3 gap-2">
                 {(['paced', 'normal', 'aggressive'] as const).map((lvl) => (
                   <button
@@ -476,7 +470,7 @@ export const PerformanceStressTester: React.FC = () => {
                     type="button"
                     onClick={() => setIntensity(lvl)}
                     disabled={isRunning}
-                    className={`h-9 rounded-xl text-[10px] font-extrabold uppercase border transition-all ${
+                    className={`h-9 rounded-xl text-[11px] md:text-[10px] font-extrabold uppercase border transition-all ${
                       intensity === lvl
                         ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
                         : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
@@ -515,41 +509,43 @@ export const PerformanceStressTester: React.FC = () => {
           {/* Key Metric Blocks */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-md flex flex-col justify-between">
-              <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Simulated Sessions</span>
+              <span className="text-[11px] md:text-[9px] font-black uppercase text-slate-400 tracking-wider">Simulated Sessions</span>
               <div className="flex items-baseline gap-1 mt-2">
                 <span className="text-2xl font-black text-slate-900">{metrics.concurrentUsers}</span>
                 <span className="text-xs font-semibold text-indigo-500">/{targetUsers}</span>
               </div>
-              <p className="text-[9px] text-slate-400 font-semibold mt-1">Active concurrency state</p>
+              <p className="text-[11px] md:text-[9px] text-slate-400 font-semibold mt-1">Active concurrency state</p>
             </div>
 
             <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-md flex flex-col justify-between">
-              <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Avg Response Time</span>
+              <span className="text-[11px] md:text-[9px] font-black uppercase text-slate-400 tracking-wider">Avg Response Time</span>
               <div className="flex items-baseline gap-1 mt-2">
                 <span className="text-2xl font-black text-slate-900">{metrics.avgLatency}</span>
-                <span className="text-[10px] font-bold text-indigo-600">ms</span>
+                <span className="text-[11px] md:text-[10px] font-bold text-indigo-600">ms</span>
               </div>
-              <p className="text-[9px] text-slate-400 font-semibold mt-1">Peak: {metrics.peakLatency}ms</p>
+              <p className="text-[11px] md:text-[9px] text-slate-400 font-semibold mt-1">Peak: {metrics.peakLatency}ms</p>
             </div>
 
             <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-md flex flex-col justify-between">
-              <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Firestore I/O Total</span>
+              <span className="text-[11px] md:text-[9px] font-black uppercase text-slate-400 tracking-wider">Firestore I/O Total</span>
               <div className="flex items-baseline gap-1 mt-2">
                 <span className="text-2xl font-black text-slate-900">{metrics.firestoreReads + metrics.firestoreWrites}</span>
-                <span className="text-[10px] font-bold text-indigo-600">Ops</span>
+                <span className="text-[11px] md:text-[10px] font-bold text-indigo-600">Ops</span>
               </div>
-              <p className="text-[9px] text-slate-400 font-semibold mt-1">
+              <p className="text-[11px] md:text-[9px] text-slate-400 font-semibold mt-1">
                 W: {metrics.firestoreWrites} | R: {metrics.firestoreReads}
               </p>
             </div>
 
             <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-md flex flex-col justify-between">
-              <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Security Barrier</span>
+              <span className="text-[11px] md:text-[9px] font-black uppercase text-slate-400 tracking-wider">Security Barrier</span>
               <div className="flex items-baseline gap-1 mt-2">
                 <span className="text-2xl font-black text-emerald-600">{metrics.successRate}%</span>
-                <span className="text-[9px] font-bold text-slate-400">Blocked</span>
+                <span className="text-[11px] md:text-[9px] font-bold text-slate-400">Blocked</span>
               </div>
-              <p className="text-[9px] text-slate-400 font-semibold mt-1">Exploits denied: {metrics.securityChecksPassed}/5</p>
+              <p className="text-[11px] md:text-[9px] text-slate-400 font-semibold mt-1">
+                Exploits denied: {metrics.securityChecksPassed}/5
+              </p>
             </div>
           </div>
 
@@ -577,9 +573,11 @@ export const PerformanceStressTester: React.FC = () => {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">API Gateway Resilience Engine</span>
+                  <span className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    API Gateway Resilience Engine
+                  </span>
                   <span
-                    className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase border ${
+                    className={`text-[11px] md:text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase border ${
                       cbState === 'OPEN'
                         ? 'bg-rose-100 text-rose-700 border-rose-200'
                         : cbState === 'HALF_OPEN'
@@ -599,7 +597,7 @@ export const PerformanceStressTester: React.FC = () => {
                 </h4>
               </div>
             </div>
-            <div className="text-[10px] font-bold text-slate-500 font-mono hidden sm:block bg-white/50 px-2.5 py-1 rounded-lg border border-slate-100">
+            <div className="text-[11px] md:text-[10px] font-bold text-slate-500 font-mono hidden sm:block bg-white/50 px-2.5 py-1 rounded-lg border border-slate-100">
               {cbState === 'OPEN' ? 'Latency limit exceeded (>1.5s)' : 'Latency standard: OK'}
             </div>
           </div>
@@ -628,7 +626,7 @@ export const PerformanceStressTester: React.FC = () => {
                     <TrendingUp className="h-5 w-5" />
                   </div>
                   <p className="text-xs font-black text-slate-400 uppercase tracking-wider">No Active Simulation Logs</p>
-                  <p className="text-[10px] text-slate-400 font-semibold max-w-sm leading-normal">
+                  <p className="text-[11px] md:text-[10px] text-slate-400 font-semibold max-w-sm leading-normal">
                     Click "Launch Concurrency Test" to generate telemetry curves and capture database throughput statistics.
                   </p>
                 </div>
@@ -750,7 +748,9 @@ export const PerformanceStressTester: React.FC = () => {
                 <Lock className="text-emerald-600 h-5 w-5" />
                 <CardTitle className="text-base font-black text-slate-900 uppercase tracking-tight">Security Audit Pin Testing</CardTitle>
               </div>
-              <Badge className="bg-emerald-100 text-emerald-800 font-bold text-[9px] uppercase tracking-wider">Zero Trust Sandbox</Badge>
+              <Badge className="bg-emerald-100 text-emerald-800 font-bold text-[11px] md:text-[9px] uppercase tracking-wider">
+                Zero Trust Sandbox
+              </Badge>
             </div>
             <CardDescription className="text-xs font-semibold text-slate-400">
               Boundary validation suite attempting to break Identity, Integrity, and Schema rules.
@@ -762,34 +762,36 @@ export const PerformanceStressTester: React.FC = () => {
                 <div className="flex justify-between items-start gap-2">
                   <div>
                     <span className="font-extrabold text-slate-800 block">{test.name}</span>
-                    <span className="text-[10px] text-slate-400 font-semibold">{test.category}</span>
+                    <span className="text-[11px] md:text-[10px] text-slate-400 font-semibold">{test.category}</span>
                   </div>
                   <Badge
                     className={`${
                       test.severity === 'Critical'
                         ? 'bg-rose-50 text-rose-700 border-rose-100'
                         : 'bg-amber-50 text-amber-700 border-amber-100'
-                    } text-[8px] font-black uppercase px-2 py-0.5 rounded-md`}
+                    } text-[11px] md:text-[8px] font-black uppercase px-2 py-0.5 rounded-md`}
                   >
                     {test.severity}
                   </Badge>
                 </div>
 
-                <div className="flex justify-between items-center text-[10px] pt-1 border-t border-slate-100/60 font-mono text-slate-500">
+                <div className="flex justify-between items-center text-[11px] md:text-[10px] pt-1 border-t border-slate-100/60 font-mono text-slate-500">
                   <span>
                     Expect: <span className="font-bold text-indigo-600">{test.expectedResult}</span>
                   </span>
                   <div className="flex items-center gap-1">
                     {test.actualResult === 'Untested' && (
-                      <span className="bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded text-[8px]">UNTESTED</span>
+                      <span className="bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded text-[11px] md:text-[8px]">
+                        UNTESTED
+                      </span>
                     )}
                     {test.actualResult === 'Blocked' && (
-                      <span className="bg-emerald-100 text-emerald-800 font-black px-1.5 py-0.5 rounded text-[8px] flex items-center gap-1">
+                      <span className="bg-emerald-100 text-emerald-800 font-black px-1.5 py-0.5 rounded text-[11px] md:text-[8px] flex items-center gap-1">
                         <ShieldCheck className="h-3 w-3" /> SECURE BLOCKED
                       </span>
                     )}
                     {test.actualResult === 'Allowed' && (
-                      <span className="bg-rose-100 text-rose-800 font-black px-1.5 py-0.5 rounded text-[8px] flex items-center gap-1 animate-pulse">
+                      <span className="bg-rose-100 text-rose-800 font-black px-1.5 py-0.5 rounded text-[11px] md:text-[8px] flex items-center gap-1 animate-pulse">
                         <ShieldAlert className="h-3 w-3" /> VULNERABILITY
                       </span>
                     )}
@@ -811,9 +813,9 @@ export const PerformanceStressTester: React.FC = () => {
               Live stdout of validation payloads thrown at active Security Rules.
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-6 bg-slate-950 text-slate-200 font-mono text-[11px] h-[300px] overflow-y-auto leading-relaxed space-y-2 rounded-b-[28px]">
+          <CardContent className="p-6 bg-slate-950 text-slate-200 font-mono text-[12px] md:text-[11px] h-[300px] overflow-y-auto leading-relaxed space-y-2 rounded-b-[28px]">
             {exploitLogs.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-slate-600 italic text-[10px]">
+              <div className="h-full flex items-center justify-center text-slate-600 italic text-[11px] md:text-[10px]">
                 No active security audits in progress. Launch a stress test to trace exploits.
               </div>
             ) : (
@@ -857,11 +859,11 @@ export const PerformanceStressTester: React.FC = () => {
               <AlertTriangle className="text-indigo-600 h-5 w-5" />
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Single Document Hotspots</h4>
             </div>
-            <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
+            <p className="text-[12px] md:text-[11px] text-slate-500 font-semibold leading-relaxed">
               When 500+ users write to a single document simultaneously (e.g., live proctor count, aggregate leaderboards), Firestore limits
               writing to 1 operation per second.
             </p>
-            <div className="text-[10px] text-indigo-700 font-extrabold pt-1">
+            <div className="text-[11px] md:text-[10px] text-indigo-700 font-extrabold pt-1">
               Mitigation: Implemented Distributed Counters to split aggregate statistics across 10 random counter sub-shards.
             </div>
           </div>
@@ -871,11 +873,11 @@ export const PerformanceStressTester: React.FC = () => {
               <CheckCircle className="text-emerald-600 h-5 w-5" />
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">CORS & SQL Injection Shield</h4>
             </div>
-            <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
+            <p className="text-[12px] md:text-[11px] text-slate-500 font-semibold leading-relaxed">
               CORS headers are hardened on all public API ingress paths. NoSQL schemas are safe against typical SQL-style parameter
               manipulation.
             </p>
-            <div className="text-[10px] text-emerald-700 font-extrabold pt-1">
+            <div className="text-[11px] md:text-[10px] text-emerald-700 font-extrabold pt-1">
               Mitigation: All client parameters strictly validated against strongly-typed TypeScript validation boundaries.
             </div>
           </div>
@@ -885,10 +887,10 @@ export const PerformanceStressTester: React.FC = () => {
               <CheckCircle className="text-purple-600 h-5 w-5" />
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Redis Session Rate Limiter</h4>
             </div>
-            <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
+            <p className="text-[12px] md:text-[11px] text-slate-500 font-semibold leading-relaxed">
               Burst duplicate submission requests during high load can compromise database state consistency and double-write scorebooks.
             </p>
-            <div className="text-[10px] text-purple-700 font-extrabold pt-1">
+            <div className="text-[11px] md:text-[10px] text-purple-700 font-extrabold pt-1">
               Mitigation: Enforced middleware rate limiting on exam submission flow using a fast-checking persistent Redis SETNX lock.
             </div>
           </div>
@@ -898,11 +900,11 @@ export const PerformanceStressTester: React.FC = () => {
               <AlertTriangle className="text-amber-600 h-5 w-5" />
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Denial of Wallet Protection</h4>
             </div>
-            <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
+            <p className="text-[12px] md:text-[11px] text-slate-500 font-semibold leading-relaxed">
               Attackers attempting to query list pages of large collections to force thousands of database reads resulting in high cloud
               costs.
             </p>
-            <div className="text-[10px] text-amber-700 font-extrabold pt-1">
+            <div className="text-[11px] md:text-[10px] text-amber-700 font-extrabold pt-1">
               Mitigation: Enforced `limit(50)` on all dashboard collections and secured the Firestore list query rules by checking
               `resource.data`.
             </div>

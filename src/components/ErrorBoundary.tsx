@@ -128,7 +128,9 @@ export class ErrorBoundary extends Component<Props, State> {
               <div className="w-16 h-16 rounded-2xl bg-rose-50 border-2 border-b-[4px] border-rose-200 text-rose-600 flex items-center justify-center">
                 <AlertTriangle className="h-8 w-8 animate-bounce" />
               </div>
-              <span className="text-[10px] font-black tracking-widest text-rose-500 uppercase">CRITICAL RENDERING FAULT</span>
+              <span className="text-[11px] md:text-[10px] font-black tracking-widest text-rose-500 uppercase">
+                CRITICAL RENDERING FAULT
+              </span>
             </div>
 
             <div className="space-y-3 mb-8">
@@ -155,14 +157,14 @@ export class ErrorBoundary extends Component<Props, State> {
 
               {showTechnicalDetails && (
                 <div className="px-5 pb-5 pt-1 border-t border-slate-200/60">
-                  <pre className="text-[10px] font-mono font-medium text-rose-600 bg-rose-50/50 p-4 rounded-xl max-h-48 overflow-auto border border-rose-100 whitespace-pre-wrap leading-relaxed">
+                  <pre className="text-[11px] md:text-[10px] font-mono font-medium text-rose-600 bg-rose-50/50 p-4 rounded-xl max-h-48 overflow-auto border border-rose-100 whitespace-pre-wrap leading-relaxed">
                     {crashError?.stack || crashError?.message || 'No stack trace found.'}
                   </pre>
                   <div className="mt-3 flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={this.handleCopyDetails}
-                      className="h-8 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-[10px] font-bold text-slate-600 flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                      className="h-8 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-[11px] md:text-[10px] font-bold text-slate-600 flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
                     >
                       {isCopied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
                       {isCopied ? 'Copied Log' : 'Copy Stack Trace'}
@@ -227,10 +229,10 @@ export class ErrorBoundary extends Component<Props, State> {
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-black tracking-widest text-amber-500 uppercase block mb-1">
+                  <span className="text-[11px] md:text-[10px] font-black tracking-widest text-amber-500 uppercase block mb-1">
                     Custom Operational Exception
                   </span>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-500 font-mono">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] md:text-[10px] font-bold text-slate-500 font-mono">
                     Exception Code: {activeException.code}
                   </div>
                 </div>
@@ -261,14 +263,14 @@ export class ErrorBoundary extends Component<Props, State> {
 
                 {showTechnicalDetails && (
                   <div className="px-5 pb-5 pt-1 border-t border-slate-200/60">
-                    <pre className="text-[10px] font-mono font-medium text-slate-600 bg-slate-100 p-3.5 rounded-xl max-h-36 overflow-auto border border-slate-200/60 whitespace-pre-wrap leading-relaxed">
+                    <pre className="text-[11px] md:text-[10px] font-mono font-medium text-slate-600 bg-slate-100 p-3.5 rounded-xl max-h-36 overflow-auto border border-slate-200/60 whitespace-pre-wrap leading-relaxed">
                       {activeException.technicalDetails}
                     </pre>
                     <div className="mt-3 flex justify-end">
                       <button
                         type="button"
                         onClick={this.handleCopyDetails}
-                        className="h-8 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-[10px] font-bold text-slate-600 flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                        className="h-8 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-[11px] md:text-[10px] font-bold text-slate-600 flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
                       >
                         {isCopied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
                         {isCopied ? 'Copied Log' : 'Copy Raw Details'}
@@ -298,7 +300,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </div>
 
               {/* Safe Humble Identifier Disclaimer */}
-              <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider text-center">
+              <p className="text-[11px] md:text-[8px] text-slate-400 font-bold uppercase tracking-wider text-center">
                 SuvenEdu Safety Node • Active Exception Mapped Successfully
               </p>
             </div>

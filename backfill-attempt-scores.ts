@@ -38,7 +38,9 @@ const examIdArg = process.argv.find((a) => a.startsWith('--examId='));
 const SCOPE_EXAM_ID = examIdArg ? examIdArg.split('=')[1] : undefined;
 
 async function main() {
-  console.log(`[backfill] Mode: ${APPLY ? 'APPLY (will write)' : 'DRY RUN (report only)'}${SCOPE_EXAM_ID ? `, scoped to examId=${SCOPE_EXAM_ID}` : ''}`);
+  console.log(
+    `[backfill] Mode: ${APPLY ? 'APPLY (will write)' : 'DRY RUN (report only)'}${SCOPE_EXAM_ID ? `, scoped to examId=${SCOPE_EXAM_ID}` : ''}`
+  );
 
   const constraints = [clientWhere('status', '==', 'completed')];
   if (SCOPE_EXAM_ID) constraints.push(clientWhere('examId', '==', SCOPE_EXAM_ID));

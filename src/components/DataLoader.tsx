@@ -82,7 +82,7 @@ export const DataLoader: React.FC<DataLoaderProps> = ({
                 >
                   {loadingMessage}
                 </motion.p>
-                <p className="text-[11px] font-semibold text-slate-400">
+                <p className="text-[12px] md:text-[11px] font-semibold text-slate-400">
                   Securing authentication tokens and fetching registry data packages...
                 </p>
               </div>
@@ -112,10 +112,10 @@ export const DataLoader: React.FC<DataLoaderProps> = ({
               </div>
 
               <div className="bg-rose-50/50 border border-rose-100/60 p-4 rounded-2xl text-left font-mono">
-                <p className="text-[10px] font-black uppercase tracking-wider text-rose-600 flex items-center gap-1.5 mb-1">
+                <p className="text-[11px] md:text-[10px] font-black uppercase tracking-wider text-rose-600 flex items-center gap-1.5 mb-1">
                   <AlertCircle className="h-3 w-3" /> Diagnostics Payload:
                 </p>
-                <p className="text-[11px] text-rose-800 font-semibold break-all leading-relaxed">
+                <p className="text-[12px] md:text-[11px] text-rose-800 font-semibold break-all leading-relaxed">
                   {typeof error === 'string' ? error : error.message || 'Unknown communication failure'}
                 </p>
               </div>

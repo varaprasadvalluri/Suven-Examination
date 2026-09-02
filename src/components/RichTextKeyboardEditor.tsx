@@ -165,7 +165,9 @@ export const RichTextKeyboardEditor: React.FC<RichTextKeyboardEditorProps> = ({
         <div className="flex items-center justify-between gap-4 flex-wrap border-b border-slate-100 pb-2">
           <div className="flex items-center gap-1.5">
             <Languages className="h-4 w-4 text-indigo-600" />
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-700">Special Characters Keyboard Overlay</span>
+            <span className="text-[11px] md:text-[10px] font-black uppercase tracking-wider text-slate-700">
+              Special Characters Keyboard Overlay
+            </span>
           </div>
 
           <div className="flex gap-1">
@@ -174,7 +176,7 @@ export const RichTextKeyboardEditor: React.FC<RichTextKeyboardEditorProps> = ({
                 key={lang}
                 type="button"
                 onClick={() => setActiveLangFilter(lang as any)}
-                className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider cursor-pointer border transition-colors ${activeLangFilter === lang ? 'bg-indigo-600 border-indigo-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'}`}
+                className={`px-2 py-1 rounded-lg text-[11px] md:text-[9px] font-black uppercase tracking-wider cursor-pointer border transition-colors ${activeLangFilter === lang ? 'bg-indigo-600 border-indigo-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'}`}
               >
                 {lang}
               </button>

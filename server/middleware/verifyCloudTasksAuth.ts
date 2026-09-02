@@ -1,9 +1,10 @@
 import { OAuth2Client } from 'google-auth-library';
-import { CLOUD_RUN_SERVICE_URL, CLOUD_TASKS_INVOKER_SA } from '../config';
+import { CLOUD_RUN_SERVICE_URL, CLOUD_TASKS_INVOKER_SA, GRADING_WORKER_PATHS } from '../config';
+import { logger } from '../lib/logger';
 
 const oidcClient = new OAuth2Client();
 
-// Gate for /api/internal/grade-attempt — this is a worker route invoked by Cloud Tasks, not
+// Gate for the grading worker route (GRADING_WORKER_PATHS) — invoked by Cloud Tasks, not
 // a student-facing one, so it's verified differently from requireSession (server/auth/
 // middleware.ts): Cloud Tasks attaches a Google-signed OIDC ID token (configured in
 // server/lib/taskQueue.ts's httpRequest.oidcToken) instead of one of this app's own session
@@ -24,8 +25,16 @@ export async function verifyCloudTasksAuth(req: any, res: any, next: () => void)
   }
 
   try {
-    const audience = `${CLOUD_RUN_SERVICE_URL}/api/internal/grade-attempt`;
-    const ticket = await oidcClient.verifyIdToken({ idToken: authHeader.slice('Bearer '.length), audience });
+    // Every path this route is mounted at, because an OIDC audience is the task's target URL
+    // verbatim. This used to be a single hardcoded string naming the LEGACY alias while
+    // taskQueue.ts dispatched to the v1 path — so verifyIdToken threw on the audience mismatch
+    // and rejected every genuine Cloud Tasks dispatch with a 401. Cloud Tasks then retried,
+    // failed identically, and eventually gave up: in a deployment with Cloud Tasks actually
+    // configured, no attempt was ever graded, and every submission stayed at
+    // status:'submitted' forever. It could not show up in local dev or the sandbox, where
+    // enqueueGradingTask grades inline instead of dispatching (see taskQueue.ts).
+    const audience = GRADING_WORKER_PATHS.map((workerPath) => `${CLOUD_RUN_SERVICE_URL}${workerPath}`);
+    const ticket = await oidcClient.verifyIdToken({ idToken: authHeader.slice('Bearer '.length), audience: audience as string[] });
     const payload = ticket.getPayload();
     if (!payload) {
       return res.status(401).json({ error: 'Invalid OIDC token' });
@@ -35,7 +44,7 @@ export async function verifyCloudTasksAuth(req: any, res: any, next: () => void)
     }
     next();
   } catch (err: any) {
-    console.error('[Cloud Tasks Auth] OIDC verification failed:', err);
+    logger.error('Cloud Tasks OIDC verification failed', { err });
     return res.status(401).json({ error: 'OIDC token verification failed' });
   }
 }

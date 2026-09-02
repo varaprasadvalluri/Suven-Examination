@@ -74,9 +74,24 @@ describe('checkProductionConfig', () => {
   // Not fatal — the app grades correctly either way — but it changes the shape of exam-end
   // load completely, so it must be visible before an exam rather than during one.
   it.each([
-    ['CLOUD_TASKS_LOCATION', (): void => { configState.CLOUD_TASKS_LOCATION = null; }],
-    ['CLOUD_TASKS_QUEUE', (): void => { configState.CLOUD_TASKS_QUEUE = null; }],
-    ['CLOUD_RUN_SERVICE_URL', (): void => { configState.CLOUD_RUN_SERVICE_URL = null; }]
+    [
+      'CLOUD_TASKS_LOCATION',
+      (): void => {
+        configState.CLOUD_TASKS_LOCATION = null;
+      }
+    ],
+    [
+      'CLOUD_TASKS_QUEUE',
+      (): void => {
+        configState.CLOUD_TASKS_QUEUE = null;
+      }
+    ],
+    [
+      'CLOUD_RUN_SERVICE_URL',
+      (): void => {
+        configState.CLOUD_RUN_SERVICE_URL = null;
+      }
+    ]
   ])('warns (not fatal) when %s is missing, because grading falls back to inline', async (_name, unset) => {
     unset();
     const { checkProductionConfig } = await import('./preflight');

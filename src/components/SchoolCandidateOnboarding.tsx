@@ -7,19 +7,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import {
-  UserPlus,
-  User,
-  Inbox,
-  Calendar,
-  Building2,
-  Sparkles,
-  CheckCircle2,
-  ArrowLeft,
-  Copy,
-  ShieldCheck,
-  Check
-} from 'lucide-react';
+import { UserPlus, User, Inbox, Calendar, Building2, Sparkles, CheckCircle2, ArrowLeft, Copy, ShieldCheck, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import { useAcademicLevels } from '../hooks/useNamedList';
@@ -33,7 +21,12 @@ interface SchoolCandidateOnboardingProps {
 export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps> = ({ onBack }) => {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const { items: academicLevels, loading: loadingAcademicLevels, addItem: addAcademicLevel, removeItem: removeAcademicLevel } = useAcademicLevels();
+  const {
+    items: academicLevels,
+    loading: loadingAcademicLevels,
+    addItem: addAcademicLevel,
+    removeItem: removeAcademicLevel
+  } = useAcademicLevels();
 
   const [isSubmittingCandidate, setIsSubmittingCandidate] = useState(false);
   const [createdStudentData, setCreatedStudentData] = useState<any | null>(null);
@@ -205,7 +198,7 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
         </div>
 
         <div className="flex items-center gap-2">
-          <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 px-3 py-1 rounded-full text-[11px] font-mono">
+          <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 px-3 py-1 rounded-full text-[12px] md:text-[11px] font-mono">
             Direct Firestore Node
           </Badge>
         </div>
@@ -231,7 +224,7 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                 {/* Step 1: Candidate Identity */}
                 <div className="space-y-4 pt-2 border-t border-slate-100">
                   <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">
+                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[11px] md:text-[10px] font-black">
                       1
                     </span>
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">Candidate Identity</h3>
@@ -252,7 +245,9 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                           className="h-11 pl-10 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm font-medium focus:border-indigo-600 focus:bg-white"
                         />
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1">Official name used for certification and exam loggers.</p>
+                      <p className="text-[11px] md:text-[10px] text-slate-400 mt-1">
+                        Official name used for certification and exam loggers.
+                      </p>
                     </div>
 
                     <div>
@@ -267,7 +262,9 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                           className="h-11 pl-10 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-xs font-medium focus:border-indigo-600 focus:bg-white"
                         />
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1">Direct assessment link notifications will be dispatched here.</p>
+                      <p className="text-[11px] md:text-[10px] text-slate-400 mt-1">
+                        Direct assessment link notifications will be dispatched here.
+                      </p>
                     </div>
 
                     <div>
@@ -281,7 +278,9 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                           className="h-11 pl-10 bg-slate-50 border-slate-200 text-slate-900 rounded-xl text-xs font-medium focus:border-indigo-600 focus:bg-white cursor-pointer"
                         />
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1">Used for secondary candidate validation at assessment lobby.</p>
+                      <p className="text-[11px] md:text-[10px] text-slate-400 mt-1">
+                        Used for secondary candidate validation at assessment lobby.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -289,7 +288,7 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                 {/* Step 2: Academic Classification */}
                 <div className="space-y-4 pt-4 border-t border-slate-100">
                   <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">
+                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[11px] md:text-[10px] font-black">
                       2
                     </span>
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">Academic Placement</h3>
@@ -343,7 +342,7 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                         <button
                           type="button"
                           onClick={handleAutoGenerateRoll}
-                          className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer"
+                          className="text-[11px] md:text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer"
                         >
                           Auto Generate
                         </button>
@@ -360,7 +359,9 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
                           className="h-11 pl-10 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-xs font-mono font-bold uppercase focus:border-indigo-600 focus:bg-white"
                         />
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1">Unique student register ID within institution records.</p>
+                      <p className="text-[11px] md:text-[10px] text-slate-400 mt-1">
+                        Unique student register ID within institution records.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -388,8 +389,10 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
             <div className="lg:col-span-5 space-y-4 sticky top-8">
               <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Live Candidate Node Preview</span>
-                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">Active Profile</Badge>
+                  <span className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-indigo-600">
+                    Live Candidate Node Preview
+                  </span>
+                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px] md:text-[10px]">Active Profile</Badge>
                 </div>
 
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
@@ -407,27 +410,27 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
 
                   <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-200/60 font-medium">
                     <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                      <span className="text-[10px] text-slate-400 uppercase block font-bold">Register No.</span>
+                      <span className="text-[11px] md:text-[10px] text-slate-400 uppercase block font-bold">Register No.</span>
                       <span className="font-mono text-indigo-600 font-bold">{manualStudent.rollNumber || 'AUTO'}</span>
                     </div>
                     <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                      <span className="text-[10px] text-slate-400 uppercase block font-bold">DOB</span>
+                      <span className="text-[11px] md:text-[10px] text-slate-400 uppercase block font-bold">DOB</span>
                       <span className="text-slate-900 font-bold">{manualStudent.dob || 'Not set'}</span>
                     </div>
                   </div>
 
                   <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
-                    <span className="text-[10px] text-slate-400 uppercase block font-bold">Contact Email</span>
+                    <span className="text-[11px] md:text-[10px] text-slate-400 uppercase block font-bold">Contact Email</span>
                     <p className="text-xs text-slate-800 truncate font-mono">{manualStudent.email || 'No email assigned'}</p>
                   </div>
 
                   <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
-                    <span className="text-[10px] text-slate-400 uppercase block font-bold">Academic Institution</span>
+                    <span className="text-[11px] md:text-[10px] text-slate-400 uppercase block font-bold">Academic Institution</span>
                     <p className="text-xs text-slate-800 truncate font-bold">{schoolName}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium justify-center pt-1">
+                <div className="flex items-center gap-2 text-[11px] md:text-[10px] text-slate-400 font-medium justify-center pt-1">
                   <ShieldCheck size={14} className="text-emerald-500" />
                   <span>Encrypted Firestore User Provisioning</span>
                 </div>
@@ -459,23 +462,23 @@ export const SchoolCandidateOnboarding: React.FC<SchoolCandidateOnboardingProps>
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-left space-y-3 font-mono text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1">
-                  <span className="text-[10px] text-slate-400 font-sans uppercase block font-bold">Register Number</span>
+                  <span className="text-[11px] md:text-[10px] text-slate-400 font-sans uppercase block font-bold">Register Number</span>
                   <span className="text-indigo-600 font-bold block truncate">{createdStudentData.rollNumber}</span>
                 </div>
                 <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1">
-                  <span className="text-[10px] text-slate-400 font-sans uppercase block font-bold">Academic Grade</span>
+                  <span className="text-[11px] md:text-[10px] text-slate-400 font-sans uppercase block font-bold">Academic Grade</span>
                   <span className="text-slate-900 font-bold block truncate">
                     {createdStudentData.class} - Sec {createdStudentData.section}
                   </span>
                 </div>
               </div>
               <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1">
-                <span className="text-[10px] text-slate-400 font-sans uppercase block font-bold">Assigned Email</span>
+                <span className="text-[11px] md:text-[10px] text-slate-400 font-sans uppercase block font-bold">Assigned Email</span>
                 <span className="text-slate-900 font-bold block truncate">{createdStudentData.email || 'None'}</span>
               </div>
               <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1">
-                <span className="text-[10px] text-slate-400 font-sans uppercase block font-bold">Generated UID</span>
-                <span className="text-slate-600 text-[11px] block truncate">{createdStudentData.uid}</span>
+                <span className="text-[11px] md:text-[10px] text-slate-400 font-sans uppercase block font-bold">Generated UID</span>
+                <span className="text-slate-600 text-[12px] md:text-[11px] block truncate">{createdStudentData.uid}</span>
               </div>
             </div>
 

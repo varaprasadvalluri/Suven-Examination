@@ -199,7 +199,9 @@ export const ResultDetails: React.FC = () => {
             </div>
             <CardTitle className="text-xl font-black text-rose-950 uppercase tracking-tight">Access Prohibited</CardTitle>
             <div className="bg-rose-50 border border-rose-100 p-5 rounded-2xl text-left">
-              <p className="text-[#C62828] text-[10px] font-black uppercase tracking-wider mb-1.5">Registry Boundary Violation:</p>
+              <p className="text-[#C62828] text-[11px] md:text-[10px] font-black uppercase tracking-wider mb-1.5">
+                Registry Boundary Violation:
+              </p>
               <p className="text-rose-800 text-xs font-semibold leading-relaxed">{errorState}</p>
             </div>
             <CardDescription className="text-slate-500 text-xs font-semibold leading-relaxed">
@@ -325,7 +327,7 @@ export const ResultDetails: React.FC = () => {
 
           <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
             <div className="space-y-4 flex-1">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-[0.25em] text-emerald-400">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[11px] md:text-[10px] font-black uppercase tracking-[0.25em] text-emerald-400">
                 <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                 Submission Confirmed
               </div>
@@ -338,7 +340,7 @@ export const ResultDetails: React.FC = () => {
               <div className="pt-2 text-xs text-slate-500 leading-normal">
                 <p>
                   <strong>Receipt Token:</strong>{' '}
-                  <code className="text-[#f2a81e] font-mono text-[10px]">
+                  <code className="text-[#f2a81e] font-mono text-[11px] md:text-[10px]">
                     {attempt.id?.substring(0, 8).toUpperCase()}-{(attempt.startTime || '').substring(0, 10)}
                   </code>
                 </p>
@@ -350,7 +352,7 @@ export const ResultDetails: React.FC = () => {
 
             <div className="shrink-0 w-32 h-32 rounded-3xl bg-[#f2a81e]/10 border-2 border-[#f2a81e]/30 flex flex-col items-center justify-center relative select-none">
               <span className="text-5xl">🛡️</span>
-              <span className="text-[10px] uppercase font-black tracking-widest text-emerald-400 mt-2">Verified</span>
+              <span className="text-[11px] md:text-[10px] uppercase font-black tracking-widest text-emerald-400 mt-2">Verified</span>
             </div>
           </div>
         </motion.div>
@@ -371,13 +373,13 @@ export const ResultDetails: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200">
             <div className="space-y-1">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none font-display">
+              <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none font-display">
                 Assessment Title
               </span>
               <p className="text-slate-800 text-slate-800 font-bold text-sm">{exam.title}</p>
             </div>
             <div className="space-y-1">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none font-display">
+              <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none font-display">
                 Category Subject
               </span>
               <p className="font-black text-sm uppercase" style={{ color: resultColor.text }}>
@@ -385,13 +387,15 @@ export const ResultDetails: React.FC = () => {
               </p>
             </div>
             <div className="space-y-1">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none font-display">
+              <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none font-display">
                 Scholar Candidate
               </span>
               <p className="text-slate-800 font-bold text-sm">{profile?.name || attempt.studentName}</p>
             </div>
             <div className="space-y-1">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none font-display">Status Code</span>
+              <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none font-display">
+                Status Code
+              </span>
               <p className="text-emerald-600 font-bold text-sm flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" /> Lodged & Confirmed
               </p>
@@ -399,7 +403,9 @@ export const ResultDetails: React.FC = () => {
           </div>
 
           <div className="pt-4 flex flex-wrap gap-3 justify-between items-center bg-slate-50 -mx-5 -mb-5 md:-mx-8 md:-mb-8 p-6 border-t border-slate-100">
-            <span className="text-slate-400 text-[10px] uppercase font-bold tracking-widest font-mono">Secure proctored by SuvenEdu</span>
+            <span className="text-slate-400 text-[11px] md:text-[10px] uppercase font-bold tracking-widest font-mono">
+              Secure proctored by SuvenEdu
+            </span>
             <Button
               onClick={handleLogout}
               className="inline-flex h-11 items-center justify-center bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold font-display uppercase text-xs tracking-wider px-6 shadow-lg transition-colors border-none cursor-pointer"
@@ -450,7 +456,7 @@ export const ResultDetails: React.FC = () => {
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/20 rounded-full blur-[100px]" />
         <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12">
           <div className="space-y-4 text-center md:text-left flex-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-black uppercase tracking-[0.25em] text-indigo-400">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[11px] md:text-[10px] font-black uppercase tracking-[0.25em] text-indigo-400">
               <BrainCircuit size={12} />
               Intelligence Diagnostics Level {percentage >= 80 ? 'Alpha' : percentage >= 40 ? 'Sigma' : 'Delta'}
             </div>
@@ -496,7 +502,7 @@ export const ResultDetails: React.FC = () => {
               </svg>
               <div className="text-center group cursor-default">
                 <div className="text-5xl font-display font-black group-hover:scale-110 transition-transform">{percentage}%</div>
-                <div className="text-indigo-400 text-[10px] font-black uppercase tracking-widest mt-1">Accuracy</div>
+                <div className="text-indigo-400 text-[11px] md:text-[10px] font-black uppercase tracking-widest mt-1">Accuracy</div>
               </div>
             </div>
           </div>
@@ -510,7 +516,7 @@ export const ResultDetails: React.FC = () => {
             <CardHeader className="bg-slate-50 border-b border-slate-100">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Time Intelligence</p>
+                  <p className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Time Intelligence</p>
                   <CardTitle className="text-xl font-display font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
                     Cognitive Load Analysis
                   </CardTitle>
@@ -531,7 +537,7 @@ export const ResultDetails: React.FC = () => {
                     <BrainCircuit className="h-5 w-5 text-indigo-600 shrink-0 mt-1" />
                     <p className="text-sm font-medium text-indigo-900 leading-relaxed italic">"{analytics.feedback}"</p>
                   </div>
-                  <div className="flex items-center gap-4 text-[10px] font-mono text-slate-400">
+                  <div className="flex items-center gap-4 text-[11px] md:text-[10px] font-mono text-slate-400">
                     <span>ENTROPY_INDEX: 0.84</span>
                     <span>PATTERN: STABLE</span>
                     <span>NEURAL_LATENCY: {analytics.avgTime * 10}ms</span>
@@ -546,7 +552,7 @@ export const ResultDetails: React.FC = () => {
           >
             <CardHeader className="pb-4">
               <p
-                className={`text-[10px] font-black uppercase tracking-widest mb-1 ${analytics.violations > 0 ? 'text-red-400' : 'text-emerald-400'}`}
+                className={`text-[11px] md:text-[10px] font-black uppercase tracking-widest mb-1 ${analytics.violations > 0 ? 'text-red-400' : 'text-emerald-400'}`}
               >
                 Stability Report
               </p>
@@ -565,7 +571,7 @@ export const ResultDetails: React.FC = () => {
                   {analytics.violations > 0 ? `${analytics.violations} Violations` : 'High Integrity'}
                 </p>
                 <p
-                  className={`text-[10px] font-black uppercase tracking-widest mt-2 ${analytics.violations > 0 ? 'text-red-400' : 'text-emerald-400'}`}
+                  className={`text-[11px] md:text-[10px] font-black uppercase tracking-widest mt-2 ${analytics.violations > 0 ? 'text-red-400' : 'text-emerald-400'}`}
                 >
                   {analytics.violations > 0 ? 'Neural Boundary Breached' : 'Assessment Zone Secured'}
                 </p>
@@ -588,7 +594,9 @@ export const ResultDetails: React.FC = () => {
               </CardTitle>
             </div>
             <div className="text-right">
-              <Badge className="bg-indigo-600 text-white border-0 font-black text-[10px] uppercase px-3 py-1">Benchmarked</Badge>
+              <Badge className="bg-indigo-600 text-white border-0 font-black text-[11px] md:text-[10px] uppercase px-3 py-1">
+                Benchmarked
+              </Badge>
             </div>
           </div>
           <CardDescription className="text-slate-500 font-medium md:ml-13">
@@ -608,7 +616,7 @@ export const ResultDetails: React.FC = () => {
                   value: 'Time (Seconds)',
                   angle: -90,
                   position: 'insideLeft',
-                  className: 'text-[10px] font-black uppercase text-slate-400'
+                  className: 'text-[11px] md:text-[10px] font-black uppercase text-slate-400'
                 }}
               />
               <Tooltip
@@ -624,7 +632,9 @@ export const ResultDetails: React.FC = () => {
         <div className="bg-slate-50 p-6 flex flex-wrap items-center justify-between border-t border-slate-100 gap-4">
           <div className="flex items-center gap-6">
             <div className="flex flex-col">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Max Hesitation</span>
+              <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                Max Hesitation
+              </span>
               <span className="text-sm font-bold text-slate-900 mt-1">
                 Item{' '}
                 {timeComparisonData.reduce((max, item, i) => (item.student > (timeComparisonData[max]?.student || 0) ? i : max), 0) + 1}
@@ -632,7 +642,9 @@ export const ResultDetails: React.FC = () => {
             </div>
             <div className="h-8 w-[1px] bg-slate-200" />
             <div className="flex flex-col">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Purity Gap</span>
+              <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                Purity Gap
+              </span>
               <span className="text-sm font-bold text-indigo-600 mt-1">
                 {Math.round(timeComparisonData.reduce((acc, item) => acc + (item.student - item.topper), 0) / questions.length)}s Delta
               </span>
@@ -644,7 +656,7 @@ export const ResultDetails: React.FC = () => {
             variant="ghost"
             disabled
             title="Coming soon"
-            className="h-10 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest text-slate-400 opacity-70 flex items-center gap-2 cursor-not-allowed"
+            className="h-10 px-6 rounded-xl font-black text-[11px] md:text-[10px] uppercase tracking-widest text-slate-400 opacity-70 flex items-center gap-2 cursor-not-allowed"
           >
             Improvement Plan · Soon <TrendingUp size={14} />
           </Button>
@@ -701,16 +713,16 @@ export const ResultDetails: React.FC = () => {
                         <span className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
                           {idx + 1}
                         </span>
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                        <span className="text-[11px] md:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
                           Segment: {q.subject || exam.subject || 'General'}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-100 rounded-full text-[10px] font-mono text-slate-500">
+                        <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-100 rounded-full text-[11px] md:text-[10px] font-mono text-slate-500">
                           <Clock size={12} /> {timeSpent}s
                         </div>
                         <div
-                          className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${isCorrect ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' : 'bg-red-500 text-white shadow-lg shadow-red-200'}`}
+                          className={`px-4 py-1 rounded-full text-[11px] md:text-[10px] font-black uppercase tracking-widest ${isCorrect ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' : 'bg-red-500 text-white shadow-lg shadow-red-200'}`}
                         >
                           {isCorrect ? `+${q.marks} Pts` : `0 Pts`}
                         </div>
@@ -733,7 +745,9 @@ export const ResultDetails: React.FC = () => {
                     {q.type === 'numerical' || q.type === 'math' ? (
                       <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
                         <div className="flex flex-col">
-                          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Your Response:</span>
+                          <span className="text-[11px] md:text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                            Your Response:
+                          </span>
                           {q.type === 'math' && studentAnswer !== null && studentAnswer !== undefined ? (
                             <div className="p-3 bg-white border border-slate-200 rounded-xl mt-1 flex items-center justify-center min-h-[44px]">
                               <MathRenderer math={String(studentAnswer)} block={true} />
@@ -745,7 +759,9 @@ export const ResultDetails: React.FC = () => {
                           )}
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-[10px] font-black uppercase text-indigo-400 tracking-wider">Correct Value:</span>
+                          <span className="text-[11px] md:text-[10px] font-black uppercase text-indigo-400 tracking-wider">
+                            Correct Value:
+                          </span>
                           {q.type === 'math' ? (
                             <div className="p-3 bg-indigo-50/50 border border-indigo-200 rounded-xl mt-1 flex items-center justify-center min-h-[44px]">
                               <MathRenderer math={q.numericalAnswer || ''} block={true} />

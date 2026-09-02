@@ -4,6 +4,7 @@ import { cloudinaryUploadLimiter } from '../middleware/rateLimit';
 import { createBreaker } from '../lib/circuitBreaker';
 import { requireSession } from '../auth/middleware';
 import { asyncHandler } from '../middleware/errorHandler';
+import { logger } from '../lib/logger';
 import { BadRequestError, InternalServerError } from '../lib/errors';
 
 const router = express.Router();
@@ -157,7 +158,7 @@ router.post(
     const apiKey = cleanEnvValue(process.env.CLOUDINARY_API_KEY);
     const apiSecret = cleanEnvValue(process.env.CLOUDINARY_API_SECRET);
 
-    console.log(`[CLOUDINARY SIGN DEBUG]`, {
+    logger.info('Cloudinary signing request', {
       cloudName: cloudName ? `${cloudName.slice(0, 3)}... (len: ${cloudName.length})` : 'MISSING',
       apiKey: apiKey ? `${apiKey.slice(0, 3)}... (len: ${apiKey.length})` : 'MISSING',
       apiSecret: apiSecret ? `${apiSecret.slice(0, 3)}...${apiSecret.slice(-3)} (len: ${apiSecret.length})` : 'MISSING',
@@ -203,10 +204,10 @@ export async function cleanupCloudinaryAsset(
   try {
     const cld = getCloudinary();
     const destroyResult = await destroyCloudinaryAsset(cld, publicId);
-    console.log(`[Cloudinary Cleanup] Deleted asset "${publicId}". Status:`, destroyResult);
+    logger.info('Cloudinary asset deleted', { publicId, destroyResult });
     return { success: true, result: destroyResult.result };
   } catch (err: any) {
-    console.error(`[Cloudinary Cleanup Error] Failed to delete asset "${publicId}":`, err);
+    logger.error('Cloudinary asset delete failed', { publicId, err });
     return { success: false, error: err.message || String(err) };
   }
 }

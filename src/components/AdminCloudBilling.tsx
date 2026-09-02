@@ -135,12 +135,12 @@ export const AdminCloudBilling: React.FC = () => {
           <div className="space-y-2 max-w-2xl">
             <div className="flex flex-wrap items-center gap-2">
               {gcpApiData?.targetProjectId && (
-                <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider flex items-center gap-1.5">
+                <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 px-3 py-1 rounded-full text-[11px] md:text-[10px] font-mono uppercase tracking-wider flex items-center gap-1.5">
                   <Cloud size={12} className="text-sky-400" /> Project: {gcpApiData.targetProjectId}
                 </Badge>
               )}
               <Badge
-                className={`px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider flex items-center gap-1.5 ${
+                className={`px-3 py-1 rounded-full text-[11px] md:text-[10px] font-mono uppercase tracking-wider flex items-center gap-1.5 ${
                   billingApiWorking
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                     : 'bg-slate-700/40 text-slate-300 border-slate-600/50'
@@ -238,13 +238,13 @@ export const AdminCloudBilling: React.FC = () => {
         <Card className="bg-white border-slate-200/80 shadow-sm rounded-2xl">
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Firestore Documents</span>
+              <span className="text-[12px] md:text-[11px] font-bold uppercase tracking-wider text-slate-500">Firestore Documents</span>
               <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
                 <Database size={18} />
               </div>
             </div>
             <div className="text-2xl md:text-3xl font-serif font-black text-slate-900">{loading ? '—' : dbStats.totalDocuments}</div>
-            <p className="text-[10px] font-medium text-slate-400">
+            <p className="text-[11px] md:text-[10px] font-medium text-slate-400">
               {dbStats.userCount} users • {dbStats.schoolCount} schools • {dbStats.examCount} exams • {dbStats.resultCount} results
             </p>
           </CardContent>
@@ -253,7 +253,7 @@ export const AdminCloudBilling: React.FC = () => {
         <Card className="bg-white border-slate-200/80 shadow-sm rounded-2xl">
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Billing Status</span>
+              <span className="text-[12px] md:text-[11px] font-bold uppercase tracking-wider text-slate-500">Billing Status</span>
               <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
                 <ShieldCheck size={18} />
               </div>
@@ -265,14 +265,14 @@ export const AdminCloudBilling: React.FC = () => {
                   ? 'Disabled'
                   : 'Unavailable'}
             </div>
-            <p className="text-[10px] font-medium text-slate-400">From the real Cloud Billing API response.</p>
+            <p className="text-[11px] md:text-[10px] font-medium text-slate-400">From the real Cloud Billing API response.</p>
           </CardContent>
         </Card>
 
         <Card className="bg-white border-slate-200/80 shadow-sm rounded-2xl">
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Enabled APIs</span>
+              <span className="text-[12px] md:text-[11px] font-bold uppercase tracking-wider text-slate-500">Enabled APIs</span>
               <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
                 <ListChecks size={18} />
               </div>
@@ -280,7 +280,7 @@ export const AdminCloudBilling: React.FC = () => {
             <div className="text-2xl md:text-3xl font-serif font-black text-slate-900">
               {gcpApiData?.apiStatus?.serviceUsageEnabled ? enabledServices.length : '—'}
             </div>
-            <p className="text-[10px] font-medium text-slate-400">
+            <p className="text-[11px] md:text-[10px] font-medium text-slate-400">
               {gcpApiData?.apiStatus?.serviceUsageEnabled
                 ? 'Google Cloud services enabled on this project'
                 : 'Service Usage API unavailable'}
@@ -291,7 +291,7 @@ export const AdminCloudBilling: React.FC = () => {
         <Card className="bg-white border-slate-200/80 shadow-sm rounded-2xl">
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Resource Manager</span>
+              <span className="text-[12px] md:text-[11px] font-bold uppercase tracking-wider text-slate-500">Resource Manager</span>
               <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
                 <Server size={18} />
               </div>
@@ -299,7 +299,7 @@ export const AdminCloudBilling: React.FC = () => {
             <div className="text-lg font-serif font-black text-slate-900">
               {gcpApiData?.projectDetails?.lifecycleState || 'Unavailable'}
             </div>
-            <p className="text-[10px] font-medium text-slate-400">Project lifecycle state, real Resource Manager API.</p>
+            <p className="text-[11px] md:text-[10px] font-medium text-slate-400">Project lifecycle state, real Resource Manager API.</p>
           </CardContent>
         </Card>
       </div>
@@ -328,9 +328,12 @@ export const AdminCloudBilling: React.FC = () => {
               <div key={svc.name} className="py-3 flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-slate-900 truncate">{svc.title || svc.name}</p>
-                  <p className="text-[10px] text-slate-400 font-mono truncate">{svc.name}</p>
+                  <p className="text-[11px] md:text-[10px] text-slate-400 font-mono truncate">{svc.name}</p>
                 </div>
-                <Badge variant="outline" className="text-[9px] py-0 border-emerald-200 text-emerald-700 bg-emerald-50 shrink-0">
+                <Badge
+                  variant="outline"
+                  className="text-[11px] md:text-[9px] py-0 border-emerald-200 text-emerald-700 bg-emerald-50 shrink-0"
+                >
                   {svc.state}
                 </Badge>
               </div>

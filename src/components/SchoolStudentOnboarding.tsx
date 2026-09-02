@@ -61,7 +61,12 @@ import { SearchableDropdown } from './SearchableDropdown';
 export const SchoolStudentOnboarding: React.FC = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const { items: academicLevels, loading: loadingAcademicLevels, addItem: addAcademicLevel, removeItem: removeAcademicLevel } = useAcademicLevels();
+  const {
+    items: academicLevels,
+    loading: loadingAcademicLevels,
+    addItem: addAcademicLevel,
+    removeItem: removeAcademicLevel
+  } = useAcademicLevels();
   const [isUploading, setIsUploading] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [previewData, setPreviewData] = useState<any[]>([]);
@@ -1073,7 +1078,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
               </CardDescription>
             </div>
             {duplicateWarnings.length > 0 && (
-              <Badge className="bg-rose-50 text-rose-700 border border-rose-200 font-bold text-[10px] space-x-1 py-1 rounded-md">
+              <Badge className="bg-rose-50 text-rose-700 border border-rose-200 font-bold text-[11px] md:text-[10px] space-x-1 py-1 rounded-md">
                 <ShieldAlert size={12} />
                 <span>{duplicateWarnings.length} Warnings</span>
               </Badge>
@@ -1086,15 +1091,15 @@ export const SchoolStudentOnboarding: React.FC = () => {
                   {/* Duplicate checks warnings panel */}
                   {duplicateWarnings.length > 0 && (
                     <div className="p-4 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs font-medium space-y-1">
-                      <p className="font-bold text-[11px] uppercase tracking-wider flex items-center gap-1">
+                      <p className="font-bold text-[12px] md:text-[11px] uppercase tracking-wider flex items-center gap-1">
                         <AlertCircle size={14} className="text-amber-600" />A ASSESSMENT GATEWAY BLOCKED: DUPLICATES IDENTIFIED
                       </p>
-                      <div className="max-h-[100px] overflow-y-auto font-mono text-[10px] space-y-1 pt-1 opacity-90 pl-5 list-disc leading-relaxed">
+                      <div className="max-h-[100px] overflow-y-auto font-mono text-[11px] md:text-[10px] space-y-1 pt-1 opacity-90 pl-5 list-disc leading-relaxed">
                         {duplicateWarnings.map((w, i) => (
                           <div key={i}>• {w}</div>
                         ))}
                       </div>
-                      <p className="text-[10px] italic text-amber-600/90 pt-1">
+                      <p className="text-[11px] md:text-[10px] italic text-amber-600/90 pt-1">
                         Note: You are strongly advised to clean duplicates to prevent system conflicts.
                       </p>
                     </div>
@@ -1104,17 +1109,19 @@ export const SchoolStudentOnboarding: React.FC = () => {
                     {previewData.map((s, idx) => (
                       <div key={idx} className="flex items-center justify-between p-4 hover:bg-slate-50/50 transition-colors">
                         <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-slate-200 bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                          <div className="h-8 w-8 rounded-full bg-slate-200 bg-slate-100 flex items-center justify-center text-[11px] md:text-[10px] font-bold text-slate-600">
                             {s.name?.toString().substring(0, 1)}
                           </div>
                           <div>
                             <p className="text-sm font-bold text-slate-900 leading-none">{s.name}</p>
-                            <p className="text-[10px] text-slate-400 mt-1">{s.email}</p>
+                            <p className="text-[11px] md:text-[10px] text-slate-400 mt-1">{s.email}</p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Roll: {s.rollNumber}</p>
-                          <p className="text-[10px] text-indigo-500 font-bold">
+                          <p className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-tighter">
+                            Roll: {s.rollNumber}
+                          </p>
+                          <p className="text-[11px] md:text-[10px] text-indigo-500 font-bold">
                             Class {s.class}-{s.section}
                           </p>
                         </div>
@@ -1150,10 +1157,12 @@ export const SchoolStudentOnboarding: React.FC = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <Badge className="bg-indigo-500/20 text-indigo-300 border-0 font-black text-[10px] uppercase px-3 py-1 rounded-md">
+                <Badge className="bg-indigo-500/20 text-indigo-300 border-0 font-black text-[11px] md:text-[10px] uppercase px-3 py-1 rounded-md">
                   Live Control Tower
                 </Badge>
-                <span className="text-[10px] font-black tracking-widest text-[#FFE28A] uppercase">single-use secure dispatcher</span>
+                <span className="text-[11px] md:text-[10px] font-black tracking-widest text-[#FFE28A] uppercase">
+                  single-use secure dispatcher
+                </span>
               </div>
               <CardTitle className="text-2xl font-black uppercase tracking-tight">Active Scholar Directory</CardTitle>
               <CardDescription className="text-indigo-200 mt-1 font-medium text-xs">
@@ -1163,7 +1172,9 @@ export const SchoolStudentOnboarding: React.FC = () => {
 
             {/* Global Target Exam Selection */}
             <div className="bg-white/10 p-4 rounded-3xl border border-white/10 max-w-sm w-full relative">
-              <Label className="text-[10px] font-black uppercase text-indigo-300 tracking-wider">Select Assessment Context</Label>
+              <Label className="text-[11px] md:text-[10px] font-black uppercase text-indigo-300 tracking-wider">
+                Select Assessment Context
+              </Label>
               <SearchableDropdown
                 containerClassName="relative mt-2"
                 selectedId={selectedExamId}
@@ -1173,7 +1184,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                 emptyText="No matching assessments found"
                 panelClassName="absolute left-0 right-0 mt-1.5 bg-white border-2 border-indigo-400 shadow-2xl rounded-2xl p-3 z-[110] flex flex-col gap-2 max-h-[320px] overflow-hidden animate-in fade-in zoom-in-95 duration-100"
                 renderMore={(hidden, total) => (
-                  <div className="text-[10px] text-center text-slate-500 font-bold pt-1.5 border-t border-slate-100 italic">
+                  <div className="text-[11px] md:text-[10px] text-center text-slate-500 font-bold pt-1.5 border-t border-slate-100 italic">
                     Showing top {total - hidden} matches of {total}.
                   </div>
                 )}
@@ -1188,7 +1199,9 @@ export const SchoolStudentOnboarding: React.FC = () => {
                   label: (
                     <span className="truncate pr-2">
                       {e.title} -{' '}
-                      <span className={`text-[10px] font-bold ${e.id === selectedExamId ? 'text-indigo-200' : 'text-slate-500'}`}>
+                      <span
+                        className={`text-[11px] md:text-[10px] font-bold ${e.id === selectedExamId ? 'text-indigo-200' : 'text-slate-500'}`}
+                      >
                         ({e.subject})
                       </span>
                     </span>
@@ -1220,17 +1233,17 @@ export const SchoolStudentOnboarding: React.FC = () => {
             >
               <div className="space-y-2 max-w-xl">
                 <div className="flex items-center gap-2">
-                  <p className="text-[10px] font-black uppercase text-indigo-700 tracking-wider flex items-center gap-1.5 font-sans">
+                  <p className="text-[11px] md:text-[10px] font-black uppercase text-indigo-700 tracking-wider flex items-center gap-1.5 font-sans">
                     <Link size={13} className="text-indigo-600" />
                     Method A: General Portal Access URL
                   </p>
                   {dynamicToken ? (
-                    <Badge className="bg-emerald-500/10 hover:bg-emerald-500/10 text-emerald-600 border-0 font-black text-[9px] uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1">
+                    <Badge className="bg-emerald-500/10 hover:bg-emerald-500/10 text-emerald-600 border-0 font-black text-[11px] md:text-[9px] uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1">
                       <ShieldAlert size={10} className="text-emerald-500 animate-pulse" />
                       Dynamic Token Sealing Enabled
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="text-[9px] text-slate-400 font-bold border-slate-200">
+                    <Badge variant="outline" className="text-[11px] md:text-[9px] text-slate-400 font-bold border-slate-200">
                       Standard Predictable Parameters
                     </Badge>
                   )}
@@ -1251,7 +1264,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                   <Button
                     onClick={handleActivateDynamicSecurity}
                     disabled={isGeneratingDynamicToken}
-                    className={`h-10 px-5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-sm cursor-pointer flex items-center gap-1.5 ${
+                    className={`h-10 px-5 rounded-xl font-black text-[11px] md:text-[10px] uppercase tracking-widest shadow-sm cursor-pointer flex items-center gap-1.5 ${
                       dynamicToken ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                     }`}
                   >
@@ -1262,7 +1275,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                   {dynamicToken && (
                     <button
                       onClick={handleDeactivateDynamicSecurity}
-                      className="text-[10px] font-black uppercase text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-1"
+                      className="text-[11px] md:text-[10px] font-black uppercase text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-1"
                     >
                       Disable and Revert to Standard
                     </button>
@@ -1289,7 +1302,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                         : `${window.location.origin}/student/exam-entry?examId=${selectedExamId}&schoolId=${profile?.schoolId}`;
                       handleCopyLink(shareUrl);
                     }}
-                    className="bg-slate-900 hover:bg-slate-800 text-white border-l-2 border-slate-900 h-auto font-black text-[9px] uppercase tracking-wider px-5 rounded-none cursor-pointer"
+                    className="bg-slate-900 hover:bg-slate-800 text-white border-l-2 border-slate-900 h-auto font-black text-[11px] md:text-[9px] uppercase tracking-wider px-5 rounded-none cursor-pointer"
                   >
                     {copiedToken ===
                     (dynamicToken
@@ -1307,7 +1320,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
             {/* Row 2: Secure Individual Passwordless Link Auto-Generator Hub */}
             <div className="p-6 bg-slate-50/40 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="space-y-2 max-w-2xl font-sans">
-                <p className="text-[10px] font-black uppercase text-emerald-700 tracking-wider flex items-center gap-1.5">
+                <p className="text-[11px] md:text-[10px] font-black uppercase text-emerald-700 tracking-wider flex items-center gap-1.5">
                   <Sparkles size={13} className="text-emerald-600" />
                   Method B: Crypto-Secure Single-Use Passkeys (UUIDv4)
                 </p>
@@ -1318,20 +1331,20 @@ export const SchoolStudentOnboarding: React.FC = () => {
 
                 {/* Visual counts */}
                 <div className="flex flex-wrap items-center gap-3 pt-1">
-                  <div className="text-[10px] font-bold text-slate-600 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-sm flex items-center gap-1.5">
+                  <div className="text-[11px] md:text-[10px] font-bold text-slate-600 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-sm flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
                     <span>
                       Scholars Directory: <strong>{students.length}</strong>
                     </span>
                   </div>
-                  <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50/60 border border-emerald-200/50 px-2.5 py-1 rounded-lg shadow-sm flex items-center gap-1.5">
+                  <div className="text-[11px] md:text-[10px] font-bold text-emerald-700 bg-emerald-50/60 border border-emerald-200/50 px-2.5 py-1 rounded-lg shadow-sm flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     <span>
                       Secure Passes Issued: <strong>{invitations.filter((inv) => inv.examId === selectedExamId).length}</strong>
                     </span>
                   </div>
                   {students.length > invitations.filter((inv) => inv.examId === selectedExamId).length && (
-                    <div className="text-[10px] font-bold text-amber-700 bg-amber-50/60 border border-amber-200/50 px-2.5 py-1 rounded-lg shadow-sm flex items-center gap-1.5">
+                    <div className="text-[11px] md:text-[10px] font-bold text-amber-700 bg-amber-50/60 border border-amber-200/50 px-2.5 py-1 rounded-lg shadow-sm flex items-center gap-1.5">
                       <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
                       <span>
                         Pending Issuance:{' '}
@@ -1346,7 +1359,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                 <Button
                   onClick={handleBatchGenerateTokens}
                   disabled={isGeneratingBatch || students.length === 0}
-                  className="bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] uppercase tracking-widest h-11 px-5 rounded-2xl shadow-sm cursor-pointer flex items-center gap-2"
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] md:text-[10px] uppercase tracking-widest h-11 px-5 rounded-2xl shadow-sm cursor-pointer flex items-center gap-2"
                 >
                   {isGeneratingBatch ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles size={13} />}
                   <span>Batch Generate Keys</span>
@@ -1355,7 +1368,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                 <Button
                   onClick={handleExportBatchLinks}
                   disabled={students.length === 0 || invitations.filter((inv) => inv.examId === selectedExamId).length === 0}
-                  className="bg-white hover:bg-slate-50 text-slate-900 border-2 border-slate-900 font-black text-[10px] uppercase tracking-widest h-11 px-5 rounded-2xl shadow-sm cursor-pointer flex items-center gap-2"
+                  className="bg-white hover:bg-slate-50 text-slate-900 border-2 border-slate-900 font-black text-[11px] md:text-[10px] uppercase tracking-widest h-11 px-5 rounded-2xl shadow-sm cursor-pointer flex items-center gap-2"
                 >
                   <Download size={13} />
                   <span>Export Spreadsheet</span>
@@ -1395,24 +1408,28 @@ export const SchoolStudentOnboarding: React.FC = () => {
                 }}
                 className="h-4 w-4 rounded border-slate-300 text-indigo-600 cursor-pointer"
               />
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Select all on this page</span>
+              <span className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-500">
+                Select all on this page
+              </span>
             </label>
 
             {selectedStudentIds.size > 0 && (
               <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right-2 duration-200">
-                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-700">{selectedStudentIds.size} selected</span>
+                <span className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-indigo-700">
+                  {selectedStudentIds.size} selected
+                </span>
                 <Button
                   onClick={handleBulkTrigger}
                   disabled={isBulkTriggering || !selectedExamId || selectedExamId === 'none'}
                   title={!selectedExamId || selectedExamId === 'none' ? 'Pick an assessment paper above first' : undefined}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-widest h-9 px-4 rounded-xl shadow-sm cursor-pointer flex items-center gap-1.5"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] md:text-[10px] uppercase tracking-widest h-9 px-4 rounded-xl shadow-sm cursor-pointer flex items-center gap-1.5"
                 >
                   {isBulkTriggering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send size={12} />}
                   <span>Trigger for Selected ({selectedStudentIds.size})</span>
                 </Button>
                 <button
                   onClick={() => setSelectedStudentIds(new Set())}
-                  className="text-[10px] font-black uppercase text-slate-400 hover:text-slate-600 hover:underline"
+                  className="text-[11px] md:text-[10px] font-black uppercase text-slate-400 hover:text-slate-600 hover:underline"
                 >
                   Clear
                 </button>
@@ -1461,24 +1478,24 @@ export const SchoolStudentOnboarding: React.FC = () => {
                         <span className="text-base font-black text-slate-900 leading-none break-words">{student.name}</span>
                         <Badge
                           variant="outline"
-                          className="text-[9px] px-2 py-0.5 rounded bg-slate-50 font-black text-slate-400 border-slate-200"
+                          className="text-[11px] md:text-[9px] px-2 py-0.5 rounded bg-slate-50 font-black text-slate-400 border-slate-200"
                         >
                           CLASS {student.class || 'N/A'}-{student.section || 'N/A'}
                         </Badge>
                         {hasInvite && !isCompleted && (
-                          <Badge className="bg-emerald-50 hover:bg-emerald-50 text-emerald-700 border-emerald-100 font-black text-[9px] px-2 py-0.5 rounded flex items-center gap-1">
+                          <Badge className="bg-emerald-50 hover:bg-emerald-50 text-emerald-700 border-emerald-100 font-black text-[11px] md:text-[9px] px-2 py-0.5 rounded flex items-center gap-1">
                             <CheckCircle2 size={10} className="text-emerald-600" />
                             <span>SECURE PASS READY</span>
                           </Badge>
                         )}
                         {isCompleted &&
                           (canReattempt ? (
-                            <Badge className="bg-amber-100 hover:bg-amber-100 text-amber-800 border-amber-200 font-black text-[9px] px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
+                            <Badge className="bg-amber-100 hover:bg-amber-100 text-amber-800 border-amber-200 font-black text-[11px] md:text-[9px] px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
                               <CheckCircle2 size={10} className="text-amber-600" />
                               <span>RE-ATTEMPT ENABLED</span>
                             </Badge>
                           ) : (
-                            <Badge className="bg-emerald-100 hover:bg-emerald-100 text-emerald-800 border-emerald-200 font-black text-[9px] px-2 py-0.5 rounded flex items-center gap-1">
+                            <Badge className="bg-emerald-100 hover:bg-emerald-100 text-emerald-800 border-emerald-200 font-black text-[11px] md:text-[9px] px-2 py-0.5 rounded flex items-center gap-1">
                               <CheckCircle2 size={10} className="text-emerald-600" />
                               <span>EXAM COMPLETED</span>
                             </Badge>
@@ -1490,12 +1507,16 @@ export const SchoolStudentOnboarding: React.FC = () => {
 
                   <div className="flex flex-wrap items-center gap-3 self-end md:self-auto font-sans">
                     <div className="text-right hidden sm:block mr-2">
-                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest leading-none">Register ID</span>
+                      <span className="text-[11px] md:text-[10px] font-black text-slate-300 uppercase tracking-widest leading-none">
+                        Register ID
+                      </span>
                       <p className="text-sm font-black text-slate-800 mt-1 font-mono">{student.rollNumber || 'N/A'}</p>
                     </div>
 
                     <div className="text-right hidden sm:block mr-2">
-                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest leading-none">Date of Birth</span>
+                      <span className="text-[11px] md:text-[10px] font-black text-slate-300 uppercase tracking-widest leading-none">
+                        Date of Birth
+                      </span>
                       <p className="text-sm font-black text-slate-600 mt-1">{student.dob || 'Unset'}</p>
                     </div>
 
@@ -1504,6 +1525,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label={`View performance analytics for ${student.name}`}
                         onClick={() => {
                           setViewingStudentAnalytics(student);
                           setIsAnalyticsDialogOpen(true);
@@ -1516,6 +1538,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label={`Edit profile for ${student.name}`}
                         onClick={() => openEditDialog(student)}
                         className="h-9 w-9 rounded-lg hover:bg-white hover:text-[#FFE28A] text-slate-500 transition-colors"
                         title="Edit Profile"
@@ -1525,6 +1548,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label={`Delete student ${student.name}`}
                         onClick={() => confirmDeleteStudent(student)}
                         className="h-9 w-9 rounded-lg hover:bg-red-50 hover:text-red-700 text-slate-500 transition-colors"
                         title="Delete Student"
@@ -1539,7 +1563,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                           <Button
                             variant="outline"
                             onClick={() => handleToggleReattempt(student, attempt)}
-                            className="border-rose-200 hover:bg-rose-50 text-rose-700 font-black text-[10px] uppercase tracking-widest h-10 rounded-xl px-3 cursor-pointer transition-all hover:border-rose-300"
+                            className="border-rose-200 hover:bg-rose-50 text-rose-700 font-black text-[11px] md:text-[10px] uppercase tracking-widest h-10 rounded-xl px-3 cursor-pointer transition-all hover:border-rose-300"
                             title="Disable Re-attempt"
                           >
                             Revoke
@@ -1548,7 +1572,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                         <Button
                           onClick={() => handleReTriggerInvite(student, attempt)}
                           disabled={!selectedExamId || selectedExamId === 'none'}
-                          className="bg-amber-600 hover:bg-amber-700 text-white font-black text-[10px] uppercase tracking-widest h-10 rounded-xl shadow-md px-4 cursor-pointer flex items-center gap-1.5 group transition-all"
+                          className="bg-amber-600 hover:bg-amber-700 text-white font-black text-[11px] md:text-[10px] uppercase tracking-widest h-10 rounded-xl shadow-md px-4 cursor-pointer flex items-center gap-1.5 group transition-all"
                         >
                           <span>Re-trigger Link</span>
                           <Send size={11} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
@@ -1558,7 +1582,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
                       <Button
                         onClick={() => handleTriggerInvite(student)}
                         disabled={!selectedExamId || selectedExamId === 'none'}
-                        className="bg-indigo-600 hover:bg-slate-950 text-white font-black text-[10px] uppercase tracking-widest h-10 rounded-xl shadow-md px-4 cursor-pointer flex items-center gap-1.5 group transition-all"
+                        className="bg-indigo-600 hover:bg-slate-950 text-white font-black text-[11px] md:text-[10px] uppercase tracking-widest h-10 rounded-xl shadow-md px-4 cursor-pointer flex items-center gap-1.5 group transition-all"
                       >
                         <span>Trigger Link</span>
                         <Send size={11} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
@@ -1638,7 +1662,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
             <div className="flex items-center gap-3.5 mb-3">
               <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
               <div className="h-2 w-2 rounded-full bg-emerald-400 absolute" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#B5F2D2]">Secure Dispatch Active</span>
+              <span className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-[#B5F2D2]">Secure Dispatch Active</span>
             </div>
             <DialogTitle className="text-2xl font-black uppercase tracking-tight text-[#FFE28A]">
               Invited to: {activeInvite?.examTitle}
@@ -1652,7 +1676,9 @@ export const SchoolStudentOnboarding: React.FC = () => {
             <div className="bg-emerald-500/10 border-2 border-emerald-500/15 p-5 rounded-2xl text-emerald-800 text-xs font-semibold leading-relaxed flex items-start gap-3">
               <span className="text-xl">🚀</span>
               <div>
-                <p className="font-black text-[11px] uppercase tracking-wider text-emerald-900">SIMULATED SMS & EMAIL DELIVERED</p>
+                <p className="font-black text-[12px] md:text-[11px] uppercase tracking-wider text-emerald-900">
+                  SIMULATED SMS & EMAIL DELIVERED
+                </p>
                 <p className="text-[11.5px] mt-1 opacity-90">
                   Our assessment gateway fired API triggers carrying the direct-session URL with 128-bit verification hashes to key student
                   contacts.
@@ -1661,24 +1687,26 @@ export const SchoolStudentOnboarding: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Candidate Secure Single-Use URL</Label>
+              <Label className="text-[11px] md:text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                Candidate Secure Single-Use URL
+              </Label>
               <div className="flex border-[3px] border-slate-900 rounded-2xl overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-slate-50">
                 <input
                   type="text"
                   readOnly
                   value={activeInvite?.url || ''}
-                  className="flex-grow px-4 py-3 bg-transparent text-slate-800 font-mono text-[11px] outline-none select-all"
+                  className="flex-grow px-4 py-3 bg-transparent text-slate-800 font-mono text-[12px] md:text-[11px] outline-none select-all"
                 />
                 <Button
                   onClick={() => activeInvite && handleCopyLink(activeInvite.url)}
-                  className="bg-slate-900 hover:bg-slate-800 text-white border-l-[3px] border-slate-900 h-auto font-black text-[10px] uppercase tracking-wider px-5 rounded-none"
+                  className="bg-slate-900 hover:bg-slate-800 text-white border-l-[3px] border-slate-900 h-auto font-black text-[11px] md:text-[10px] uppercase tracking-wider px-5 rounded-none"
                 >
                   {copiedToken === activeInvite?.url ? <Check size={16} /> : <Copy size={16} />}
                 </Button>
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 rounded-xl text-[11px] leading-relaxed text-slate-500 font-medium">
+            <div className="p-4 bg-slate-50 rounded-xl text-[12px] md:text-[11px] leading-relaxed text-slate-500 font-medium">
               💡 <strong>QA Manual Testing Shortcut:</strong> Simply copy the link, open a new Private/Incognito Browser page (or log out),
               and paste the link to join directly as <strong>{activeInvite?.studentName}</strong> without typing credentials!
             </div>
@@ -1710,7 +1738,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
 
           <div className="p-6 space-y-4">
             <div className="grid gap-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Candidate Name</Label>
+              <Label className="text-[11px] md:text-[10px] font-black uppercase text-slate-500 tracking-wider">Candidate Name</Label>
               <Input
                 value={editForm.name}
                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
@@ -1719,7 +1747,9 @@ export const SchoolStudentOnboarding: React.FC = () => {
               />
             </div>
             <div className="grid gap-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Email Address (Optional)</Label>
+              <Label className="text-[11px] md:text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                Email Address (Optional)
+              </Label>
               <Input
                 type="email"
                 value={editForm.email}
@@ -1732,7 +1762,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Class Grade</Label>
+                  <Label className="text-[11px] md:text-[10px] font-black uppercase text-slate-500 tracking-wider">Class Grade</Label>
                   {profile?.role === 'admin' && (
                     <ManageNamedListDialog
                       title="Manage Academic Levels"
@@ -1764,7 +1794,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
               </div>
 
               <div className="grid gap-1.5">
-                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Section</Label>
+                <Label className="text-[11px] md:text-[10px] font-black uppercase text-slate-500 tracking-wider">Section</Label>
                 <Input
                   value={editForm.section}
                   onChange={(e) => setEditForm({ ...editForm, section: e.target.value })}
@@ -1775,7 +1805,9 @@ export const SchoolStudentOnboarding: React.FC = () => {
             </div>
 
             <div className="grid gap-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Register / Roll Number</Label>
+              <Label className="text-[11px] md:text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                Register / Roll Number
+              </Label>
               <Input
                 value={editForm.rollNumber}
                 onChange={(e) => setEditForm({ ...editForm, rollNumber: e.target.value })}
@@ -1785,7 +1817,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
             </div>
 
             <div className="grid gap-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Date of Birth (DOB)</Label>
+              <Label className="text-[11px] md:text-[10px] font-black uppercase text-slate-500 tracking-wider">Date of Birth (DOB)</Label>
               <Input
                 type="date"
                 value={editForm.dob}
@@ -1828,7 +1860,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
               Are you absolutely certain you wish to delete candidate <strong>{deletingStudent?.name}</strong> (Roll:{' '}
               {deletingStudent?.rollNumber}) from the registry system?
             </p>
-            <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl text-[11px] leading-relaxed text-rose-900 font-bold uppercase flex items-center gap-2">
+            <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl text-[12px] md:text-[11px] leading-relaxed text-rose-900 font-bold uppercase flex items-center gap-2">
               <span>⚠️</span>
               This action completely clears authentication credentials, invitation tokens, and resets live proctor references for this
               candidate.
@@ -1858,10 +1890,12 @@ export const SchoolStudentOnboarding: React.FC = () => {
         <DialogContent className="w-full max-w-[95vw] sm:max-w-2xl p-0 rounded-[40px] overflow-hidden border-none shadow-2xl bg-white animate-in zoom-in-95">
           <div className="bg-slate-900 text-white p-5 sm:p-8">
             <div className="flex justify-between items-center flex-wrap gap-2">
-              <div className="inline-flex items-center gap-2 bg-indigo-500/20 text-indigo-300 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-indigo-400/25">
+              <div className="inline-flex items-center gap-2 bg-indigo-500/20 text-indigo-300 px-3 py-1.5 rounded-full text-[11px] md:text-[10px] font-black uppercase tracking-widest border border-indigo-400/25">
                 <BarChart3 size={12} /> Unified Merit Index
               </div>
-              <span className="text-[10px] font-mono text-slate-400 uppercase font-black">Roll: {viewingStudentAnalytics?.rollNumber}</span>
+              <span className="text-[11px] md:text-[10px] font-mono text-slate-400 uppercase font-black">
+                Roll: {viewingStudentAnalytics?.rollNumber}
+              </span>
             </div>
             <DialogTitle className="text-2xl font-black uppercase mt-4 tracking-tight text-[#FFE28A]">
               {viewingStudentAnalytics?.name}
@@ -1877,17 +1911,17 @@ export const SchoolStudentOnboarding: React.FC = () => {
                 {/* Micro KPI Row */}
                 <div className="grid grid-cols-3 gap-2 sm:gap-4">
                   <div className="p-2.5 sm:p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Total Papers</p>
+                    <p className="text-[11px] md:text-[9px] font-black text-slate-400 uppercase tracking-wider">Total Papers</p>
                     <p className="text-xl font-black text-slate-950 mt-1">{studentAttempts.length}</p>
                   </div>
                   <div className="p-2.5 sm:p-4 bg-emerald-50 border border-emerald-100 rounded-2xl text-center">
-                    <p className="text-[9px] font-black text-emerald-600 uppercase tracking-wider">Average score</p>
+                    <p className="text-[11px] md:text-[9px] font-black text-emerald-600 uppercase tracking-wider">Average score</p>
                     <p className="text-xl font-black text-emerald-950 mt-1">
                       {Math.round(studentAttempts.reduce((acc, current) => acc + (current.score || 0), 0) / studentAttempts.length)}%
                     </p>
                   </div>
                   <div className="p-2.5 sm:p-4 bg-amber-50 border border-amber-100 rounded-2xl text-center">
-                    <p className="text-[9px] font-black text-amber-600 uppercase tracking-wider">Integrity Zone</p>
+                    <p className="text-[11px] md:text-[9px] font-black text-amber-600 uppercase tracking-wider">Integrity Zone</p>
                     <p className="text-xl font-black text-amber-950 mt-1">
                       {Math.max(
                         60,
@@ -1902,13 +1936,15 @@ export const SchoolStudentOnboarding: React.FC = () => {
 
                 {/* Score Trend Curve */}
                 <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/50">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-4">Academic Progression Curve</p>
+                  <p className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-wider mb-4">
+                    Academic Progression Curve
+                  </p>
                   <div className="h-[200px] w-full text-xs">
                     {/* Basic visual representation of trend lines using simple progress bars or styled divs to keep rendering lightweight and resilient */}
                     <div className="space-y-3 pt-2">
                       {studentAttempts.map((attempt, i) => (
                         <div key={i} className="space-y-1">
-                          <div className="flex justify-between items-center text-[11px] font-semibold text-slate-700">
+                          <div className="flex justify-between items-center text-[12px] md:text-[11px] font-semibold text-slate-700">
                             <span className="font-bold truncate max-w-[280px]">{attempt.examTitle}</span>
                             <span className="font-black text-indigo-650">{attempt.score || 0}% score</span>
                           </div>
@@ -1928,7 +1964,9 @@ export const SchoolStudentOnboarding: React.FC = () => {
 
                 {/* Detailed attempts directory listing */}
                 <div className="space-y-2.5">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Historical Assessment Sheets</p>
+                  <p className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                    Historical Assessment Sheets
+                  </p>
                   <div className="divide-y divide-slate-200 border border-slate-200 rounded-2xl overflow-hidden bg-white">
                     {studentAttempts.map((at, index) => (
                       <div
@@ -1944,13 +1982,13 @@ export const SchoolStudentOnboarding: React.FC = () => {
                           <p className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors flex items-center gap-1.5">
                             {at.examTitle} <Eye size={12} className="text-indigo-400 transition-opacity" />
                           </p>
-                          <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                          <p className="text-[11px] md:text-[10px] text-slate-400 mt-1 font-medium">
                             Finished on: {new Date(at.startTime).toLocaleDateString()}
                           </p>
                         </div>
                         <div className="text-right">
                           <span className="font-black text-slate-800 text-base">{at.score || 0}%</span>
-                          <span className="block text-[9px] text-slate-400 font-mono tracking-tighter mt-0.5">
+                          <span className="block text-[11px] md:text-[9px] text-slate-400 font-mono tracking-tighter mt-0.5">
                             Attempt ID: {at.id.substring(0, 8)}
                           </span>
                         </div>

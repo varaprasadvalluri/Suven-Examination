@@ -82,7 +82,9 @@ export const ExamInstructionsScreen: React.FC<ExamInstructionsScreenProps> = ({
           </div>
           <div>
             <div className="font-display font-black text-sm uppercase tracking-wider text-white">SUVENEDU</div>
-            <div className="text-[9px] font-bold text-amber-500 uppercase tracking-widest leading-none mt-0.5">EXAMINATION PORTAL</div>
+            <div className="text-[11px] md:text-[9px] font-bold text-amber-500 uppercase tracking-widest leading-none mt-0.5">
+              EXAMINATION PORTAL
+            </div>
           </div>
         </div>
 
@@ -90,7 +92,7 @@ export const ExamInstructionsScreen: React.FC<ExamInstructionsScreenProps> = ({
 
         {(studentName || rollNumber) && (
           <div className="space-y-4">
-            <p className="text-[10px] font-mono font-black text-slate-400 uppercase tracking-widest">Candidate Details</p>
+            <p className="text-[11px] md:text-[10px] font-mono font-black text-slate-400 uppercase tracking-widest">Candidate Details</p>
             <div className="flex items-center gap-4 bg-slate-900/50 p-4 rounded-2xl border border-slate-800/60">
               <div className="h-14 w-14 rounded-full bg-gradient-to-br from-[#f2a81e] to-[#c98814] border-2 border-[#f2a81e] flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-amber-500/10 flex-shrink-0">
                 {(studentName || 'A')[0].toUpperCase()}
@@ -105,27 +107,27 @@ export const ExamInstructionsScreen: React.FC<ExamInstructionsScreenProps> = ({
 
         <div className="space-y-1">
           <div className="flex justify-between items-center py-2.5 border-b border-slate-800/60 text-xs">
-            <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Exam</span>
+            <span className="text-slate-400 font-bold uppercase tracking-wider text-[11px] md:text-[10px]">Exam</span>
             <span className="text-white font-semibold text-right max-w-[200px] truncate">{exam?.title}</span>
           </div>
           <div className="flex justify-between items-center py-2.5 border-b border-slate-800/60 text-xs">
-            <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Subject</span>
+            <span className="text-slate-400 font-bold uppercase tracking-wider text-[11px] md:text-[10px]">Subject</span>
             <span className="text-white font-semibold">{exam?.subject || 'PCM Combined'}</span>
           </div>
           <div className="flex justify-between items-center py-2.5 border-b border-slate-800/60 text-xs">
-            <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Date</span>
+            <span className="text-slate-400 font-bold uppercase tracking-wider text-[11px] md:text-[10px]">Date</span>
             <span className="text-white font-semibold">
               {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
           </div>
           <div className="flex justify-between items-center py-2.5 border-b border-slate-800/60 text-xs">
-            <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Shift</span>
+            <span className="text-slate-400 font-bold uppercase tracking-wider text-[11px] md:text-[10px]">Shift</span>
             <span className="text-white font-semibold">{exam?.shift || 'Morning — 9:00 AM'}</span>
           </div>
         </div>
 
         <div className="space-y-4 flex-grow">
-          <p className="text-[10px] font-mono font-black text-slate-400 uppercase tracking-widest">Exam Structure</p>
+          <p className="text-[11px] md:text-[10px] font-mono font-black text-slate-400 uppercase tracking-widest">Exam Structure</p>
           <div className="space-y-3">
             {sections.map((sec, idx) => {
               const colors = ['bg-blue-500', 'bg-purple-500', 'bg-emerald-500', 'bg-rose-500'];
@@ -153,7 +155,7 @@ export const ExamInstructionsScreen: React.FC<ExamInstructionsScreenProps> = ({
       {/* RIGHT COLUMN: Instructions, Checkbox, Start Button */}
       <div className="flex-grow overflow-y-auto p-6 md:p-12 flex flex-col gap-8 max-w-5xl">
         <div className="space-y-4">
-          <div className="inline-flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-amber-500">
+          <div className="inline-flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-full text-[11px] md:text-[10px] font-black uppercase tracking-widest text-amber-500">
             📋 EXAMINATION INSTRUCTIONS — {exam?.title}
           </div>
           <h1 className="text-3xl md:text-5xl font-display font-black tracking-tight text-white leading-none">Before You Begin</h1>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { Button } from './ui/button';
 import { LogOut, Menu, X, Bell, Search, Globe, ChevronRight } from 'lucide-react';
@@ -146,7 +146,7 @@ const CUTE_ICONS_MAPPING: Record<string, () => React.JSX.Element> = {
   'Student Onboarding': CuteSchoolIcon,
   'Assigned Exams': CuteExamsIcon,
   'Exams Manager': CuteExamsIcon,
-  'Institutions': CuteSchoolIcon,
+  Institutions: CuteSchoolIcon,
   'Security proctors': CuteProctorsIcon,
   'Syllabus Tracker': CuteExamsIcon,
   'Merit Scoreboard': CuteTrophyIcon,
@@ -168,11 +168,19 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     return typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
   });
 
-  // The line above only runs once at mount — without this, resizing the window (e.g.
-  // minimizing then maximizing back) never re-checks the breakpoint, so the sidebar can end
-  // up permanently closed even on a full-width desktop window.
+  // The initializer above only runs once at mount, so the sidebar still has to react to a
+  // window that crosses the lg breakpoint (minimize then maximize back). It must react ONLY
+  // to that crossing: re-applying the breakpoint default on every resize event overrode the
+  // user's own toggle — a desktop user could never keep the sidebar collapsed, and on mobile
+  // the soft keyboard opening fires a resize that would slam the sidebar shut mid-typing.
+  const wasDesktopRef = useRef(typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
   useEffect(() => {
-    const handleResize = () => setIsSidebarOpen(window.innerWidth >= 1024);
+    const handleResize = () => {
+      const isDesktop = window.innerWidth >= 1024;
+      if (isDesktop === wasDesktopRef.current) return;
+      wasDesktopRef.current = isDesktop;
+      setIsSidebarOpen(isDesktop);
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -190,7 +198,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           <p className="text-xs font-display font-black uppercase tracking-[0.25em] text-cyan-400 text-center">
             Spawning Premium Scholar Cosmos...
           </p>
-          <p className="text-[10px] font-medium text-slate-500 max-w-[240px] text-center leading-relaxed">
+          <p className="text-[11px] md:text-[10px] font-medium text-slate-500 max-w-[240px] text-center leading-relaxed">
             Configuring secure proctors & adaptive syllabus engine.
           </p>
         </div>
@@ -328,7 +336,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             <span className="text-2xl font-black tracking-tight text-indigo-950 font-display uppercase select-none leading-none">
               SUVENEDU
             </span>
-            <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest leading-none mt-1.5 font-sans">
+            <span className="text-[11px] md:text-[10px] font-black text-rose-500 uppercase tracking-widest leading-none mt-1.5 font-sans">
               ACADEMY OF STARS
             </span>
           </div>
@@ -337,7 +345,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         {/* Navigation Elements with generous vertical padding & large touch-friendly triggers */}
         <nav className="flex-1 px-1 py-6 space-y-4 overflow-y-auto">
           <div className="px-3 mb-3 select-none">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+            <p className="text-[11px] md:text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
               {isStudent ? '🪐 Learning Base' : '🧙‍♂️ Teacher Base'}
             </p>
           </div>
@@ -371,7 +379,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 activeText: 'text-emerald-900',
                 accentBg: 'bg-emerald-400'
               },
-              'Institutions': {
+              Institutions: {
                 gradient: 'from-sky-100 to-sky-50',
                 activeBorder: 'border-sky-400',
                 activeText: 'text-sky-900',
@@ -461,12 +469,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="p-1 mt-auto border-t-2 border-slate-100 bg-slate-50/50 rounded-2xl">
           <div className="p-4 rounded-xl bg-white border border-slate-200 border-b-[4px] border-slate-300 mb-3 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Security Shield</p>
+              <p className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Security Shield</p>
               <span className="text-sm">🛡️</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] font-mono font-bold text-slate-600 uppercase tracking-wider">SECURE LINK</span>
+              <span className="text-[11px] md:text-[10px] font-mono font-bold text-slate-600 uppercase tracking-wider">SECURE LINK</span>
             </div>
           </div>
 
@@ -494,6 +502,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 variant="ghost"
                 size="icon"
                 className="lg:hidden h-11 w-11 text-slate-700 hover:text-slate-900 bg-slate-50 border-2 border-b-[4px] border-slate-400 rounded-xl"
+                aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                aria-expanded={isSidebarOpen}
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               >
                 {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -507,7 +517,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 placeholder="Search subject track, milestones..."
                 className="bg-transparent border-none focus:outline-none text-xs w-full px-3 text-slate-800 placeholder:text-slate-400 font-bold"
               />
-              <kbd className="hidden sm:inline-flex h-5 select-none items-center gap-1 rounded border bg-white px-2 font-mono text-[9px] font-bold text-slate-400 shadow-sm border-slate-200">
+              <kbd className="hidden sm:inline-flex h-5 select-none items-center gap-1 rounded border bg-white px-2 font-mono text-[11px] md:text-[9px] font-bold text-slate-400 shadow-sm border-slate-200">
                 /
               </kbd>
             </div>
@@ -520,7 +530,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Button
                 onClick={toggleSchoolContext}
                 variant="outline"
-                className="h-11 px-4 bg-white hover:bg-slate-50 text-slate-700 border-2 border-b-[4px] border-slate-200 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-wider shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                className="h-11 px-4 bg-white hover:bg-slate-50 text-slate-700 border-2 border-b-[4px] border-slate-200 rounded-xl flex items-center gap-2 font-black text-[11px] md:text-[10px] uppercase tracking-wider shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]"
               >
                 <Globe className={`h-4 w-4 ${profile?.schoolId ? 'text-indigo-500 animate-pulse' : 'text-emerald-500'}`} />
                 Scope: <span className="text-indigo-650">{profile?.schoolId ? 'Specific School' : 'Global System'}</span>
@@ -547,6 +557,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 variant="ghost"
                 size="icon"
                 className="lg:hidden h-11 w-11 text-slate-700 hover:text-slate-900 bg-slate-50 border-2 border-b-[4px] border-slate-400 rounded-xl"
+                aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                aria-expanded={isSidebarOpen}
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               >
                 {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -561,7 +573,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   {profile?.name || 'Awesome Explorer'}
                 </p>
                 <div className="flex items-center justify-end mt-1">
-                  <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  <span className="text-[11px] md:text-[9px] font-black text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
                     {profile?.role || 'Student'} LEVEL 2
                   </span>
                 </div>

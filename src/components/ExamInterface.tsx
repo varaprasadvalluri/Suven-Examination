@@ -36,7 +36,8 @@ import {
   AlertCircle,
   LogOut,
   Home,
-  FileQuestion
+  FileQuestion,
+  Atom
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
@@ -46,6 +47,10 @@ import { authHeaders } from '../lib/sessionStore';
 import { reportClientCrash } from '../lib/customErrors';
 import { isAttemptFinished } from '../../shared/attemptStatus';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { OfflineSubmissionSafeWall } from './OfflineSubmissionSafeWall';
+import { LazyExamAsset } from './LazyExamAsset';
+import { ScratchpadCanvas } from './ScratchpadCanvas';
+import { PeriodicTableHelper } from './PeriodicTableHelper';
 
 // Specialized Subject-Specific Modules
 import { ExamSyncProvider, useExamSync } from './ExamSyncContext';
@@ -71,11 +76,20 @@ const ExamInterfaceCore: React.FC = () => {
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
   const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState(false);
+  const [isPeriodicTableOpen, setIsPeriodicTableOpen] = useState(false);
   const [hasWarnedUnder5Min, setHasWarnedUnder5Min] = useState(false);
 
   const [timePerQuestion, setTimePerQuestion] = useState<Record<number, number>>({});
   const [violationsCount, setViolationsCount] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // iOS Safari on iPhone implements no Fullscreen API on ordinary elements (only video gets
+  // webkitEnterFullscreen), and this app ships as an iOS Capacitor build. enterFullscreen()
+  // already had a fallback for that — it just sets the flag — but the effect below used to
+  // overwrite the flag from document.fullscreenElement on every re-run, which on those
+  // browsers is permanently null. The student pressed "Enter Secure Exam Mode", the flag was
+  // reset a moment later, and they were stuck on the lockout screen with no way into the
+  // exam. Only trust document.fullscreenElement where the API actually exists.
+  const isFullscreenSupported = typeof document !== 'undefined' && typeof document.documentElement?.requestFullscreen === 'function';
   const [isPaused, setIsPaused] = useState(false);
   const [extraTime, setExtraTime] = useState<number>(0);
   const [showOfflineWall, setShowOfflineWall] = useState(false);
@@ -90,6 +104,18 @@ const ExamInterfaceCore: React.FC = () => {
   const [micAllowed, setMicAllowed] = useState<boolean>(false);
   const [micLevel, setMicLevel] = useState<number>(0);
   const [talkingDuration, setTalkingDuration] = useState<number>(0);
+  // Flipped only once a submission is confirmed persisted, so the unload guard stops
+  // warning when the student is being navigated to their own result page.
+  const hasSubmittedRef = useRef(false);
+  // 'in-progress' is written once per sitting, not on every autosave tick — see the autosave
+  // effect below for why re-writing an unchanged status is expensive at exam scale.
+  const hasMarkedInProgressRef = useRef(false);
+  // Read by the autosave tick instead of the state value itself. The countdown effect below
+  // calls setTimePerQuestion once a SECOND, so any effect that lists timePerQuestion as a
+  // dependency is torn down and rebuilt every second — which is why the autosave's own 30s
+  // interval could never survive long enough to fire. Mirroring it into a ref lets the tick
+  // read the latest value without the effect depending on it.
+  const timePerQuestionRef = useRef(timePerQuestion);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioAnalyserRef = useRef<AnalyserNode | null>(null);
@@ -309,23 +335,70 @@ const ExamInterfaceCore: React.FC = () => {
     }
   }, [markedForReview, attemptId]);
 
-  // Periodic Auto-Save for time tracking and statistics
+  useEffect(() => {
+    timePerQuestionRef.current = timePerQuestion;
+  }, [timePerQuestion]);
+
+  // Periodic Auto-Save for time tracking and statistics.
+  //
+  // This interval never once fired before timePerQuestion moved to a ref: it was listed as an
+  // effect dependency, and the countdown timer increments it every second, so the effect's
+  // cleanup cleared the 30-second interval 29 times before it was ever due. The visible
+  // symptom was that no attempt ever reached status 'in-progress', so LiveProctoringWall.tsx —
+  // which queries exactly that status — showed an empty board during every live exam.
   useEffect(() => {
     if (!attemptId || loading || !attempt || isAttemptFinished(attempt.status)) return;
 
     const autoSaveInterval = setInterval(async () => {
+      // MUST NOT run after a submission. `attempt.status` is refreshed by an 8-second poll and
+      // handleSubmit waits 1.5s before navigating away, so this interval outlives the submit by
+      // up to several seconds. A tick landing in that window used to write status:'in-progress'
+      // over the status:'submitted' the submission had just persisted — after which the grading
+      // worker (server/lib/taskQueue.ts) sees a status it refuses to grade and returns, leaving
+      // the attempt permanently unscored with no error anywhere. hasSubmittedRef flips
+      // synchronously the moment the submission is confirmed, so it closes that window; the
+      // status-poll guard above cannot.
+      if (hasSubmittedRef.current) return;
       try {
-        await updateDoc(doc(db, 'attempts', attemptId), {
-          timePerQuestion,
-          status: 'in-progress'
-        });
+        // status is sent only on the first tick of a sitting. It never changes afterwards, but
+        // every write of it touches the `attempts.status` single-field index — three distinct
+        // values across the whole collection, so its index range is a write hotspot, and
+        // Firestore throttles a hot range at roughly 500 writes/sec regardless of how much
+        // capacity the rest of the system has. Sending it once per student instead of once per
+        // 30 seconds takes that from the dominant index write in the exam window to a rounding
+        // error. LiveProctoringWall.tsx's `status == 'in-progress'` query still works: the
+        // transition is still written, just not rewritten.
+        const payload: Record<string, unknown> = { timePerQuestion: timePerQuestionRef.current };
+        if (!hasMarkedInProgressRef.current) {
+          payload.status = 'in-progress';
+        }
+        await updateDoc(doc(db, 'attempts', attemptId), payload);
+        hasMarkedInProgressRef.current = true;
       } catch (err) {
         console.error('Implicit stats tick update missed:', err);
       }
     }, 30000);
 
     return () => clearInterval(autoSaveInterval);
-  }, [attemptId, loading, attempt, timePerQuestion]);
+  }, [attemptId, loading, attempt]);
+
+  // A refresh or tab close mid-exam silently ends the sitting: answers queued but not yet
+  // flushed are lost and the attempt stays 'in-progress' with no way for the student to say
+  // it was an accident. The browser's own confirm prompt is the only thing that can stop it,
+  // and it only appears if a beforeunload handler calls preventDefault.
+  useEffect(() => {
+    if (loading || !attempt || isAttemptFinished(attempt.status)) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (hasSubmittedRef.current) return;
+      event.preventDefault();
+      // Legacy browsers need returnValue set; the string itself is never displayed.
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [loading, attempt]);
 
   const handleAnswer = async (optionValue: number | string | number[] | null) => {
     const newAnswers = [...answers];
@@ -371,164 +444,182 @@ const ExamInterfaceCore: React.FC = () => {
     }
   };
 
-  const handleSubmit = useCallback(async () => {
-    if (!attemptId || !exam || questions.length === 0 || !attempt) return;
+  const handleSubmit = useCallback(
+    async (options?: { rethrowOnFailure?: boolean }) => {
+      if (!attemptId || !exam || questions.length === 0 || !attempt) return;
 
-    // MODULE 3: Offline Safe-Wall Intercept
-    if (!isOnline) {
-      setIsSubmitConfirmOpen(false);
-      setOfflineAnswersSnapshot([...answers]);
-      setShowOfflineWall(true);
-      return;
-    }
-
-    // Dialog stays open (buttons disabled, "Transmitting..." shown via `loading`) for the
-    // whole submit so the student always sees feedback. On success it goes away when
-    // navigate() below unmounts this screen; on failure the catch block closes it explicitly
-    // and leaves the student on the exam so they can retry.
-    setLoading(true);
-    try {
-      // Flush any queued answers immediately to DB before scoring/finalizing
-      try {
-        await examAnswerQueue.flush();
-      } catch (flushErr) {
-        console.warn('Answer queue flush warning:', flushErr);
+      // MODULE 3: Offline Safe-Wall Intercept
+      if (!isOnline) {
+        setIsSubmitConfirmOpen(false);
+        setOfflineAnswersSnapshot([...answers]);
+        setShowOfflineWall(true);
+        return;
       }
 
-      const { score, correctCount, accuracy, errorBookEntries } = scoreExam(questions, answers, {
-        studentId: attempt.studentId,
-        examId: exam.id,
-        examSubject: exam.subject
-      });
-      const totalTimeSpent = Object.values(timePerQuestion).reduce((a, b) => a + b, 0);
-      const avgTimePerCorrect = correctCount > 0 ? totalTimeSpent / correctCount : 0;
-
-      const submissionPayload = {
-        score,
-        accuracy,
-        avgTimePerCorrect,
-        status: 'completed',
-        answers,
-        timePerQuestion,
-        endTime: new Date().toISOString(),
-        schoolId: attempt.schoolId || (exam as any).schoolId || null,
-        examId: attempt.examId || exam.id
-      };
-
-      // The main attempt write and the error-book write are independent — run them
-      // concurrently instead of back-to-back so submission only waits on the slower of the
-      // two round trips, not both added together.
-      // Persists the attempt, or THROWS. Never resolves on a failed write: everything
-      // downstream of this (clearing the local answer cache, the success toast, navigating to
-      // the result page) is only correct if the answers actually reached the server. This used
-      // to swallow both channels' errors and resolve regardless, which told a student their
-      // exam was submitted — and deleted their only local copy of the answers — when nothing
-      // had been persisted at all.
-      const submitAttempt = async () => {
-        const failures: string[] = [];
-
-        // Primary Channel: the apiService updateDoc path (routes to POST
-        // /api/v1/attempts/:id/submit, which recomputes the score server-side).
+      // Dialog stays open (buttons disabled, "Transmitting..." shown via `loading`) for the
+      // whole submit so the student always sees feedback. On success it goes away when
+      // navigate() below unmounts this screen; on failure the catch block closes it explicitly
+      // and leaves the student on the exam so they can retry.
+      setLoading(true);
+      try {
+        // Flush any queued answers immediately to DB before scoring/finalizing
         try {
-          await updateDoc(doc(db, 'attempts', attemptId), submissionPayload);
-          return;
-        } catch (err: any) {
-          failures.push(`primary: ${err?.message || String(err)}`);
-          console.warn('Client-side updateDoc failed, attempting Express API proxy submission:', err);
+          await examAnswerQueue.flush();
+        } catch (flushErr) {
+          console.warn('Answer queue flush warning:', flushErr);
         }
 
-        // Fallback Channel: Express Server Proxy Write
-        try {
-          const submitResponse = await fetch('/api/db/write', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
-            body: JSON.stringify({
-              type: 'update',
-              collectionName: 'attempts',
-              docId: attemptId,
-              data: submissionPayload
-            })
-          });
-          if (submitResponse.ok) {
-            return;
-          }
-          failures.push(`fallback: HTTP ${submitResponse.status} ${await submitResponse.text()}`);
-        } catch (apiErr: any) {
-          failures.push(`fallback: ${apiErr?.message || String(apiErr)}`);
-          console.error('Express write API fetch error:', apiErr);
-        }
+        const { score, correctCount, accuracy, errorBookEntries } = scoreExam(questions, answers, {
+          studentId: attempt.studentId,
+          examId: exam.id,
+          examSubject: exam.subject
+        });
+        // Read through the ref, like the autosave tick does. Depending on the state value here
+        // gave handleSubmit a new identity every second (the countdown effect below calls
+        // setTimePerQuestion on every tick), and the countdown effect lists handleSubmit as a
+        // dependency — so the 1-second timer was torn down and recreated on each of its own
+        // ticks. It still fired, but each tick cost a full second PLUS a React render/commit,
+        // so time-per-question accumulated slower than real time and drifted further the
+        // heavier the render got.
+        const currentTimePerQuestion = timePerQuestionRef.current;
+        const totalTimeSpent = Object.values(currentTimePerQuestion).reduce((a, b) => a + b, 0);
+        const avgTimePerCorrect = correctCount > 0 ? totalTimeSpent / correctCount : 0;
 
-        throw new Error(`Exam submission was not saved. ${failures.join(' | ')}`);
-      };
+        const submissionPayload = {
+          score,
+          accuracy,
+          avgTimePerCorrect,
+          status: 'completed',
+          answers,
+          timePerQuestion: currentTimePerQuestion,
+          endTime: new Date().toISOString(),
+          schoolId: attempt.schoolId || (exam as any).schoolId || null,
+          examId: attempt.examId || exam.id
+        };
 
-      const submitErrorBook = async () => {
-        if (errorBookEntries.length === 0) return;
-        try {
-          const batch = writeBatch(db);
-          errorBookEntries.forEach((entry) => {
-            const ebRef = doc(collection(db, 'error_books'));
-            batch.set(ebRef, entry);
-          });
-          await batch.commit();
-        } catch (err) {
-          console.warn('Client-side batch write error_books failed, trying server proxy:', err);
+        // The main attempt write and the error-book write are independent — run them
+        // concurrently instead of back-to-back so submission only waits on the slower of the
+        // two round trips, not both added together.
+        // Persists the attempt, or THROWS. Never resolves on a failed write: everything
+        // downstream of this (clearing the local answer cache, the success toast, navigating to
+        // the result page) is only correct if the answers actually reached the server. This used
+        // to swallow both channels' errors and resolve regardless, which told a student their
+        // exam was submitted — and deleted their only local copy of the answers — when nothing
+        // had been persisted at all.
+        const submitAttempt = async () => {
+          const failures: string[] = [];
+
+          // Primary Channel: the apiService updateDoc path (routes to POST
+          // /api/v1/attempts/:id/submit, which recomputes the score server-side).
           try {
-            for (const entry of errorBookEntries) {
-              await fetch('/api/db/write', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                body: JSON.stringify({
-                  type: 'add',
-                  collectionName: 'error_books',
-                  data: entry
-                })
-              });
-            }
-          } catch (ebErr) {
-            console.warn('Server proxy write error_books failed, continuing with submission completion:', ebErr);
+            await updateDoc(doc(db, 'attempts', attemptId), submissionPayload);
+            return;
+          } catch (err: any) {
+            failures.push(`primary: ${err?.message || String(err)}`);
+            console.warn('Client-side updateDoc failed, attempting Express API proxy submission:', err);
           }
-        }
-      };
 
-      // submitErrorBook() swallows its own failures by design (a missing review entry is not
-      // worth failing a submission over), so this only rejects when the attempt write itself
-      // failed on every channel — which must abort the whole success path below.
-      await Promise.all([submitAttempt(), submitErrorBook()]);
+          // Fallback Channel: Express Server Proxy Write
+          try {
+            const submitResponse = await fetch('/api/db/write', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...authHeaders() },
+              body: JSON.stringify({
+                type: 'update',
+                collectionName: 'attempts',
+                docId: attemptId,
+                data: submissionPayload
+              })
+            });
+            if (submitResponse.ok) {
+              return;
+            }
+            failures.push(`fallback: HTTP ${submitResponse.status} ${await submitResponse.text()}`);
+          } catch (apiErr: any) {
+            failures.push(`fallback: ${apiErr?.message || String(apiErr)}`);
+            console.error('Express write API fetch error:', apiErr);
+          }
 
-      // Only past this line is the submission confirmed persisted, so only here is it safe to
-      // drop the student's local progress cache.
-      localStorage.removeItem(`exam_visited_${attemptId}`);
-      localStorage.removeItem(`exam_review_${attemptId}`);
+          throw new Error(`Exam submission was not saved. ${failures.join(' | ')}`);
+        };
 
-      confetti({
-        particleCount: 150,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#4F46E5', '#3B82F6', '#10B981', '#F59E0B']
-      });
+        const submitErrorBook = async () => {
+          if (errorBookEntries.length === 0) return;
+          try {
+            const batch = writeBatch(db);
+            errorBookEntries.forEach((entry) => {
+              const ebRef = doc(collection(db, 'error_books'));
+              batch.set(ebRef, entry);
+            });
+            await batch.commit();
+          } catch (err) {
+            console.warn('Client-side batch write error_books failed, trying server proxy:', err);
+            try {
+              for (const entry of errorBookEntries) {
+                await fetch('/api/db/write', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                  body: JSON.stringify({
+                    type: 'add',
+                    collectionName: 'error_books',
+                    data: entry
+                  })
+                });
+              }
+            } catch (ebErr) {
+              console.warn('Server proxy write error_books failed, continuing with submission completion:', ebErr);
+            }
+          }
+        };
 
-      toast.success('Exam submitted successfully!');
-      setTimeout(() => navigate(`/result/${attemptId}`), 1500);
-    } catch (error: any) {
-      // Deliberately does NOT navigate to the result page. The student stays on the exam
-      // screen with their answers still in component state and still in localStorage, so the
-      // submit button can be pressed again. Navigating away on a failed submission was how a
-      // lost attempt became invisible to everyone, including the student.
-      console.error('Critical submission error:', error);
-      reportClientCrash({
-        message: error?.message || String(error),
-        stack: error?.stack,
-        code: 'exam/submission-failed',
-        action: `ExamInterface.handleSubmit attemptId=${attemptId}`
-      });
-      setIsSubmitConfirmOpen(false);
-      toast.error('Your exam was NOT submitted — nothing has been lost. Check your connection and press Submit again.', {
-        duration: 15000
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [attemptId, exam, questions, answers, navigate, timePerQuestion, attempt]);
+        // submitErrorBook() swallows its own failures by design (a missing review entry is not
+        // worth failing a submission over), so this only rejects when the attempt write itself
+        // failed on every channel — which must abort the whole success path below.
+        await Promise.all([submitAttempt(), submitErrorBook()]);
+
+        // Only past this line is the submission confirmed persisted, so only here is it safe to
+        // drop the student's local progress cache.
+        localStorage.removeItem(`exam_visited_${attemptId}`);
+        localStorage.removeItem(`exam_review_${attemptId}`);
+
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#4F46E5', '#3B82F6', '#10B981', '#F59E0B']
+        });
+
+        hasSubmittedRef.current = true;
+        toast.success('Exam submitted successfully!');
+        setTimeout(() => navigate(`/result/${attemptId}`), 1500);
+      } catch (error: any) {
+        // Deliberately does NOT navigate to the result page. The student stays on the exam
+        // screen with their answers still in component state and still in localStorage, so the
+        // submit button can be pressed again. Navigating away on a failed submission was how a
+        // lost attempt became invisible to everyone, including the student.
+        console.error('Critical submission error:', error);
+        reportClientCrash({
+          message: error?.message || String(error),
+          stack: error?.stack,
+          code: 'exam/submission-failed',
+          action: `ExamInterface.handleSubmit attemptId=${attemptId}`
+        });
+        setIsSubmitConfirmOpen(false);
+        toast.error('Your exam was NOT submitted — nothing has been lost. Check your connection and press Submit again.', {
+          duration: 15000
+        });
+        if (options?.rethrowOnFailure) throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    // isOnline belongs here: handleSubmit's first branch routes to the offline safe-wall based
+    // on it, and leaving it out captured whatever connectivity was true when the callback was
+    // last rebuilt. In practice it refreshed whenever `answers` changed, which hid this — but a
+    // student who lost connectivity and pressed Submit without touching another question was
+    // dispatched on a stale reading.
+    [attemptId, exam, questions, answers, navigate, attempt, isOnline]
+  );
 
   const lastViolationRef = useRef<number>(0);
 
@@ -576,8 +667,10 @@ const ExamInterfaceCore: React.FC = () => {
   );
 
   useEffect(() => {
-    // Sync initial state
-    setIsFullscreen(!!document.fullscreenElement);
+    // Sync initial state — but only where the browser can actually report it.
+    if (isFullscreenSupported) {
+      setIsFullscreen(!!document.fullscreenElement);
+    }
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -592,6 +685,7 @@ const ExamInterfaceCore: React.FC = () => {
     };
 
     const handleFullscreenChange = () => {
+      if (!isFullscreenSupported) return;
       const isFS = !!document.fullscreenElement;
       setIsFullscreen(isFS);
       if (!isFS && !loading && attempt && (attempt?.status === 'started' || attempt?.status === 'in-progress')) {
@@ -608,7 +702,7 @@ const ExamInterfaceCore: React.FC = () => {
       window.removeEventListener('blur', handleBlur);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
-  }, [loading, attempt, isWarningModalOpen, handleViolationTrigger]);
+  }, [loading, attempt, isWarningModalOpen, handleViolationTrigger, isFullscreenSupported]);
 
   // 1. Initialize secure media capturing (Camera disabled per policy, optional audio analysis)
   useEffect(() => {
@@ -1240,7 +1334,9 @@ const ExamInterfaceCore: React.FC = () => {
             <ShieldAlert size={40} className="text-rose-500 animate-pulse" />
           </div>
           <div className="space-y-2">
-            <Badge className="bg-rose-500/20 text-rose-400 font-bold tracking-wider text-[10px] uppercase">Proctor Lockout Active</Badge>
+            <Badge className="bg-rose-500/20 text-rose-400 font-bold tracking-wider text-[11px] md:text-[10px] uppercase">
+              Proctor Lockout Active
+            </Badge>
             <h2 className="text-2xl font-display font-black tracking-tight text-white">Secure Examination Mode</h2>
             <p className="text-xs text-slate-400 font-medium leading-relaxed">
               This digital assessment is fully proctored under secure national guidelines. You must enter and maintain full-screen mode to
@@ -1260,6 +1356,34 @@ const ExamInterfaceCore: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0f111a] text-slate-200 font-sans selection:bg-indigo-500/30 flex flex-col absolute inset-0 overflow-hidden">
+      {showOfflineWall && attempt && exam && (
+        <OfflineSubmissionSafeWall
+          answers={offlineAnswersSnapshot}
+          studentId={attempt.studentId}
+          studentName={attempt.studentName}
+          examId={exam.id}
+          examTitle={exam.title}
+          isOnline={isOnline}
+          onOnlineSubmit={async () => {
+            await handleSubmit({ rethrowOnFailure: true });
+          }}
+        />
+      )}
+
+      {/* Rough-work surface and the chemistry reference table: both were built for exactly
+          this screen but had never been mounted anywhere, so no student could reach them. */}
+      <ScratchpadCanvas />
+
+      <Dialog open={isPeriodicTableOpen} onOpenChange={setIsPeriodicTableOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Periodic Table & Formula Assistant</DialogTitle>
+            <DialogDescription>Reference only — nothing you tap here is recorded as an answer.</DialogDescription>
+          </DialogHeader>
+          <PeriodicTableHelper />
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <header className="h-16 bg-[#171a26] border-b border-slate-800 flex items-center justify-between px-6 shrink-0 z-10 shadow-sm">
         <div className="flex items-center gap-6">
@@ -1284,12 +1408,12 @@ const ExamInterfaceCore: React.FC = () => {
                 <button
                   key={sub}
                   onClick={() => jumpToSubject(sub)}
-                  className={`h-8 px-4 rounded-full border text-[11px] font-bold flex items-center gap-2 transition-all cursor-pointer
+                  className={`h-8 px-4 rounded-full border text-[12px] md:text-[11px] font-bold flex items-center gap-2 transition-all cursor-pointer
                        ${isActive ? 'bg-slate-800 border-indigo-500/50 text-white shadow-sm' : 'border-slate-800/80 text-slate-400 hover:bg-slate-800/50'}`}
                 >
                   <div className={`h-1.5 w-1.5 rounded-full ${color}`} />
                   {sub}
-                  <span className="bg-slate-900 px-1.5 py-0.5 rounded text-[9px] ml-1">
+                  <span className="bg-slate-900 px-1.5 py-0.5 rounded text-[11px] md:text-[9px] ml-1">
                     {subAnsCount}/{subQIdx.length}
                   </span>
                 </button>
@@ -1299,11 +1423,11 @@ const ExamInterfaceCore: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="text-[10px] text-slate-500 hidden sm:flex items-center gap-1.5">
+          <span className="text-[11px] md:text-[10px] text-slate-500 hidden sm:flex items-center gap-1.5">
             <Circle size={8} className={isSynced ? 'text-slate-600 fill-slate-700' : 'text-amber-500 fill-amber-500'} />
             {isSynced ? 'Auto-save' : 'Saving...'}
           </span>
-          <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full text-[10px] font-bold hidden sm:flex items-center gap-1.5">
+          <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full text-[11px] md:text-[10px] font-bold hidden sm:flex items-center gap-1.5">
             <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> Proctored
           </span>
           <Button
@@ -1314,8 +1438,18 @@ const ExamInterfaceCore: React.FC = () => {
             <ListChecks size={14} className="text-indigo-400" />
           </Button>
           <Button
+            onClick={() => setIsPeriodicTableOpen(true)}
+            variant="outline"
+            aria-label="Open the periodic table and chemistry formula assistant"
+            className="bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700 h-9 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+          >
+            <Atom size={14} className="text-emerald-400" />
+            <span className="hidden lg:inline">Periodic Table</span>
+          </Button>
+          <Button
             onClick={() => setIsInstructionsOpen(true)}
             variant="outline"
+            aria-label="Open exam instructions"
             className="bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700 h-9 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer"
           >
             <HelpCircle size={14} className="text-amber-400" />
@@ -1338,21 +1472,21 @@ const ExamInterfaceCore: React.FC = () => {
                 Q {currentIndex + 1} / {questions.length}
               </span>
               {answers[currentIndex] !== null && answers[currentIndex] !== undefined ? (
-                <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider">
+                <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded text-[11px] md:text-[10px] font-bold uppercase tracking-wider">
                   Answered
                 </span>
               ) : markedForReview[currentIndex] ? (
-                <span className="bg-purple-500/20 text-purple-400 border border-purple-500/20 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider">
+                <span className="bg-purple-500/20 text-purple-400 border border-purple-500/20 px-3 py-1.5 rounded text-[11px] md:text-[10px] font-bold uppercase tracking-wider">
                   Review
                 </span>
               ) : (
-                <span className="bg-rose-500/20 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider">
+                <span className="bg-rose-500/20 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded text-[11px] md:text-[10px] font-bold uppercase tracking-wider">
                   Not Answered
                 </span>
               )}
               {/* Font Size Zoom Control */}
               <div className="flex items-center bg-[#171a26] border border-slate-800 rounded px-1 py-0.5 text-xs text-slate-400">
-                <span className="px-1.5 text-[10px] text-slate-500 font-bold uppercase">Zoom:</span>
+                <span className="px-1.5 text-[11px] md:text-[10px] text-slate-500 font-bold uppercase">Zoom:</span>
                 <button
                   onClick={() => setFontSize('sm')}
                   className={`px-1.5 py-0.5 rounded cursor-pointer ${fontSize === 'sm' ? 'bg-indigo-600 text-white font-bold' : 'hover:text-slate-200'}`}
@@ -1375,9 +1509,11 @@ const ExamInterfaceCore: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              {/* There is no negative marking anywhere in scoreExam — a wrong answer is worth 0,
+                  never a deduction. The hard-coded "-1" here told every student the opposite. */}
               <div className="text-xs font-bold font-mono tracking-wider bg-[#171a26] border border-slate-800 px-3 py-1.5 rounded flex gap-2">
                 <span className="text-emerald-400">+{currentQuestion?.marks || 4}</span> <span className="text-slate-700">|</span>{' '}
-                <span className="text-rose-500">-1</span>
+                <span className="text-slate-400">No negative marking</span>
               </div>
             </div>
           </div>
@@ -1407,36 +1543,71 @@ const ExamInterfaceCore: React.FC = () => {
 
             {currentQuestion?.imageUrl && (
               <div className="mb-10 max-w-2xl rounded-xl overflow-hidden border border-slate-800">
-                <img src={currentQuestion.imageUrl} alt="Question Graphic" className="w-full h-auto" />
+                {/* Only fetches once this question is the one on screen, so a 60-question paper
+                    does not pull every diagram at load time over a school connection. */}
+                <LazyExamAsset src={currentQuestion.imageUrl} type="image" alt="Question diagram" isActive />
               </div>
             )}
 
-            <div className="space-y-3 mt-auto">
-              {currentQuestion?.options.map((opt, idx) => {
-                const letters = ['A', 'B', 'C', 'D', 'E'];
-                const letter = letters[idx];
-                const isSelected = Array.isArray(answers[currentIndex])
-                  ? answers[currentIndex].includes(idx)
-                  : answers[currentIndex] === idx;
+            {currentQuestion?.audioUrl && (
+              <div className="mb-10 max-w-2xl">
+                <LazyExamAsset src={currentQuestion.audioUrl} type="audio" alt="Question audio clip" isActive />
+              </div>
+            )}
 
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => (currentQuestion.type === 'multiple' ? handleCheckboxToggle(idx) : handleAnswer(idx))}
-                    className={`w-full text-left p-4 rounded-xl border flex items-center gap-4 transition-all cursor-pointer
+            {/* A 'numerical' question is authored with options: [] and correctAnswerIndex: -1, so
+                the options list below rendered nothing at all for it — the student saw the
+                question with no way to answer it. scoreExam already grades these by trimmed
+                string comparison against numericalAnswer, so all that was missing was the input. */}
+            {currentQuestion?.type === 'numerical' ? (
+              <div className="space-y-3 mt-auto max-w-md">
+                <label htmlFor="numerical-answer" className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Your answer
+                </label>
+                <input
+                  id="numerical-answer"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={
+                    typeof answers[currentIndex] === 'string' || typeof answers[currentIndex] === 'number'
+                      ? String(answers[currentIndex])
+                      : ''
+                  }
+                  onChange={(e) => handleAnswer(e.target.value)}
+                  placeholder="e.g. 9.81"
+                  className="w-full h-14 rounded-xl bg-slate-900/70 border border-slate-700 px-4 text-lg font-mono font-bold text-slate-100 placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 transition-all"
+                />
+                <p className="text-xs text-slate-500 font-medium">Enter the value only — no units. Use a decimal point for fractions.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 mt-auto">
+                {currentQuestion?.options.map((opt, idx) => {
+                  const letters = ['A', 'B', 'C', 'D', 'E'];
+                  const letter = letters[idx];
+                  const isSelected = Array.isArray(answers[currentIndex])
+                    ? answers[currentIndex].includes(idx)
+                    : answers[currentIndex] === idx;
+
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => (currentQuestion.type === 'multiple' ? handleCheckboxToggle(idx) : handleAnswer(idx))}
+                      className={`w-full text-left p-4 rounded-xl border flex items-center gap-4 transition-all cursor-pointer
                            ${isSelected ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-200' : 'bg-slate-900/50 border-slate-800/60 text-slate-300 hover:bg-slate-800 hover:border-slate-700'}`}
-                  >
-                    <div
-                      className={`h-7 w-7 rounded-full border flex items-center justify-center font-bold text-xs shrink-0
-                           ${isSelected ? 'bg-indigo-500 border-indigo-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-400'}`}
                     >
-                      {letter}
-                    </div>
-                    <span className="text-sm font-medium leading-relaxed">{opt}</span>
-                  </button>
-                );
-              })}
-            </div>
+                      <div
+                        className={`h-7 w-7 rounded-full border flex items-center justify-center font-bold text-xs shrink-0
+                           ${isSelected ? 'bg-indigo-500 border-indigo-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-400'}`}
+                      >
+                        {letter}
+                      </div>
+                      <span className="text-sm font-medium leading-relaxed">{opt}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Action Bar */}
@@ -1489,14 +1660,14 @@ const ExamInterfaceCore: React.FC = () => {
           className={`${isMobilePaletteOpen ? 'flex' : 'hidden'} md:flex fixed md:static inset-y-0 right-0 z-50 md:z-auto w-[85vw] max-w-sm md:w-80 md:max-w-none bg-[#171a26] border-l border-slate-800 flex-col shrink-0`}
         >
           <div className="p-3 border-b border-slate-800 bg-[#131620] flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Question Palette</span>
+            <span className="text-[12px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider">Question Palette</span>
             <button onClick={() => setIsMobilePaletteOpen(false)} className="md:hidden text-slate-400 hover:text-slate-200 cursor-pointer">
               <X size={16} />
             </button>
             {paletteFilter !== 'ALL' && (
               <button
                 onClick={() => setPaletteFilter('ALL')}
-                className="text-[10px] text-indigo-400 hover:underline font-bold cursor-pointer"
+                className="text-[11px] md:text-[10px] text-indigo-400 hover:underline font-bold cursor-pointer"
               >
                 Clear Filter
               </button>
@@ -1513,7 +1684,7 @@ const ExamInterfaceCore: React.FC = () => {
               }`}
             >
               <span className="block text-xl font-black text-emerald-500">{counts.answered + counts.answeredMarkedReview}</span>
-              <span className="text-[9px] text-emerald-400/80 font-bold uppercase tracking-wider mt-1">Answered</span>
+              <span className="text-[11px] md:text-[9px] text-emerald-400/80 font-bold uppercase tracking-wider mt-1">Answered</span>
             </button>
             <button
               onClick={() => setPaletteFilter((prev) => (prev === 'UNANSWERED' ? 'ALL' : 'UNANSWERED'))}
@@ -1524,7 +1695,7 @@ const ExamInterfaceCore: React.FC = () => {
               }`}
             >
               <span className="block text-xl font-black text-rose-500">{counts.notAnswered}</span>
-              <span className="text-[9px] text-rose-400/80 font-bold uppercase tracking-wider mt-1">Not Ans.</span>
+              <span className="text-[11px] md:text-[9px] text-rose-400/80 font-bold uppercase tracking-wider mt-1">Not Ans.</span>
             </button>
             <button
               onClick={() => setPaletteFilter((prev) => (prev === 'REVIEW' ? 'ALL' : 'REVIEW'))}
@@ -1535,7 +1706,7 @@ const ExamInterfaceCore: React.FC = () => {
               }`}
             >
               <span className="block text-xl font-black text-purple-400">{counts.markedReview}</span>
-              <span className="text-[9px] text-purple-300/80 font-bold uppercase tracking-wider mt-1">Review</span>
+              <span className="text-[11px] md:text-[9px] text-purple-300/80 font-bold uppercase tracking-wider mt-1">Review</span>
             </button>
             <button
               onClick={() => setPaletteFilter((prev) => (prev === 'UNVISITED' ? 'ALL' : 'UNVISITED'))}
@@ -1546,7 +1717,7 @@ const ExamInterfaceCore: React.FC = () => {
               }`}
             >
               <span className="block text-xl font-black text-slate-300">{counts.notVisited}</span>
-              <span className="text-[9px] text-slate-400/80 font-bold uppercase tracking-wider mt-1">Unvisited</span>
+              <span className="text-[11px] md:text-[9px] text-slate-400/80 font-bold uppercase tracking-wider mt-1">Unvisited</span>
             </button>
           </div>
 
@@ -1555,7 +1726,7 @@ const ExamInterfaceCore: React.FC = () => {
               const subColor = ['bg-blue-500', 'bg-purple-500', 'bg-emerald-500', 'bg-rose-500'][sIdx % 4];
               return (
                 <div key={sub} className="space-y-4">
-                  <div className="flex items-center gap-2 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                  <div className="flex items-center gap-2 text-[11px] md:text-[10px] font-black tracking-widest text-slate-400 uppercase">
                     <div className={`h-1.5 w-1.5 rounded-full ${subColor}`} />
                     {sub}
                   </div>
@@ -1626,7 +1797,9 @@ const ExamInterfaceCore: React.FC = () => {
             <div className="bg-rose-50 border border-rose-200/80 rounded-2xl p-4 flex items-start gap-3 mt-2">
               <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
               <div className="text-xs font-semibold text-rose-900 leading-snug">
-                <p className="font-extrabold uppercase text-[10px] tracking-wider text-rose-700 mb-0.5">Unanswered Questions Warning</p>
+                <p className="font-extrabold uppercase text-[11px] md:text-[10px] tracking-wider text-rose-700 mb-0.5">
+                  Unanswered Questions Warning
+                </p>
                 You have{' '}
                 <span className="font-black underline text-rose-700">
                   {unansweredCount} unanswered question{unansweredCount > 1 ? 's' : ''}
@@ -1639,11 +1812,11 @@ const ExamInterfaceCore: React.FC = () => {
           {/* Summary Metric Grid */}
           <div className="grid grid-cols-4 gap-2.5 mt-4">
             <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl text-center">
-              <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">Total</span>
+              <span className="text-[11px] md:text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">Total</span>
               <span className="text-lg font-black text-slate-800 block mt-0.5">{questions.length}</span>
             </div>
             <div className="bg-emerald-50/60 border border-emerald-100 p-3 rounded-2xl text-center">
-              <span className="text-[9px] font-extrabold text-emerald-600 uppercase tracking-wider block">Answered</span>
+              <span className="text-[11px] md:text-[9px] font-extrabold text-emerald-600 uppercase tracking-wider block">Answered</span>
               <span className="text-lg font-black text-emerald-600 block mt-0.5">{answeredCount}</span>
             </div>
             <div
@@ -1651,11 +1824,11 @@ const ExamInterfaceCore: React.FC = () => {
                 unansweredCount > 0 ? 'bg-rose-50/60 border-rose-200 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-700'
               }`}
             >
-              <span className="text-[9px] font-extrabold uppercase tracking-wider block">Unanswered</span>
+              <span className="text-[11px] md:text-[9px] font-extrabold uppercase tracking-wider block">Unanswered</span>
               <span className="text-lg font-black block mt-0.5">{unansweredCount}</span>
             </div>
             <div className="bg-purple-50/60 border border-purple-100 p-3 rounded-2xl text-center">
-              <span className="text-[9px] font-extrabold text-purple-600 uppercase tracking-wider block">In Review</span>
+              <span className="text-[11px] md:text-[9px] font-extrabold text-purple-600 uppercase tracking-wider block">In Review</span>
               <span className="text-lg font-black text-purple-600 block mt-0.5">{markedForReviewCount}</span>
             </div>
           </div>
@@ -1663,12 +1836,14 @@ const ExamInterfaceCore: React.FC = () => {
           {/* Subject-Wise Unanswered Breakdown List */}
           {unansweredBySubject.length > 0 && (
             <div className="mt-4 bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Unanswered by Subject:</span>
+              <span className="text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                Unanswered by Subject:
+              </span>
               <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
                 {unansweredBySubject.map((item) => (
                   <div key={item.subject} className="flex items-center justify-between text-xs font-semibold text-slate-700">
                     <span className="truncate max-w-[200px]">{item.subject}</span>
-                    <span className="font-bold text-rose-600 bg-rose-100/60 px-2 py-0.5 rounded-full text-[10px]">
+                    <span className="font-bold text-rose-600 bg-rose-100/60 px-2 py-0.5 rounded-full text-[11px] md:text-[10px]">
                       {item.unanswered} unanswered / {item.total}
                     </span>
                   </div>
@@ -1692,7 +1867,7 @@ const ExamInterfaceCore: React.FC = () => {
                   ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-200'
                   : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
               }`}
-              onClick={handleSubmit}
+              onClick={() => handleSubmit()}
               disabled={loading}
             >
               {loading ? 'Transmitting...' : 'Yes, Submit Exam'}
@@ -1730,15 +1905,15 @@ const ExamInterfaceCore: React.FC = () => {
             {/* Structure Summary Grid */}
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="bg-[#171a26] p-3 rounded-xl border border-slate-800">
-                <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Duration</span>
+                <span className="text-[11px] md:text-[10px] font-bold text-slate-500 uppercase block">Total Duration</span>
                 <span className="text-base font-black text-white font-mono">{exam?.duration || 180} min</span>
               </div>
               <div className="bg-[#171a26] p-3 rounded-xl border border-slate-800">
-                <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Questions</span>
+                <span className="text-[11px] md:text-[10px] font-bold text-slate-500 uppercase block">Total Questions</span>
                 <span className="text-base font-black text-white font-mono">{questions.length}</span>
               </div>
               <div className="bg-[#171a26] p-3 rounded-xl border border-slate-800">
-                <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Marks</span>
+                <span className="text-[11px] md:text-[10px] font-bold text-slate-500 uppercase block">Total Marks</span>
                 <span className="text-base font-black text-white font-mono">{exam?.totalMarks || 120}</span>
               </div>
             </div>
@@ -1759,7 +1934,7 @@ const ExamInterfaceCore: React.FC = () => {
             {/* Navigation & Color Legend */}
             <div className="space-y-2">
               <p className="text-xs font-black uppercase text-slate-400 tracking-wider">Question Palette Legend</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-bold">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[12px] md:text-[11px] font-bold">
                 <div className="flex items-center gap-2 bg-[#171a26] p-2 rounded-lg border border-slate-800">
                   <span className="h-3 w-3 rounded-full bg-emerald-500" /> Answered
                 </div>
@@ -1813,7 +1988,7 @@ const ExamInterfaceCore: React.FC = () => {
               <span className="text-red-700 font-black"> immediate automatic exam submission</span> with the current answers.
             </DialogDescription>
           </DialogHeader>
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-[11px] font-bold text-slate-500 leading-relaxed text-center my-2">
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-[12px] md:text-[11px] font-bold text-slate-500 leading-relaxed text-center my-2">
             🔒 Proctor monitoring is active. Do not touch keyboard combinations, minimize, right-click, or leave full-screen mode.
           </div>
           <DialogFooter className="mt-6">

@@ -101,7 +101,7 @@ export const OfflineSubmissionSafeWall: React.FC<OfflineSubmissionSafeWallProps>
               <WifiOff className="h-7 w-7 text-rose-500 animate-pulse" />
             </div>
             <div>
-              <span className="flex items-center gap-1.5 bg-rose-500/20 border border-rose-400/20 text-rose-300 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full w-fit mb-1">
+              <span className="flex items-center gap-1.5 bg-rose-500/20 border border-rose-400/20 text-rose-300 text-[11px] md:text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full w-fit mb-1">
                 Offline Submission Safe-Wall Block
               </span>
               <CardTitle className="text-xl font-display font-black tracking-tight text-white leading-tight">
@@ -124,7 +124,7 @@ export const OfflineSubmissionSafeWall: React.FC<OfflineSubmissionSafeWallProps>
                 <ShieldAlert className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <p className="text-slate-900 font-extrabold text-xs uppercase tracking-wider">Browser Closure Block Triggered</p>
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[11px] md:text-[10px] text-slate-500">
                     If you close this tab, turn off your device, or press escape, your cached submission session might lose integrity. We
                     will automatically reconcile with the server the instant your internet is restored.
                   </p>
@@ -140,25 +140,25 @@ export const OfflineSubmissionSafeWall: React.FC<OfflineSubmissionSafeWallProps>
 
               <div className="flex gap-2 items-center">
                 <FileSignature className="h-4 w-4 text-indigo-400" />
-                <span className="text-[9px] font-black tracking-widest text-[#FFE28A] uppercase">
+                <span className="text-[11px] md:text-[9px] font-black tracking-widest text-[#FFE28A] uppercase">
                   Verified Proof-of-Completion Certificate
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] font-mono border-t border-slate-800 pt-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] md:text-[10px] font-mono border-t border-slate-800 pt-3">
                 <div>
-                  <span className="text-slate-500 block text-[9px] uppercase font-sans">Exam Assessment</span>
+                  <span className="text-slate-500 block text-[11px] md:text-[9px] uppercase font-sans">Exam Assessment</span>
                   <span className="font-bold text-white uppercase truncate block">{examTitle}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[9px] uppercase font-sans">Student Name</span>
+                  <span className="text-slate-500 block text-[11px] md:text-[9px] uppercase font-sans">Student Name</span>
                   <span className="font-bold text-white uppercase truncate block">{studentName}</span>
                 </div>
               </div>
 
               <div className="mt-2 bg-slate-950 p-4 rounded-xl border border-slate-900 flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <span className="text-[8px] font-black uppercase text-slate-400 block tracking-widest leading-none mb-1">
+                  <span className="text-[11px] md:text-[8px] font-black uppercase text-slate-400 block tracking-widest leading-none mb-1">
                     Receipt Code Signature
                   </span>
                   <span className="font-mono text-sm tracking-widest text-emerald-400 font-extrabold block break-all">{proofHash}</span>
@@ -173,7 +173,7 @@ export const OfflineSubmissionSafeWall: React.FC<OfflineSubmissionSafeWallProps>
                 </Button>
               </div>
 
-              <p className="text-[9px] text-slate-500 font-sans italic text-center mt-1 leading-normal">
+              <p className="text-[11px] md:text-[9px] text-slate-500 font-sans italic text-center mt-1 leading-normal">
                 This verification signature acts as physical proof that your assessment is complete. Take a phone photo as backup.
               </p>
             </div>
@@ -190,7 +190,7 @@ export const OfflineSubmissionSafeWall: React.FC<OfflineSubmissionSafeWallProps>
           </CardContent>
 
           <CardFooter className="bg-slate-50 border-t p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-0 bg-slate-50/50">
-            <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-1.5">
+            <span className="text-[11px] md:text-[10px] text-slate-400 font-semibold flex items-center gap-1.5">
               <Laptop size={12} strokeWidth={2.5} /> Attempt Reference ID: {studentId.substring(0, 10)}
             </span>
             <Button

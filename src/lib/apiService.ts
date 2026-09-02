@@ -553,6 +553,18 @@ export function onSnapshot(
     pollInterval = 8000; // 8 seconds for active tests, exam answers, live proctoring
   } else if (colName === 'schools' || colName === 'syllabus' || colName === 'login_options') {
     pollInterval = 12000; // Slow: 12 seconds for lists that rarely change
+  } else if (colName === 'exams') {
+    // ExamInterface.tsx subscribes to the EXAM document purely to pick up an exam-wide
+    // isPaused flag, and every active student polls it — at the 6s default that is the single
+    // highest-volume request in the app during an exam window, ~17k requests/sec at 100k
+    // concurrent students, for a document that changes at most once per exam.
+    //
+    // The per-student `attempts` subscription (still 8s) already carries that student's own
+    // isPaused and extraTime, so the only thing slowed here is the exam-wide broadcast, which
+    // now reaches a student within ~12s of being set instead of ~6s. Server-side these reads
+    // are additionally served from the query cache (server/routes/db.ts), so the Firestore
+    // read count is bounded by the cache TTL rather than by this interval either way.
+    pollInterval = 12000;
   }
 
   const tick = () => {

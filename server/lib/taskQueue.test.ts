@@ -80,25 +80,22 @@ describe('TaskQueueService.gradeAttempt', () => {
   // A school re-triggering an attempt during the grading window resets it to 'started' with
   // empty answers. Writing the old grade over that would resurrect a stale score on an attempt
   // the student is actively retaking.
-  it.each(['started', 'in-progress', 'completed', 'expired'])(
-    'skips grading when the attempt has moved to %s',
-    async (currentStatus) => {
-      attemptInStatus(currentStatus);
-      const { taskQueueService } = await import('./taskQueue');
+  it.each(['started', 'in-progress', 'completed', 'expired'])('skips grading when the attempt has moved to %s', async (currentStatus) => {
+    attemptInStatus(currentStatus);
+    const { taskQueueService } = await import('./taskQueue');
 
-      await taskQueueService.gradeAttempt({
-        eventId: 'evt_guard',
-        timestamp: '2026-08-21T00:00:00.000Z',
-        examId: 'exam_1',
-        studentId: 'student_1',
-        answers: [],
-        attemptId: 'att_guard'
-      });
+    await taskQueueService.gradeAttempt({
+      eventId: 'evt_guard',
+      timestamp: '2026-08-21T00:00:00.000Z',
+      examId: 'exam_1',
+      studentId: 'student_1',
+      answers: [],
+      attemptId: 'att_guard'
+    });
 
-      expect(mockRecompute).not.toHaveBeenCalled();
-      expect(mockEnqueueWrite).not.toHaveBeenCalled();
-    }
-  );
+    expect(mockRecompute).not.toHaveBeenCalled();
+    expect(mockEnqueueWrite).not.toHaveBeenCalled();
+  });
 
   // Cloud Tasks delivers at least once, so a redelivered task must be a no-op rather than a
   // second write.
@@ -145,7 +142,8 @@ describe('TaskQueueService.enqueueGradingTask — Cloud Tasks not configured (lo
       CLOUD_TASKS_LOCATION: null,
       CLOUD_TASKS_QUEUE: null,
       CLOUD_TASKS_INVOKER_SA: null,
-      CLOUD_RUN_SERVICE_URL: null
+      CLOUD_RUN_SERVICE_URL: null,
+      GRADING_WORKER_PATHS: ['/api/v1/internal/grading-tasks', '/api/internal/grade-attempt']
     }));
   });
 
@@ -180,7 +178,11 @@ describe('TaskQueueService.enqueueGradingTask — Cloud Tasks configured', () =>
       CLOUD_TASKS_LOCATION: 'us-central1',
       CLOUD_TASKS_QUEUE: 'exam-grading-queue',
       CLOUD_TASKS_INVOKER_SA: 'invoker@proj-1.iam.gserviceaccount.com',
-      CLOUD_RUN_SERVICE_URL: 'https://svc.run.app'
+      CLOUD_RUN_SERVICE_URL: 'https://svc.run.app',
+      // The dispatch URL and the OIDC audience both derive from this, and
+      // verifyCloudTasksAuth verifies against the same list — see
+      // server/middleware/verifyCloudTasksAuth.test.ts, which asserts the two agree.
+      GRADING_WORKER_PATHS: ['/api/v1/internal/grading-tasks', '/api/internal/grade-attempt']
     }));
   });
 

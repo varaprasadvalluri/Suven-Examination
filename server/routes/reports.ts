@@ -1,16 +1,36 @@
 import express from 'express';
 import * as XLSX from 'xlsx';
 import { requireSession, requireRole } from '../auth/middleware';
-import { clientDb, clientCollection, clientQuery, clientWhere, clientLimit, clientGetDocs } from '../firestoreClient';
+import {
+  clientDb,
+  clientCollection,
+  clientQuery,
+  clientWhere,
+  clientLimit,
+  clientGetDocs,
+  clientGetDoc,
+  clientDoc,
+  clientSelect
+} from '../firestoreClient';
 import { asyncHandler } from '../middleware/errorHandler';
 
 const router = express.Router();
 
-// Generous ceiling for a single export — well above realistic near-term scale, but bounded
-// so one request can't try to hold an unbounded number of docs in memory. Firestore's REST
-// runQuery applies `limit` server-side (as long as no startAfter cursor is combined with
-// it — see firestoreClient.ts), so this is one bounded call per collection, not N.
+// Ceiling for a single export. Bounded so one request cannot try to hold an unbounded number
+// of documents in memory; Firestore's REST runQuery applies `limit` server-side, so this is
+// one bounded call per collection, not N.
+//
+// The number alone was never the whole story. An `attempts` document carries the student's
+// entire `answers[]`, so at this cap the export was fetching, parsing and retaining hundreds
+// of thousands of full answer sets — gigabytes in a 4Gi container — to compute an average
+// score. Every query below is now PROJECTED to the handful of fields the report actually
+// reads, which is what makes the cap survivable rather than merely stated.
 const MAX_EXPORT_ROWS = 300000;
+
+// Name lookups only, and only when the caller is exporting across every school. A school-role
+// caller (and an admin who named one school) needs exactly one school document, not the
+// collection — that read used to be unbounded regardless of scope.
+const MAX_NAME_LOOKUP_ROWS = 5000;
 
 /**
  * @openapi
@@ -58,25 +78,46 @@ router.post(
     const effectiveSchoolId: string | undefined =
       req.auth.role === 'school' ? req.auth.schoolId : requestedSchoolId && requestedSchoolId !== 'all' ? requestedSchoolId : undefined;
 
-    const schoolsSnap = await clientGetDocs(clientCollection(clientDb, 'schools'));
     const schoolNameMap = new Map<string, string>();
-    schoolsSnap.docs.forEach((d: any) => schoolNameMap.set(d.id, (d.data() as any)?.name || d.id));
+    if (effectiveSchoolId) {
+      const schoolSnap = await clientGetDoc(clientDoc(clientDb, 'schools', effectiveSchoolId));
+      schoolNameMap.set(effectiveSchoolId, (schoolSnap.exists() ? (schoolSnap.data() as any)?.name : null) || effectiveSchoolId);
+    } else {
+      const schoolsSnap = await clientGetDocs(
+        clientQuery(clientCollection(clientDb, 'schools'), clientSelect('name'), clientLimit(MAX_NAME_LOOKUP_ROWS))
+      );
+      schoolsSnap.docs.forEach((d: any) => schoolNameMap.set(d.id, (d.data() as any)?.name || d.id));
+    }
 
     const studentConstraints = [clientWhere('role', '==', 'student')];
     if (effectiveSchoolId) studentConstraints.push(clientWhere('schoolId', '==', effectiveSchoolId));
     const studentsSnap = await clientGetDocs(
-      clientQuery(clientCollection(clientDb, 'users'), ...studentConstraints, clientLimit(MAX_EXPORT_ROWS))
+      clientQuery(
+        clientCollection(clientDb, 'users'),
+        ...studentConstraints,
+        clientSelect('name', 'rollNumber', 'schoolId', 'class'),
+        clientLimit(MAX_EXPORT_ROWS)
+      )
     );
     const students = studentsSnap.docs.map((d: any) => ({ id: d.id, ...(d.data() as any) }));
 
     const attemptConstraints = [clientWhere('status', '==', 'completed')];
     if (effectiveSchoolId) attemptConstraints.push(clientWhere('schoolId', '==', effectiveSchoolId));
     const attemptsSnap = await clientGetDocs(
-      clientQuery(clientCollection(clientDb, 'attempts'), ...attemptConstraints, clientLimit(MAX_EXPORT_ROWS))
+      clientQuery(
+        clientCollection(clientDb, 'attempts'),
+        ...attemptConstraints,
+        // Everything the aggregation below touches, and nothing else. Without the projection
+        // each row also dragged in `answers[]`, `timePerQuestion` and the proctoring fields.
+        clientSelect('studentId', 'examId', 'score', 'accuracy', 'endTime'),
+        clientLimit(MAX_EXPORT_ROWS)
+      )
     );
     const attempts = attemptsSnap.docs.map((d: any) => d.data() as any);
 
-    const examsSnap = await clientGetDocs(clientCollection(clientDb, 'exams'));
+    const examsSnap = await clientGetDocs(
+      clientQuery(clientCollection(clientDb, 'exams'), clientSelect('title'), clientLimit(MAX_NAME_LOOKUP_ROWS))
+    );
     const examNameMap = new Map<string, string>();
     examsSnap.docs.forEach((d: any) => examNameMap.set(d.id, (d.data() as any)?.title || d.id));
 

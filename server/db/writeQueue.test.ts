@@ -99,7 +99,7 @@ describe('batching under exam-end load', () => {
     expect(batchOps.update).toHaveBeenCalledTimes(600);
   });
 
-  it('never puts more than Firestore\'s 500-operation limit in a single batch', async () => {
+  it("never puts more than Firestore's 500-operation limit in a single batch", async () => {
     const { enqueueWrite, processWriteBatch } = await freshQueue();
     const sizes: number[] = [];
     commitMock.mockImplementation(async () => {
@@ -136,6 +136,54 @@ describe('batching under exam-end load', () => {
     releases.forEach((release) => release());
     await Promise.all(writes);
     expect(getQueueDepth()).toBe(0);
+  });
+});
+
+describe('ordering — two writes to the same document', () => {
+  it('never places them in the same parallel wave, and commits them in enqueue order', async () => {
+    const { enqueueWrite } = await freshQueue();
+
+    // The exact scenario this protects: a student's submission, then the autosave tick that
+    // was already in flight behind it. Committed out of order the autosave wins, the grading
+    // worker sees a status it refuses to grade, and the attempt is left silently unscored.
+    await Promise.all([
+      enqueueWrite({ type: 'update', collectionName: 'attempts', docId: 'att_1', data: { status: 'submitted' } }),
+      enqueueWrite({ type: 'update', collectionName: 'attempts', docId: 'att_1', data: { status: 'in-progress' } })
+    ]);
+
+    const statusesInCommitOrder = batchOps.update.mock.calls
+      .filter(([ref]: any[]) => ref.id === 'att_1')
+      .map(([, data]: any[]) => data.status);
+
+    expect(statusesInCommitOrder).toEqual(['submitted', 'in-progress']);
+    // Two rounds means two separate commits — the second write cannot have raced the first.
+    expect(commitMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('keeps a long run of writes to one document in order', async () => {
+    const { enqueueWrite, flushQueue } = await freshQueue();
+
+    const writes = Array.from({ length: 6 }, (_, i) =>
+      enqueueWrite({ type: 'update', collectionName: 'attempts', docId: 'att_hot', data: { tick: i } })
+    );
+    await flushQueue();
+    await Promise.all(writes);
+
+    const ticks = batchOps.update.mock.calls.map(([, data]: any[]) => data.tick);
+    expect(ticks).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it('still batches writes to DIFFERENT documents together, so ordering costs no throughput', async () => {
+    const { enqueueWrite, flushQueue } = await freshQueue();
+
+    const writes = Array.from({ length: 300 }, (_, i) =>
+      enqueueWrite({ type: 'update', collectionName: 'attempts', docId: `att_${i}`, data: {} })
+    );
+    await flushQueue();
+    await Promise.all(writes);
+
+    // 300 distinct documents are all first writes, so they share a single round.
+    expect(commitMock.mock.calls.length).toBeLessThan(5);
   });
 });
 

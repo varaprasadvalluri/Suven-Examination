@@ -124,7 +124,9 @@ export const PeriodicTableHelper: React.FC<PeriodicTableHelperProps> = ({ onInse
 
       {/* Chem formula templates */}
       <div className="space-y-2">
-        <label className="block text-[10px] uppercase font-black tracking-wider text-slate-400">Quick Insert Formula Units</label>
+        <label className="block text-[11px] md:text-[10px] uppercase font-black tracking-wider text-slate-400">
+          Quick Insert Formula Units
+        </label>
         <div className="flex flex-wrap gap-1.5">
           {COMMON_FORMULAS.map((f, idx) => (
             <button
@@ -134,7 +136,7 @@ export const PeriodicTableHelper: React.FC<PeriodicTableHelperProps> = ({ onInse
               title={`${f.name} - ${f.formula}`}
             >
               <span>{f.formula}</span>
-              <span className="text-[9px] text-slate-400 font-normal group-hover:text-slate-300">({f.name})</span>
+              <span className="text-[11px] md:text-[9px] text-slate-400 font-normal group-hover:text-slate-300">({f.name})</span>
             </button>
           ))}
         </div>
@@ -158,7 +160,7 @@ export const PeriodicTableHelper: React.FC<PeriodicTableHelperProps> = ({ onInse
               <button
                 key={grp}
                 onClick={() => setSelectedGroup(selectedGroup === grp ? null : grp)}
-                className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border cursor-pointer ${selectedGroup === grp ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+                className={`px-2.5 py-1.5 rounded-lg text-[11px] md:text-[9px] font-black uppercase tracking-wider transition-all border cursor-pointer ${selectedGroup === grp ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-300 text-slate-500 hover:bg-slate-50'}`}
               >
                 {grp.replace('-', ' ')}
               </button>
@@ -177,12 +179,14 @@ export const PeriodicTableHelper: React.FC<PeriodicTableHelperProps> = ({ onInse
                 className={`border p-2.5 rounded-xl flex flex-col items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-xs cursor-pointer ${colorClass}`}
                 title={`${element.name}: Group=${element.group}, AtomicMass=${element.mass}`}
               >
-                <div className="flex items-center justify-between w-full text-[8px] font-bold opacity-60 leading-none">
+                <div className="flex items-center justify-between w-full text-[11px] md:text-[8px] font-bold opacity-60 leading-none">
                   <span>{element.number}</span>
                   <span>{Math.round(element.mass)}</span>
                 </div>
                 <span className="text-base font-black tracking-tight leading-none my-1.5">{element.symbol}</span>
-                <span className="text-[8px] tracking-tight font-semibold line-clamp-1 opacity-70 leading-none">{element.name}</span>
+                <span className="text-[11px] md:text-[8px] tracking-tight font-semibold line-clamp-1 opacity-70 leading-none">
+                  {element.name}
+                </span>
               </button>
             );
           })}

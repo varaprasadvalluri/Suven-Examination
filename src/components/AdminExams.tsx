@@ -85,7 +85,12 @@ const getExamLocation = (subject: string): string => {
 export const AdminExams: React.FC = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const { items: subjectCategories, loading: loadingSubjects, addItem: addSubjectCategory, removeItem: removeSubjectCategory } = useSubjectCategories();
+  const {
+    items: subjectCategories,
+    loading: loadingSubjects,
+    addItem: addSubjectCategory,
+    removeItem: removeSubjectCategory
+  } = useSubjectCategories();
   const [exams, setExams] = useState<Exam[]>([]);
   const [schools, setSchools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -596,7 +601,7 @@ export const AdminExams: React.FC = () => {
             {canManage && (
               <Button
                 onClick={() => navigate('/admin/exams/create')}
-                className="bg-indigo-600 hover:bg-slate-900 text-white shadow-md transition-all font-bold text-[11px] uppercase tracking-widest h-10 px-6 rounded-xl flex items-center gap-2 cursor-pointer"
+                className="bg-indigo-600 hover:bg-slate-900 text-white shadow-md transition-all font-bold text-[12px] md:text-[11px] uppercase tracking-widest h-10 px-6 rounded-xl flex items-center gap-2 cursor-pointer"
               >
                 <Plus className="h-4 w-4" /> CREATE EXAM
               </Button>
@@ -613,7 +618,7 @@ export const AdminExams: React.FC = () => {
             { label: 'COMPLETED', value: stats.completed }
           ].map((item, i) => (
             <div key={i} className="border border-slate-100 bg-white rounded-2xl p-6 flex flex-col justify-between h-28 shadow-sm">
-              <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">{item.label}</span>
+              <span className="text-[11px] md:text-[10px] font-black tracking-widest text-slate-400 uppercase">{item.label}</span>
               <span className="text-4xl font-bold text-slate-900 mt-2">{item.value}</span>
             </div>
           ))}
@@ -689,17 +694,17 @@ export const AdminExams: React.FC = () => {
                     <div className="flex items-center gap-2">
                       {/* Status Badge */}
                       {visualState === 'upcoming' && (
-                        <span className="bg-blue-50 text-blue-600 border border-blue-100 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                        <span className="bg-blue-50 text-blue-600 border border-blue-100 text-[11px] md:text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                           Upcoming
                         </span>
                       )}
                       {visualState === 'ongoing' && (
-                        <span className="bg-green-50 text-green-600 border border-green-100 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                        <span className="bg-green-50 text-green-600 border border-green-100 text-[11px] md:text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                           Ongoing
                         </span>
                       )}
                       {visualState === 'completed' && (
-                        <span className="bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                        <span className="bg-slate-100 text-slate-500 border border-slate-200 text-[11px] md:text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                           Completed
                         </span>
                       )}
@@ -724,6 +729,7 @@ export const AdminExams: React.FC = () => {
                             size="icon"
                             className={`h-8 w-8 transition-all rounded-full ${exam.status === 'published' ? 'text-green-600 hover:text-green-700 hover:bg-green-50' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
                             onClick={() => handleToggleStatus(exam)}
+                            aria-label={`${exam.status === 'published' ? 'Unpublish' : 'Publish'} ${exam.title}`}
                             title={exam.status === 'published' ? 'Unpublish' : 'Publish'}
                           >
                             {exam.status === 'published' ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
@@ -735,6 +741,7 @@ export const AdminExams: React.FC = () => {
                             size="icon"
                             className="text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 h-8 w-8 rounded-full transition-colors"
                             onClick={() => setPreviewExam(exam)}
+                            aria-label={`Preview ${exam.title}`}
                             title="Preview Assessment"
                           >
                             <ClipboardList className="h-4 w-4" />
@@ -746,6 +753,7 @@ export const AdminExams: React.FC = () => {
                             size="icon"
                             className="text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 h-8 w-8 rounded-full transition-colors"
                             onClick={() => startEditExam(exam)}
+                            aria-label={`Edit parameters and dates for ${exam.title}`}
                             title="Edit parameters & dates"
                           >
                             <Edit3 className="h-4 w-4" />
@@ -757,6 +765,8 @@ export const AdminExams: React.FC = () => {
                             size="icon"
                             className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-full transition-colors"
                             onClick={() => triggerDeleteExam(exam)}
+                            aria-label={`Delete ${exam.title}`}
+                            title="Delete assessment"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -771,7 +781,7 @@ export const AdminExams: React.FC = () => {
                     {/* Ongoing Indicator & Progress Bar */}
                     {visualState === 'ongoing' && (
                       <div className="mt-4 space-y-1.5">
-                        <div className="flex justify-between items-center text-[10px] font-black tracking-wider text-green-600 uppercase">
+                        <div className="flex justify-between items-center text-[11px] md:text-[10px] font-black tracking-wider text-green-600 uppercase">
                           <span className="flex items-center gap-1">
                             <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> IN PROGRESS
                           </span>
@@ -789,7 +799,7 @@ export const AdminExams: React.FC = () => {
 
                   {/* Metadata & Actions */}
                   <div className="mt-6">
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-semibold text-slate-500">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] md:text-[11px] font-semibold text-slate-500">
                       <span className="flex items-center gap-1.5">
                         <Calendar className="h-4 w-4 text-slate-400 shrink-0" />
                         {dateStr}
@@ -812,15 +822,15 @@ export const AdminExams: React.FC = () => {
                     {profile?.role === 'school' && (
                       <div className="mt-4 pt-4 border-t border-slate-100 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-indigo-650 flex items-center gap-1">
+                          <span className="text-[11px] md:text-[10px] font-black uppercase tracking-wider text-indigo-650 flex items-center gap-1">
                             <ShieldCheck className="h-4 w-4 text-indigo-500" /> Secure Portal Link
                           </span>
                           {schoolLinks[exam.id] ? (
-                            <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[8px] font-bold uppercase py-0.5 px-2 rounded-full">
+                            <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] md:text-[8px] font-bold uppercase py-0.5 px-2 rounded-full">
                               Sealed & Active
                             </div>
                           ) : (
-                            <div className="bg-amber-50 text-amber-700 border border-amber-200 text-[8px] font-bold uppercase py-0.5 px-2 rounded-full animate-pulse">
+                            <div className="bg-amber-50 text-amber-700 border border-amber-200 text-[11px] md:text-[8px] font-bold uppercase py-0.5 px-2 rounded-full animate-pulse">
                               Pending Seal
                             </div>
                           )}
@@ -831,10 +841,10 @@ export const AdminExams: React.FC = () => {
                             <Input
                               readOnly
                               value={`${window.location.origin}/portal/school/${profile.schoolId}/exam/${exam.id}/${schoolLinks[exam.id]}`}
-                              className="bg-slate-50 border-slate-200 h-9 text-[10px] font-mono text-slate-500 select-all rounded-lg flex-1 cursor-default"
+                              className="bg-slate-50 border-slate-200 h-9 text-[11px] md:text-[10px] font-mono text-slate-500 select-all rounded-lg flex-1 cursor-default"
                             />
                             <Button
-                              className="h-9 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg shrink-0"
+                              className="h-9 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] md:text-[10px] uppercase tracking-wider rounded-lg shrink-0"
                               onClick={() => {
                                 const secureUrl = `${window.location.origin}/portal/school/${profile.schoolId}/exam/${exam.id}/${schoolLinks[exam.id]}`;
                                 navigator.clipboard.writeText(secureUrl);
@@ -845,7 +855,7 @@ export const AdminExams: React.FC = () => {
                             </Button>
                           </div>
                         ) : (
-                          <div className="p-2 w-full rounded-lg bg-amber-50 border border-amber-100 text-[10px] font-semibold text-amber-700 leading-normal">
+                          <div className="p-2 w-full rounded-lg bg-amber-50 border border-amber-100 text-[11px] md:text-[10px] font-semibold text-amber-700 leading-normal">
                             Waiting for secure token signature. Contact admin to re-publish if this persists.
                           </div>
                         )}
@@ -856,7 +866,7 @@ export const AdminExams: React.FC = () => {
                     <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
                       {canManage && (
                         <Button
-                          className="flex-1 h-9 text-[10px] font-black uppercase tracking-wider rounded-xl border-slate-200 bg-white hover:bg-slate-50 transition-all"
+                          className="flex-1 h-9 text-[11px] md:text-[10px] font-black uppercase tracking-wider rounded-xl border-slate-200 bg-white hover:bg-slate-50 transition-all"
                           variant="outline"
                           onClick={() => navigate(`/admin/exam/${exam.id}`)}
                         >
@@ -865,7 +875,7 @@ export const AdminExams: React.FC = () => {
                       )}
                       {canManage && (
                         <Button
-                          className="flex-1 h-9 text-[10px] font-black uppercase tracking-wider rounded-xl border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/60 text-indigo-700 transition-all"
+                          className="flex-1 h-9 text-[11px] md:text-[10px] font-black uppercase tracking-wider rounded-xl border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/60 text-indigo-700 transition-all"
                           variant="outline"
                           onClick={() => setSelectedDispatchExam(exam)}
                         >
@@ -874,7 +884,7 @@ export const AdminExams: React.FC = () => {
                       )}
                       {canViewResults && (
                         <Button
-                          className="flex-1 h-9 text-[10px] font-black uppercase tracking-wider rounded-xl border-slate-200 bg-white hover:bg-slate-50 transition-all"
+                          className="flex-1 h-9 text-[11px] md:text-[10px] font-black uppercase tracking-wider rounded-xl border-slate-200 bg-white hover:bg-slate-50 transition-all"
                           variant="outline"
                           onClick={() => navigate(`/admin/results/${exam.id}`)}
                         >
@@ -1159,7 +1169,9 @@ export const AdminExams: React.FC = () => {
                 <div className="border-t border-slate-100 pt-4 space-y-4">
                   <div>
                     <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Institutional Cluster Allocations</Label>
-                    <p className="text-[11px] text-slate-400">Select schools permitted to dispatch and administer this assessment paper.</p>
+                    <p className="text-[12px] md:text-[11px] text-slate-400">
+                      Select schools permitted to dispatch and administer this assessment paper.
+                    </p>
                   </div>
 
                   <div className="flex gap-2">
@@ -1276,7 +1288,7 @@ export const AdminExams: React.FC = () => {
                         <div className="flex-1 space-y-4">
                           <div className="flex items-start justify-between gap-4">
                             <h4 className="text-sm font-semibold text-slate-800 leading-relaxed break-words">{q.text}</h4>
-                            <span className="shrink-0 bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider whitespace-nowrap">
+                            <span className="shrink-0 bg-indigo-50 text-indigo-700 text-[11px] md:text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider whitespace-nowrap">
                               {q.marks} Marks
                             </span>
                           </div>
@@ -1304,7 +1316,7 @@ export const AdminExams: React.FC = () => {
                                   }`}
                                 >
                                   <div
-                                    className={`h-5 w-5 shrink-0 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                                    className={`h-5 w-5 shrink-0 rounded-full flex items-center justify-center text-[11px] md:text-[10px] font-bold ${
                                       q.correctAnswerIndex === optIdx ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'
                                     }`}
                                   >
@@ -1321,7 +1333,9 @@ export const AdminExams: React.FC = () => {
 
                           {q.explanation && (
                             <div className="mt-4 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl">
-                              <h5 className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-2">Explanation</h5>
+                              <h5 className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-2">
+                                Explanation
+                              </h5>
                               <p className="text-xs text-indigo-900/80 leading-relaxed font-medium">{q.explanation}</p>
                             </div>
                           )}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
@@ -6,18 +6,7 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import {
-  BookOpen,
-  CheckCircle2,
-  Circle,
-  AlertCircle,
-  PlayCircle,
-  Plus,
-  Trash2,
-  Edit,
-  Loader2,
-  Calendar
-} from 'lucide-react';
+import { BookOpen, CheckCircle2, Circle, AlertCircle, PlayCircle, Plus, Trash2, Edit, Loader2, Calendar } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
   db,
@@ -84,7 +73,10 @@ export const SyllabusTracker: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [retryTrigger, setRetryTrigger] = useState<number>(0);
   const handleRetry = () => setRetryTrigger((prev) => prev + 1);
-  const [isSeeding, setIsSeeding] = useState<boolean>(false);
+  // Re-entrancy guard for the one-time seed below. A ref, not state: the snapshot callback
+  // needs the current value (a state read would be stale in the closure) and flipping it must
+  // not re-run the effect and tear down the Firestore subscription.
+  const isSeedingRef = useRef<boolean>(false);
 
   // Management Modal states
   const [isManageOpen, setIsManageOpen] = useState<boolean>(false);
@@ -133,8 +125,8 @@ export const SyllabusTracker: React.FC = () => {
           const schoolFiltered = fetched.filter((item) => item.schoolId === userSchoolId || item.schoolId === 'global');
 
           // If no syllabus exists, seed with defaults to avoid empty state
-          if (schoolFiltered.length === 0 && !isSeeding && fetched.length === 0) {
-            setIsSeeding(true);
+          if (schoolFiltered.length === 0 && !isSeedingRef.current && fetched.length === 0) {
+            isSeedingRef.current = true;
             try {
               for (const item of SEED_SYLLABUS) {
                 await addDoc(collection(db, 'syllabus'), {
@@ -148,7 +140,7 @@ export const SyllabusTracker: React.FC = () => {
               console.error('Failed to seed default syllabus:', err);
               toast.error('Failed to seed syllabus blueprint');
             } finally {
-              setIsSeeding(false);
+              isSeedingRef.current = false;
             }
           } else {
             setSyllabusList(schoolFiltered);
@@ -399,7 +391,7 @@ export const SyllabusTracker: React.FC = () => {
         <div>
           <Badge
             variant="outline"
-            className="bg-indigo-50 text-indigo-700 border-indigo-100 font-black text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider mb-2"
+            className="bg-indigo-50 text-indigo-700 border-indigo-100 font-black text-[11px] md:text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider mb-2"
           >
             Academic Track
           </Badge>
@@ -468,7 +460,7 @@ export const SyllabusTracker: React.FC = () => {
                         >
                           <span className="text-xs uppercase tracking-tight truncate">{sub.subject}</span>
                           <div className="flex items-center gap-1 shrink-0">
-                            <Badge className="text-[9px] font-black scale-90 px-1 py-0 shadow-none bg-slate-100 text-slate-600">
+                            <Badge className="text-[11px] md:text-[9px] font-black scale-90 px-1 py-0 shadow-none bg-slate-100 text-slate-600">
                               {sub.topics.length} topics
                             </Badge>
                             <Button
@@ -536,7 +528,7 @@ export const SyllabusTracker: React.FC = () => {
 
                               <div className="flex items-center gap-3 flex-wrap">
                                 <div className="w-24">
-                                  <Label className="text-[9px] font-black text-slate-400 block mb-0.5">COVERAGE (%)</Label>
+                                  <Label className="text-[11px] md:text-[9px] font-black text-slate-400 block mb-0.5">COVERAGE (%)</Label>
                                   <Input
                                     type="number"
                                     min="0"
@@ -548,7 +540,7 @@ export const SyllabusTracker: React.FC = () => {
                                 </div>
 
                                 <div className="w-20">
-                                  <Label className="text-[9px] font-black text-slate-400 block mb-0.5">ASSESSMENTS</Label>
+                                  <Label className="text-[11px] md:text-[9px] font-black text-slate-400 block mb-0.5">ASSESSMENTS</Label>
                                   <Input
                                     type="number"
                                     min="0"
@@ -559,7 +551,7 @@ export const SyllabusTracker: React.FC = () => {
                                 </div>
 
                                 <div className="w-24">
-                                  <Label className="text-[9px] font-black text-slate-400 block mb-0.5">STATUS</Label>
+                                  <Label className="text-[11px] md:text-[9px] font-black text-slate-400 block mb-0.5">STATUS</Label>
                                   <select
                                     value={topic.status}
                                     onChange={(e) => handleUpdateTopicField(tIdx, 'status', e.target.value)}
@@ -592,7 +584,7 @@ export const SyllabusTracker: React.FC = () => {
                         </Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-1">
-                            <Label className="text-[10px] font-bold text-slate-400">TOPIC TITLE</Label>
+                            <Label className="text-[11px] md:text-[10px] font-bold text-slate-400">TOPIC TITLE</Label>
                             <Input
                               placeholder="e.g., Vector Algebra"
                               value={newTopicName}
@@ -603,7 +595,7 @@ export const SyllabusTracker: React.FC = () => {
 
                           <div className="grid grid-cols-3 gap-2">
                             <div className="space-y-1">
-                              <Label className="text-[10px] font-bold text-slate-400">COVER %</Label>
+                              <Label className="text-[11px] md:text-[10px] font-bold text-slate-400">COVER %</Label>
                               <Input
                                 type="number"
                                 min="0"
@@ -614,7 +606,7 @@ export const SyllabusTracker: React.FC = () => {
                               />
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-[10px] font-bold text-slate-400">TESTS</Label>
+                              <Label className="text-[11px] md:text-[10px] font-bold text-slate-400">TESTS</Label>
                               <Input
                                 type="number"
                                 min="0"
@@ -624,7 +616,7 @@ export const SyllabusTracker: React.FC = () => {
                               />
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-[10px] font-bold text-slate-400">STATUS</Label>
+                              <Label className="text-[11px] md:text-[10px] font-bold text-slate-400">STATUS</Label>
                               <select
                                 value={newTopicStatus}
                                 onChange={(e) => setNewTopicStatus(e.target.value as any)}
@@ -686,9 +678,9 @@ export const SyllabusTracker: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
-                        <Badge className={`${badgeColor} border font-black text-[10px] uppercase`}>{subj.status}</Badge>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2">
+                        <p className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                        <Badge className={`${badgeColor} border font-black text-[11px] md:text-[10px] uppercase`}>{subj.status}</Badge>
+                        <p className="text-[11px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2">
                           {subjectAssessmentCounts[subj.subject] || 0} Real Assessments Conducted
                         </p>
                       </div>
@@ -716,11 +708,15 @@ export const SyllabusTracker: React.FC = () => {
                               </div>
                               <div className="flex items-center gap-4">
                                 <div className="text-right">
-                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Tests</p>
+                                  <p className="text-[11px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                                    Tests
+                                  </p>
                                   <p className="text-xs font-black text-slate-900 mt-1">{topic.testsConducted}</p>
                                 </div>
                                 <div className="text-right min-w-[40px]">
-                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Coverage</p>
+                                  <p className="text-[11px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                                    Coverage
+                                  </p>
                                   <p className="text-xs font-black text-indigo-600 mt-1">{topic.coverage}%</p>
                                 </div>
                               </div>
@@ -741,7 +737,7 @@ export const SyllabusTracker: React.FC = () => {
                         {subj.topics.some((t) => t.coverage < 100 && t.testsConducted === 0) ? (
                           <>
                             <AlertCircle className="text-amber-500 shrink-0" size={20} />
-                            <p className="text-[11px] font-bold text-slate-600 leading-tight uppercase tracking-tight">
+                            <p className="text-[12px] md:text-[11px] font-bold text-slate-600 leading-tight uppercase tracking-tight">
                               Syllabus gap detected in{' '}
                               <span className="text-indigo-600 font-extrabold">
                                 {subj.topics.find((t) => t.coverage < 100 && t.testsConducted === 0)?.name}
@@ -752,7 +748,7 @@ export const SyllabusTracker: React.FC = () => {
                         ) : (
                           <>
                             <CheckCircle2 className="text-emerald-500 shrink-0" size={20} />
-                            <p className="text-[11px] font-bold text-slate-600 leading-tight uppercase tracking-tight">
+                            <p className="text-[12px] md:text-[11px] font-bold text-slate-600 leading-tight uppercase tracking-tight">
                               Curriculum is fully aligned. Standard operations are active.
                             </p>
                           </>
@@ -771,7 +767,7 @@ export const SyllabusTracker: React.FC = () => {
                             setIsScheduleOpen(true);
                           }
                         }}
-                        className="h-8 text-[10px] font-black text-indigo-600 bg-white border-indigo-200 uppercase tracking-widest hover:bg-indigo-50 shrink-0 cursor-pointer"
+                        className="h-8 text-[11px] md:text-[10px] font-black text-indigo-600 bg-white border-indigo-200 uppercase tracking-widest hover:bg-indigo-50 shrink-0 cursor-pointer"
                       >
                         Schedule Test
                       </Button>
@@ -844,7 +840,7 @@ export const SyllabusTracker: React.FC = () => {
           <form onSubmit={handleScheduleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Date</Label>
+                <Label className="text-[11px] md:text-[10px] font-black uppercase text-slate-400 tracking-wider">Date</Label>
                 <Input
                   type="date"
                   value={scheduleDate}
@@ -855,7 +851,7 @@ export const SyllabusTracker: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Time</Label>
+                <Label className="text-[11px] md:text-[10px] font-black uppercase text-slate-400 tracking-wider">Time</Label>
                 <Input
                   type="time"
                   value={scheduleTime}
@@ -867,7 +863,7 @@ export const SyllabusTracker: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Duration (Minutes)</Label>
+              <Label className="text-[11px] md:text-[10px] font-black uppercase text-slate-400 tracking-wider">Duration (Minutes)</Label>
               <Input
                 type="number"
                 min="10"

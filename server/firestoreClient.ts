@@ -2,6 +2,7 @@ import { GoogleAuth } from 'google-auth-library';
 import { firebaseConfig } from './config';
 import { createBreaker } from './lib/circuitBreaker';
 import { withRetry, FirestoreRestError } from './lib/retry';
+import { logger } from './lib/logger';
 
 // A handle identifying WHICH Firestore database a ref belongs to. The default handle
 // (`clientDb`) carries no overrides and therefore resolves to this app's own configured
@@ -39,6 +40,15 @@ function apiKeyFor(db?: DatabaseHandle): string {
   return db?.apiKey || firebaseConfig.apiKey;
 }
 
+// The Firestore RESOURCE NAME prefix for a database, as opposed to getBaseUrl's HTTPS URL.
+// The batch-commit and transaction endpoints below identify documents by resource name
+// (`projects/p/databases/d/documents/collection/id`) inside the request body, not by URL path.
+export const getDocumentsPath = (db?: DatabaseHandle) => {
+  const projectId = db?.projectId || firebaseConfig.projectId;
+  const databaseId = db?.databaseId || firebaseConfig.firestoreDatabaseId;
+  return `projects/${projectId}/databases/${databaseId}/documents`;
+};
+
 // Exported for direct reuse by the GCP billing/IAM routes, which use the same ADC client
 // and auto-detected project ID outside of Firestore REST calls.
 export const auth = new GoogleAuth({
@@ -58,9 +68,9 @@ export async function getAuthHeader(db?: DatabaseHandle): Promise<Record<string,
   if (!detectedContainerProjectId) {
     try {
       detectedContainerProjectId = await auth.getProjectId();
-      console.log(`[Firestore Auth] Auto-detected container project ID: "${detectedContainerProjectId}"`);
+      logger.info('Firestore auth: auto-detected container project ID', { detectedContainerProjectId });
     } catch (err) {
-      console.warn('[Firestore Auth] Could not auto-detect container project ID:', err);
+      logger.warn('Firestore auth: could not auto-detect container project ID', { err });
     }
   }
 
@@ -91,12 +101,12 @@ export async function getAuthHeader(db?: DatabaseHandle): Promise<Record<string,
       return { Authorization: `Bearer ${tokenResponse.token}` };
     }
   } catch (err) {
-    console.warn('[Firestore Auth] Failed to get Application Default Credentials token, falling back to apiKey:', err);
+    logger.warn('Firestore auth: ADC token unavailable, falling back to apiKey', { err });
   }
   return {};
 }
 
-console.log(`[NODE EXPRESS SERVER] Routed safely via Firestore REST API Gateway to DB: "${firebaseConfig.firestoreDatabaseId}"`);
+logger.info('Firestore REST gateway ready', { database: firebaseConfig.firestoreDatabaseId });
 
 // The default handle: no overrides, so every ref built from it resolves to this app's own
 // configured project and database exactly as before.
@@ -293,7 +303,7 @@ async function clientGetDocImpl(docRef: any) {
       data: () => docData
     };
   } catch (err: any) {
-    console.error(`Error in clientGetDoc for ${docRef.collectionName}/${docRef.id}:`, err);
+    logger.error('clientGetDoc failed', { collection: docRef.collectionName, docId: docRef.id, err });
     throw err;
   }
 }
@@ -309,6 +319,16 @@ async function clientGetDocsImpl(queryRef: any) {
   const structuredQuery: any = {
     from: [{ collectionId }]
   };
+
+  // PROJECTION. Firestore still bills a read per document, but it only SENDS the named fields
+  // — which is the difference between a bounded response and an unbounded one when the
+  // documents carry big arrays. An `attempts` document holds the student's whole `answers[]`;
+  // a report that wants score and studentId does not want to transfer, parse and hold 100
+  // answer objects per row to get them.
+  const selectConstraint = constraints.find((constraint: any) => constraint.type === 'select');
+  if (selectConstraint && selectConstraint.fields?.length) {
+    structuredQuery.select = { fields: selectConstraint.fields.map((fieldPath: string) => ({ fieldPath })) };
+  }
 
   const whereConstraints = constraints.filter((constraint: any) => constraint.type === 'where');
   const orderByConstraints = constraints.filter((constraint: any) => constraint.type === 'orderBy');
@@ -345,8 +365,45 @@ async function clientGetDocsImpl(queryRef: any) {
     }));
   }
 
+  // REAL cursor pagination, not a client-side slice.
+  //
+  // A startAfter used to suppress the server-side `limit` entirely and then locate the cursor
+  // by scanning the parsed response for its id. Firestore was therefore asked for the WHOLE
+  // collection on every page: clicking page 2 of the student list on a 100k-student platform
+  // read 100,000 documents to display ten of them, and the cost grew with the tenant rather
+  // than with the page size. `startAt` moves that into the query, where paging is O(page).
+  //
+  // Cursor values line up positionally with orderBy, and Firestore orders by __name__ last
+  // whether or not you say so — making it explicit is what keeps the cursor unambiguous
+  // between documents that share a sort value (two students with the same name would otherwise
+  // page erratically).
   const hasStartAfter = startAfterConstraints.length > 0;
-  if (limitConstraints.length > 0 && !hasStartAfter) {
+  let usedServerCursor = false;
+
+  if (hasStartAfter) {
+    const cursor = startAfterConstraints[0].startAfter;
+    const cursorId = cursor?.id || (typeof cursor === 'string' ? cursor : undefined);
+    const cursorData = typeof cursor?.data === 'function' ? cursor.data() : undefined;
+
+    if (cursorId && cursorData) {
+      const lastDirection = orderByConstraints[orderByConstraints.length - 1]?.direction === 'desc' ? 'DESCENDING' : 'ASCENDING';
+      structuredQuery.orderBy = [...(structuredQuery.orderBy || []), { field: { fieldPath: '__name__' }, direction: lastDirection }];
+      structuredQuery.startAt = {
+        values: [
+          ...orderByConstraints.map((constraint: any) => toFirestoreValue(cursorData[constraint.field])),
+          { referenceValue: `${getDocumentsPath(queryRef.db)}/${collectionName}/${cursorId}` }
+        ],
+        before: false
+      };
+      usedServerCursor = true;
+    }
+  }
+
+  // The limit is only withheld when the cursor could NOT be pushed into the query — in that
+  // case the old in-memory slice below still needs the surrounding documents to find the
+  // cursor in. That fallback keeps a caller passing a bare document id (rather than a
+  // snapshot) working exactly as before.
+  if (limitConstraints.length > 0 && (!hasStartAfter || usedServerCursor)) {
     structuredQuery.limit = limitConstraints[0].limit;
   }
 
@@ -357,7 +414,12 @@ async function clientGetDocsImpl(queryRef: any) {
 
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const authHeader = await getAuthHeader();
+    // queryRef.db, not the default handle. A query against another project resolved its URL
+    // from the ref but its credentials from this app, so a cross-project read (the admin
+    // migration route's only job) went out with a token that project would reject — surfacing
+    // as an auth error rather than the missing-permission it actually is. getAuthHeader
+    // already returns no header for a foreign project; it just was not being told about one.
+    const authHeader = await getAuthHeader(queryRef.db);
     Object.assign(headers, authHeader);
 
     const httpResponse = await fetch(url, {
@@ -385,7 +447,7 @@ async function clientGetDocsImpl(queryRef: any) {
         };
       });
 
-    if (hasStartAfter) {
+    if (hasStartAfter && !usedServerCursor) {
       const startAfterId = startAfterConstraints[0].startAfter?.id || startAfterConstraints[0].startAfter;
       if (startAfterId) {
         const index = rawDocs.findIndex((d: any) => d.id === startAfterId);
@@ -406,7 +468,7 @@ async function clientGetDocsImpl(queryRef: any) {
       forEach: (cb: (doc: any) => void) => rawDocs.forEach(cb)
     };
   } catch (err: any) {
-    console.error(`Error in clientGetDocs for ${collectionName}:`, err);
+    logger.error('clientGetDocs failed', { collection: collectionName, err });
     throw err;
   }
 }
@@ -540,6 +602,7 @@ export interface QueryConstraint {
   limit?: number;
   offset?: number;
   startAfter?: any;
+  fields?: string[];
 }
 
 export function clientWhere(field: string, op: any, value: any): QueryConstraint {
@@ -552,6 +615,13 @@ export function clientLimit(value: number): QueryConstraint {
 
 export function clientOrderBy(field: string, direction: 'asc' | 'desc' = 'asc'): QueryConstraint {
   return { type: 'orderBy', field, direction };
+}
+
+// Restricts the query to the named fields. Document ids always come back regardless (they are
+// part of each document's resource name, not a field), so a projection never has to ask for
+// __name__ to keep `snap.docs[].id` working.
+export function clientSelect(...fields: string[]): QueryConstraint {
+  return { type: 'select', fields };
 }
 
 // Skips the first N matching documents inside Firestore, so page N of a list can be served
@@ -583,8 +653,68 @@ export function clientQuery(...args: any[]) {
   };
 }
 
+// Translates one queued batch/transaction operation into the `Write` message shape the
+// Firestore REST `:commit` endpoint expects.
+//
+// `update` and merged `set` both carry an updateMask, which is what makes them a field-level
+// merge rather than a whole-document replace — identical semantics to the single-document
+// PATCH calls these used to be issued as, so nothing downstream changes shape. A `set` with
+// no merge option deliberately omits the mask, which is Firestore's full-replace.
+function toRestWrite(op: any, db?: DatabaseHandle): any {
+  const ref = op.docRef;
+  const name = `${getDocumentsPath(ref?.db || db)}/${ref.collectionName}/${ref.id}`;
+
+  if (op.type === 'delete') {
+    return { delete: name };
+  }
+
+  const write: any = { update: { name, fields: toFirestoreFields(op.data) } };
+  const isMerge = op.type === 'update' || !!op.options?.merge;
+  if (isMerge) {
+    write.updateMask = { fieldPaths: Object.keys(op.data || {}).filter((key) => op.data[key] !== undefined) };
+  }
+  return write;
+}
+
+// ONE HTTP round trip for up to 500 writes, applied atomically by Firestore.
+//
+// This is the primitive clientWriteBatch and clientRunTransaction are built on, and the
+// reason both are now what their names always claimed. The previous implementation looped
+// `await clientSetDoc(...)` once per document, so a "batch" of 500 attempt autosaves was 500
+// serial HTTPS requests: the write queue's real drain rate was bounded by MAX_CONCURRENT_BATCHES
+// (12) writes in flight — roughly 250 writes/sec, not the ~5,000/sec its own comment assumed —
+// and a mid-loop failure left the first N documents committed and the rest not.
+//
+// Atomicity also removes a bug in the queue's sequential fallback: on a failed commit nothing
+// has been written, so re-running the whole batch one write at a time can no longer re-apply
+// writes that already landed.
+async function commitWritesImpl(params: { db?: DatabaseHandle; writes: any[]; transaction?: string }): Promise<void> {
+  const { db, writes, transaction } = params;
+  if (writes.length === 0) return;
+
+  const url = `${getBaseUrl(db)}:commit?key=${apiKeyFor(db)}`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  Object.assign(headers, await getAuthHeader(db));
+
+  const body: any = { writes };
+  if (transaction) body.transaction = transaction;
+
+  const httpResponse = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+  if (!httpResponse.ok) {
+    const errText = await httpResponse.text();
+    throw new FirestoreRestError(httpResponse.status, `Firestore REST commit error: ${httpResponse.status} ${errText}`);
+  }
+}
+
+// Retried and breaker-wrapped like every other entry point. Safe to retry: every write in a
+// batch addresses an explicit document id (never an auto-assigned one, unlike clientAddDoc),
+// so replaying a commit whose response was lost converges on the same documents rather than
+// duplicating them.
+export const commitWrites = createBreaker('firestore.commit', withRetry('firestore.commit', commitWritesImpl));
+
 export function clientWriteBatch(dbInstance: any) {
   const operations: any[] = [];
+  const db: DatabaseHandle | undefined = dbInstance && dbInstance.type === 'db' ? dbInstance : undefined;
   return {
     set: (docRef: any, data: any, options?: any) => {
       operations.push({ type: 'set', docRef, data, options });
@@ -596,15 +726,7 @@ export function clientWriteBatch(dbInstance: any) {
       operations.push({ type: 'delete', docRef });
     },
     commit: async () => {
-      for (const op of operations) {
-        if (op.type === 'set') {
-          await clientSetDoc(op.docRef, op.data, op.options);
-        } else if (op.type === 'update') {
-          await clientUpdateDoc(op.docRef, op.data);
-        } else if (op.type === 'delete') {
-          await clientDeleteDoc(op.docRef);
-        }
-      }
+      await commitWrites({ db, writes: operations.map((op) => toRestWrite(op, db)) });
     }
   };
 }
@@ -663,40 +785,130 @@ export async function clientGetCountFromServer(queryRef: any) {
     const count = raw ? parseInt(raw.integerValue ?? raw.doubleValue ?? '0', 10) : 0;
     return { data: () => ({ count }) };
   } catch (err) {
-    console.warn('[Firestore] Aggregation count failed, falling back to counting by fetch:', err);
+    logger.warn('Aggregation count failed, falling back to counting by fetch', { err });
     const snap = await clientGetDocs(queryRef);
     return { data: () => ({ count: snap.docs.length }) };
   }
 }
 
+async function beginTransaction(db?: DatabaseHandle): Promise<string> {
+  const url = `${getBaseUrl(db)}:beginTransaction?key=${apiKeyFor(db)}`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  Object.assign(headers, await getAuthHeader(db));
+
+  const httpResponse = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ options: { readWrite: {} } }) });
+  if (!httpResponse.ok) {
+    const errText = await httpResponse.text();
+    throw new FirestoreRestError(httpResponse.status, `Firestore REST beginTransaction error: ${httpResponse.status} ${errText}`);
+  }
+  const payload = await httpResponse.json();
+  return payload.transaction as string;
+}
+
+// Best-effort: a transaction left un-rolled-back expires on its own, so a failed rollback is
+// logged rather than raised — surfacing it would replace the caller's real error (the reason
+// we are rolling back at all) with a less useful one.
+async function rollbackTransaction(transaction: string, db?: DatabaseHandle): Promise<void> {
+  try {
+    const url = `${getBaseUrl(db)}:rollback?key=${apiKeyFor(db)}`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    Object.assign(headers, await getAuthHeader(db));
+    await fetch(url, { method: 'POST', headers, body: JSON.stringify({ transaction }) });
+  } catch (err) {
+    logger.warn('Transaction rollback failed (transaction will expire on its own)', { err });
+  }
+}
+
+// A document read INSIDE a transaction. Passing the transaction id is what registers the read
+// with Firestore, so the eventual commit fails if the document changed in between — that
+// registration is the entire mechanism, and without it a "transaction" is just reads followed
+// by unrelated writes.
+async function getDocInTransaction(docRef: any, transaction: string) {
+  const db = docRef.db;
+  const url = `${getBaseUrl(db)}/${docRef.collectionName}/${docRef.id}?key=${apiKeyFor(db)}&transaction=${encodeURIComponent(transaction)}`;
+  const headers: Record<string, string> = {};
+  Object.assign(headers, await getAuthHeader(db));
+
+  const httpResponse = await fetch(url, { headers });
+  if (httpResponse.status === 404) {
+    return { id: docRef.id, exists: () => false, data: (): any => null };
+  }
+  if (!httpResponse.ok) {
+    const errText = await httpResponse.text();
+    throw new FirestoreRestError(httpResponse.status, `Firestore REST transactional get error: ${httpResponse.status} ${errText}`);
+  }
+  const payload = await httpResponse.json();
+  const docData = fromFirestoreFields(payload.fields || {});
+  return { id: docRef.id, exists: () => true, data: () => docData };
+}
+
+// Firestore returns ABORTED (HTTP 409) when another writer touched a document this transaction
+// read. That is the expected, routine outcome under contention, not an error to surface — the
+// contract is to re-run the whole callback against fresh reads.
+const TRANSACTION_MAX_ATTEMPTS = 5;
+
+function isAbortedError(err: any): boolean {
+  return err instanceof FirestoreRestError && (err.status === 409 || err.status === 412);
+}
+
+/**
+ * A REAL Firestore transaction: beginTransaction, transactional reads, atomic commit, rollback
+ * on failure, and re-run on ABORTED.
+ *
+ * The previous implementation did none of that. It read with ordinary non-transactional gets,
+ * buffered the writes, and then replayed them as independent single-document PATCHes after the
+ * callback returned. Nothing detected a concurrent writer, so two enrollments arriving together
+ * for the same student both read "no attempt exists" and both created one; and a partial
+ * failure mid-replay left some writes applied and the rest not, with no rollback.
+ *
+ * The buffered-write shape is preserved exactly — transaction.set/update/delete still queue and
+ * only take effect on a clean return, so a `throw` inside the callback still discards every
+ * queued write (server/routes/gatekeeper.ts depends on both halves of that behaviour).
+ */
 export async function clientRunTransaction(dbInstance: any, updateFunction: (transaction: any) => Promise<any>) {
-  const operations: any[] = [];
-  const transactionProxy = {
-    get: async (docRef: any) => {
-      return await clientGetDoc(docRef);
-    },
-    set: (docRef: any, data: any, options?: any) => {
-      operations.push({ type: 'set', docRef, data, options });
-    },
-    update: (docRef: any, data: any) => {
-      operations.push({ type: 'update', docRef, data });
-    },
-    delete: (docRef: any) => {
-      operations.push({ type: 'delete', docRef });
-    }
-  };
+  const db: DatabaseHandle | undefined = dbInstance && dbInstance.type === 'db' ? dbInstance : undefined;
+  let lastError: any;
 
-  const transactionResult = await updateFunction(transactionProxy);
+  for (let attempt = 0; attempt < TRANSACTION_MAX_ATTEMPTS; attempt++) {
+    const transaction = await beginTransaction(db);
+    const operations: any[] = [];
 
-  for (const op of operations) {
-    if (op.type === 'set') {
-      await clientSetDoc(op.docRef, op.data, op.options);
-    } else if (op.type === 'update') {
-      await clientUpdateDoc(op.docRef, op.data);
-    } else if (op.type === 'delete') {
-      await clientDeleteDoc(op.docRef);
+    const transactionProxy = {
+      get: async (docRef: any) => getDocInTransaction(docRef, transaction),
+      set: (docRef: any, data: any, options?: any) => {
+        operations.push({ type: 'set', docRef, data, options });
+      },
+      update: (docRef: any, data: any) => {
+        operations.push({ type: 'update', docRef, data });
+      },
+      delete: (docRef: any) => {
+        operations.push({ type: 'delete', docRef });
+      }
+    };
+
+    try {
+      const transactionResult = await updateFunction(transactionProxy);
+      await commitWrites({ db, writes: operations.map((op) => toRestWrite(op, db)), transaction });
+      return transactionResult;
+    } catch (err: any) {
+      await rollbackTransaction(transaction, db);
+      lastError = err;
+
+      // Only contention is retryable. A ConflictError thrown by the callback itself (e.g.
+      // EXAM_ALREADY_COMPLETED) is a decision, not a collision — re-running would just reach
+      // the same decision after another round of reads.
+      if (!isAbortedError(err) || attempt === TRANSACTION_MAX_ATTEMPTS - 1) {
+        throw err;
+      }
+      const delay = Math.random() * Math.min(2000, 100 * 2 ** attempt);
+      logger.warn('Transaction aborted by contention, retrying', {
+        attempt: attempt + 1,
+        maxAttempts: TRANSACTION_MAX_ATTEMPTS,
+        delayMs: Math.round(delay)
+      });
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
-  return transactionResult;
+  throw lastError;
 }

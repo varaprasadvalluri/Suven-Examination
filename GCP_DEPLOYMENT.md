@@ -71,7 +71,43 @@ gcloud services enable \
     redis.googleapis.com
 ```
 
-### Step 3: Build & Deploy via Google Cloud Build (One Command)
+### Step 3: Automated deploys — main branch only
+
+`.github/workflows/ci.yml` deploys to Cloud Run on every push to `main`, and only then. The
+`deploy` job carries two independent gates:
+
+- `needs: verify` — typecheck, ESLint, format check, unit tests and build must all pass first,
+  so a red build can never reach production.
+- `if: github.event_name == 'push' && github.ref == 'refs/heads/main'` — feature branches and
+  pull requests run the checks and stop there. A PR _targeting_ main does not deploy either;
+  only the merge commit landing on main does.
+
+It runs `gcloud builds submit --config cloudbuild.yaml` rather than reimplementing the deploy,
+so the tuned Cloud Run settings live in exactly one file.
+
+**One-time setup.** Authentication uses Workload Identity Federation, so no long-lived
+service-account key is stored in the repository:
+
+| Where                                                  | Name                             | Value                                                                               |
+| ------------------------------------------------------ | -------------------------------- | ----------------------------------------------------------------------------------- |
+| Settings > Secrets and variables > Actions > Variables | `GCP_PROJECT_ID`                 | Target GCP project id                                                               |
+| Settings > Secrets and variables > Actions > Secrets   | `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/<num>/locations/global/workloadIdentityPools/<pool>/providers/<provider>` |
+| Settings > Secrets and variables > Actions > Secrets   | `GCP_DEPLOY_SERVICE_ACCOUNT`     | Deploy service account email                                                        |
+
+The service account needs `roles/cloudbuild.builds.editor`, `roles/run.admin`,
+`roles/artifactregistry.writer`, and `roles/iam.serviceAccountUser`. Until these are set the
+deploy job fails immediately with a message naming what is missing, rather than failing
+obscurely inside the auth step.
+
+> **Check for a duplicate deploy path.** If a Cloud Build trigger in the GCP console is also
+> watching this repository, it will deploy in parallel with this workflow — and if its branch
+> filter is not restricted to `main`, it is deploying feature branches to production today.
+> Either delete that trigger in favour of this workflow, or restrict it to `main`. The branch
+> filter lives in GCP console config, not in this repository, so it cannot be reviewed here.
+
+You can still deploy by hand at any time:
+
+### Step 3b: Build & Deploy via Google Cloud Build (One Command)
 
 We provided a pre-configured `cloudbuild.yaml` file. Deploying your entire application is as simple as running:
 

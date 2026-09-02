@@ -202,7 +202,10 @@ describe('POST /api/v1/attempts/:attemptId/submit', () => {
     mockAuth.current = studentAuth;
     const app = await buildApp();
 
-    const res = await request(app).post('/api/v1/attempts/att_1/submit').send({ answers: [1] }).expect(200);
+    const res = await request(app)
+      .post('/api/v1/attempts/att_1/submit')
+      .send({ answers: [1] })
+      .expect(200);
 
     expect(mockEnqueueWrite.mock.calls[0][0].data.status).toBe('submitted');
     expect(mockEnqueueGradingTask).toHaveBeenCalledTimes(1);
@@ -242,7 +245,10 @@ describe('POST /api/v1/attempts/:attemptId/submit', () => {
         });
         const app = await buildApp();
 
-        const res = await request(app).post('/api/v1/attempts/att_1/submit').send({ answers: [9, 9, 9] }).expect(200);
+        const res = await request(app)
+          .post('/api/v1/attempts/att_1/submit')
+          .send({ answers: [9, 9, 9] })
+          .expect(200);
 
         // Answers already accepted must not be overwritten by the late duplicate.
         expect(mockEnqueueWrite).not.toHaveBeenCalled();
@@ -263,7 +269,10 @@ describe('POST /api/v1/attempts/:attemptId/submit', () => {
       });
       const app = await buildApp();
 
-      const res = await request(app).post('/api/v1/attempts/att_1/submit').send({ answers: [1] }).expect(200);
+      const res = await request(app)
+        .post('/api/v1/attempts/att_1/submit')
+        .send({ answers: [1] })
+        .expect(200);
 
       expect(mockEnqueueWrite).toHaveBeenCalledTimes(1);
       expect(mockEnqueueGradingTask).toHaveBeenCalledTimes(1);
@@ -279,7 +288,10 @@ describe('POST /api/v1/attempts/:attemptId/submit', () => {
       });
       const app = await buildApp();
 
-      await request(app).post('/api/v1/attempts/att_1/submit').send({ answers: [1] }).expect(200);
+      await request(app)
+        .post('/api/v1/attempts/att_1/submit')
+        .send({ answers: [1] })
+        .expect(200);
 
       expect(mockEnqueueWrite).toHaveBeenCalledTimes(1);
     });
@@ -303,8 +315,13 @@ describe('POST /api/v1/attempts/:attemptId/submit', () => {
       app.use(router);
       app.use(errorHandler);
 
-      await request(app).post('/api/v1/attempts/att_race/submit').send({ answers: [1] }).expect(200);
-      const second = await request(app).post('/api/v1/attempts/att_race/submit').send({ answers: [1] });
+      await request(app)
+        .post('/api/v1/attempts/att_race/submit')
+        .send({ answers: [1] })
+        .expect(200);
+      const second = await request(app)
+        .post('/api/v1/attempts/att_race/submit')
+        .send({ answers: [1] });
 
       expect(second.status).toBe(429);
       expect(second.body.code).toBe('DUPLICATE_SUBMISSION');
@@ -313,7 +330,7 @@ describe('POST /api/v1/attempts/:attemptId/submit', () => {
 });
 
 describe('PATCH /api/v1/attempts/:attemptId', () => {
-  it("refuses to complete an attempt, directing the caller to the submit route", async () => {
+  it('refuses to complete an attempt, directing the caller to the submit route', async () => {
     mockAuth.current = { uid: 'student_1', role: 'student', schoolId: 'school_1', email: null, sessionId: 's1' };
     const app = await buildApp();
 
@@ -328,7 +345,10 @@ describe('PATCH /api/v1/attempts/:attemptId', () => {
     fakeAttemptDao.update.mockResolvedValue({ success: true, id: 'att_1' });
     const app = await buildApp();
 
-    await request(app).patch('/api/v1/attempts/att_1').send({ answers: [1, 2] }).expect(200);
+    await request(app)
+      .patch('/api/v1/attempts/att_1')
+      .send({ answers: [1, 2] })
+      .expect(200);
 
     expect(fakeAttemptDao.update).toHaveBeenCalledWith('att_1', expect.objectContaining({ answers: [1, 2] }));
   });

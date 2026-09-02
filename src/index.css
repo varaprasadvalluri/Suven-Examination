@@ -158,3 +158,22 @@
     @apply w-full max-w-7xl mx-auto px-4 lg:px-6 space-y-8 animate-in fade-in duration-700 pb-12;
   }
 }
+
+/* Respect the OS "reduce motion" setting for everything CSS drives — Tailwind's
+   animate-* utilities, transitions and scroll behaviour. Motion (framer) components are
+   handled separately by the MotionConfig in main.tsx. Spinners keep a slow rotation
+   instead of freezing, otherwise a loading state looks like a hung screen. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-spin {
+    animation: spin 1.5s linear infinite !important;
+  }
+}

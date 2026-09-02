@@ -437,7 +437,7 @@ export const RankingEngine: React.FC = () => {
         <div>
           <Badge
             variant="outline"
-            className="bg-indigo-50 text-indigo-700 border-indigo-100 font-black text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider mb-2"
+            className="bg-indigo-50 text-indigo-700 border-indigo-100 font-black text-[11px] md:text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider mb-2"
           >
             Leaderboards
           </Badge>
@@ -451,7 +451,7 @@ export const RankingEngine: React.FC = () => {
             variant="outline"
             onClick={handleExportXlsx}
             disabled={isExportingXlsx}
-            className="border-slate-200 h-12 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 bg-white shadow-sm cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            className="border-slate-200 h-12 rounded-xl font-black text-[11px] md:text-[10px] uppercase tracking-widest flex items-center gap-2 bg-white shadow-sm cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isExportingXlsx ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
             {isExportingXlsx ? 'Exporting...' : 'Export XLS'}
@@ -461,7 +461,7 @@ export const RankingEngine: React.FC = () => {
           <Button
             disabled
             title="Coming soon"
-            className="bg-slate-400 text-white h-12 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 cursor-not-allowed"
+            className="bg-slate-400 text-white h-12 rounded-xl font-black text-[11px] md:text-[10px] uppercase tracking-widest flex items-center gap-2 cursor-not-allowed"
           >
             <Medal size={14} /> Award Certificates <span className="font-bold normal-case tracking-normal text-slate-200">· Soon</span>
           </Button>
@@ -490,7 +490,9 @@ export const RankingEngine: React.FC = () => {
                 {stat.icon}
               </div>
               <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">{stat.label}</p>
+                <p className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">
+                  {stat.label}
+                </p>
                 <p className="text-3xl font-black text-slate-900 tracking-tighter">{stat.value}</p>
               </div>
             </CardContent>
@@ -539,7 +541,7 @@ export const RankingEngine: React.FC = () => {
                     </div>
                   )}
                   <p className="text-xs font-black uppercase tracking-tight truncate max-w-full text-slate-900">{cand.name}</p>
-                  <p className="text-[9px] font-bold text-slate-500 truncate max-w-full">{cand.branch}</p>
+                  <p className="text-[11px] md:text-[9px] font-bold text-slate-500 truncate max-w-full">{cand.branch}</p>
                   <span className="text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
                     {cand.percentile}%
                   </span>
@@ -566,7 +568,7 @@ export const RankingEngine: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {topFiveByClass.map((group) => (
                 <div key={group.className} className="border border-slate-100 rounded-3xl p-5 bg-slate-50/60">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">{group.className}</p>
+                  <p className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">{group.className}</p>
                   <div className="space-y-3">
                     {group.topFive.map((cand, i) => (
                       <div key={cand.id} className="flex items-center justify-between gap-3">
@@ -578,7 +580,7 @@ export const RankingEngine: React.FC = () => {
                           ) : i === 2 ? (
                             <Award size={14} className="text-orange-500 shrink-0" />
                           ) : (
-                            <span className="text-[10px] font-black text-indigo-400 w-3.5 shrink-0">{i + 1}</span>
+                            <span className="text-[11px] md:text-[10px] font-black text-indigo-400 w-3.5 shrink-0">{i + 1}</span>
                           )}
                           <span className="text-xs font-bold text-slate-800 truncate">{cand.name}</span>
                         </div>
@@ -612,7 +614,9 @@ export const RankingEngine: React.FC = () => {
                 emptyText="No matching schools found"
                 panelClassName="absolute left-0 right-0 mt-1.5 bg-white border-2 border-slate-300 shadow-2xl rounded-2xl p-3 z-[110] flex flex-col gap-2 max-h-[320px] overflow-hidden"
                 renderMore={(hidden) => (
-                  <div className="text-center py-2 text-[10px] text-slate-400 font-bold">{hidden} more — refine your search</div>
+                  <div className="text-center py-2 text-[11px] md:text-[10px] text-slate-400 font-bold">
+                    {hidden} more — refine your search
+                  </div>
                 )}
                 optionClassName={(isSelected) =>
                   `w-full text-left font-black text-xs cursor-pointer py-2 px-3 rounded-lg flex items-center justify-between transition-colors ${
@@ -641,7 +645,7 @@ export const RankingEngine: React.FC = () => {
             )}
             {profile?.role === 'school' && (
               <div className="bg-indigo-50 border border-indigo-100 px-4 py-2 rounded-xl flex flex-col justify-center text-left">
-                <span className="text-[9px] font-black uppercase text-indigo-500 tracking-wider">Your Institution</span>
+                <span className="text-[11px] md:text-[9px] font-black uppercase text-indigo-500 tracking-wider">Your Institution</span>
                 <span className="text-xs font-black text-indigo-900">
                   {schools.find((s) => s.id === profile.schoolId)?.name || 'Your Assigned School'}
                 </span>
@@ -807,7 +811,7 @@ export const RankingEngine: React.FC = () => {
                         <div className="flex items-center gap-3">
                           <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{entry.name}</p>
                           <Badge
-                            className={`${entry.status === 'Elite' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : entry.status === 'Advanced' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'} font-black text-[8px] uppercase px-1.5 py-0.5 rounded-md border`}
+                            className={`${entry.status === 'Elite' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : entry.status === 'Advanced' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'} font-black text-[11px] md:text-[8px] uppercase px-1.5 py-0.5 rounded-md border`}
                           >
                             {entry.status}
                           </Badge>
@@ -820,7 +824,7 @@ export const RankingEngine: React.FC = () => {
                     <td className="px-6 py-2.5 font-sans font-semibold text-slate-700">{entry.rollNumber || '—'}</td>
                     <td className="px-6 py-2.5">
                       <Badge
-                        className={`${getClassBadgeStyle(entry.class)} font-black text-[9px] uppercase px-2 py-0.5 rounded-md border`}
+                        className={`${getClassBadgeStyle(entry.class)} font-black text-[11px] md:text-[9px] uppercase px-2 py-0.5 rounded-md border`}
                       >
                         {entry.class}
                         {entry.section ? `-${entry.section}` : ''}
@@ -836,7 +840,7 @@ export const RankingEngine: React.FC = () => {
                       <div className="flex flex-col gap-0.5 text-left">
                         <span className="font-sans text-xs font-semibold text-slate-700">{entry.examsAttended} Attended</span>
                         <span
-                          className={`text-[10px] font-bold ${entry.improvement.startsWith('+') ? 'text-emerald-600' : entry.improvement === '-' ? 'text-slate-400' : 'text-rose-600'}`}
+                          className={`text-[11px] md:text-[10px] font-bold ${entry.improvement.startsWith('+') ? 'text-emerald-600' : entry.improvement === '-' ? 'text-slate-400' : 'text-rose-600'}`}
                         >
                           {entry.improvement} {entry.improvement !== '-' && 'progress'}
                         </span>

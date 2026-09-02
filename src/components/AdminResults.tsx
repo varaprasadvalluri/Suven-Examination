@@ -311,7 +311,9 @@ export const AdminResults: React.FC = () => {
             <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center">
               <Users className="h-5 w-5 text-indigo-600" />
             </div>
-            <span className="text-sm font-medium text-slate-500 uppercase tracking-wider font-bold text-[10px]">Participants</span>
+            <span className="text-sm font-medium text-slate-500 uppercase tracking-wider font-bold text-[11px] md:text-[10px]">
+              Participants
+            </span>
           </div>
           <div className="text-3xl font-display font-bold text-slate-900">{totalAttemptsCount}</div>
           <div className="text-xs text-slate-400 mt-1">Students completed</div>
@@ -322,7 +324,9 @@ export const AdminResults: React.FC = () => {
             <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center">
               <TrendingUp className="h-5 w-5 text-green-600" />
             </div>
-            <span className="text-sm font-medium text-slate-500 uppercase tracking-wider font-bold text-[10px]">Average Score</span>
+            <span className="text-sm font-medium text-slate-500 uppercase tracking-wider font-bold text-[11px] md:text-[10px]">
+              Average Score
+            </span>
           </div>
           <div className="text-3xl font-display font-bold text-slate-900">
             {averageScore} <span className="text-sm font-normal opacity-50">/ {exam.totalMarks}</span>
@@ -335,7 +339,9 @@ export const AdminResults: React.FC = () => {
             <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center">
               <Award className="h-5 w-5 text-amber-600" />
             </div>
-            <span className="text-sm font-medium text-slate-500 uppercase tracking-wider font-bold text-[10px]">Highest Score</span>
+            <span className="text-sm font-medium text-slate-500 uppercase tracking-wider font-bold text-[11px] md:text-[10px]">
+              Highest Score
+            </span>
           </div>
           <div className="text-3xl font-display font-bold text-slate-900">
             {topScore} <span className="text-sm font-normal opacity-50">/ {exam.totalMarks}</span>
@@ -359,7 +365,7 @@ export const AdminResults: React.FC = () => {
                 Statistical anomalies indicator covering pass ratios, response latency patterns, and potential leak signals.
               </p>
             </div>
-            <span className="flex items-center gap-1 bg-indigo-50 border border-indigo-200 text-indigo-700 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full font-mono w-fit">
+            <span className="flex items-center gap-1 bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] md:text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full font-mono w-fit">
               <Brain size={11} /> Mapped Items count: {questionAnalytics.length}
             </span>
           </div>
@@ -379,27 +385,27 @@ export const AdminResults: React.FC = () => {
                     className={`p-5 rounded-2xl border transition-all ${isAnomaly ? (q.status === 'anomaly-leak' ? 'bg-orange-50/40 border-orange-200 text-orange-950 shadow-md ring-1 ring-orange-100' : q.status === 'anomaly-hard' ? 'bg-rose-50/30 border-rose-200 text-rose-950' : 'bg-amber-50/30 border-amber-200 text-amber-950') : 'bg-white border-slate-200 shadow-sm hover:border-slate-400'}`}
                   >
                     <div className="flex justify-between items-start gap-3">
-                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md font-mono">
+                      <span className="text-[11px] md:text-[9px] font-black uppercase tracking-wider text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md font-mono">
                         Q-{qIndex + 1} &bull; {q.subject}
                       </span>
 
                       {q.status === 'anomaly-hard' && (
-                        <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-rose-100/90 text-rose-800 border border-rose-200">
+                        <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] md:text-[8px] font-black uppercase tracking-widest bg-rose-100/90 text-rose-800 border border-rose-200">
                           <AlertTriangle size={10} /> High Difficulty
                         </span>
                       )}
                       {q.status === 'anomaly-leak' && (
-                        <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-orange-100/90 text-orange-900 border border-orange-300 animate-pulse">
+                        <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] md:text-[8px] font-black uppercase tracking-widest bg-orange-100/90 text-orange-900 border border-orange-300 animate-pulse">
                           <ShieldAlert size={10} /> Leak Suspicion
                         </span>
                       )}
                       {q.status === 'anomaly-easy' && (
-                        <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-amber-100/90 text-amber-800 border border-amber-200">
+                        <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] md:text-[8px] font-black uppercase tracking-widest bg-amber-100/90 text-amber-800 border border-amber-200">
                           <Sparkles size={10} /> High Pass Ratio
                         </span>
                       )}
                       {q.status === 'normal' && (
-                        <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-slate-50 text-slate-500 border border-slate-200 font-mono">
+                        <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] md:text-[8px] font-black uppercase tracking-widest bg-slate-50 text-slate-500 border border-slate-200 font-mono">
                           Steady
                         </span>
                       )}
@@ -407,17 +413,23 @@ export const AdminResults: React.FC = () => {
 
                     <p className="text-xs text-slate-800 font-bold line-clamp-2 mt-2.5 leading-snug">{q.text}</p>
 
-                    <div className="grid grid-cols-3 gap-2 border-t border-slate-100 mt-3 pt-3 text-center text-[10px] font-mono leading-none">
+                    <div className="grid grid-cols-3 gap-2 border-t border-slate-100 mt-3 pt-3 text-center text-[11px] md:text-[10px] font-mono leading-none">
                       <div className="p-1.5 bg-slate-50 border border-slate-100/40 rounded-lg">
-                        <span className="text-[8px] text-slate-500 uppercase block font-sans mb-1 font-semibold">Checks</span>
+                        <span className="text-[11px] md:text-[8px] text-slate-500 uppercase block font-sans mb-1 font-semibold">
+                          Checks
+                        </span>
                         <span className="font-extrabold text-slate-800">{q.attemptsCount}</span>
                       </div>
                       <div className="p-1.5 bg-slate-50 border border-slate-100/40 rounded-lg">
-                        <span className="text-[8px] text-slate-500 uppercase block font-sans mb-1 font-semibold">Success</span>
+                        <span className="text-[11px] md:text-[8px] text-slate-500 uppercase block font-sans mb-1 font-semibold">
+                          Success
+                        </span>
                         <span className="font-extrabold text-slate-800">{Math.round(q.passRatio * 100)}%</span>
                       </div>
                       <div className="p-1.5 bg-slate-50 border border-slate-100/40 rounded-lg">
-                        <span className="text-[8px] text-slate-500 uppercase block font-sans mb-1 font-semibold">Latency</span>
+                        <span className="text-[11px] md:text-[8px] text-slate-500 uppercase block font-sans mb-1 font-semibold">
+                          Latency
+                        </span>
                         <span className="font-extrabold text-slate-800 flex items-center justify-center gap-0.5">
                           <Clock size={10} className="text-slate-400" /> {Math.round(q.avgTime)}s
                         </span>
@@ -425,7 +437,7 @@ export const AdminResults: React.FC = () => {
                     </div>
 
                     {isAnomaly && (
-                      <div className="text-[9px] font-semibold text-slate-600 mt-2.5 bg-slate-50 border border-slate-200 p-2 rounded-lg leading-normal flex items-start gap-1">
+                      <div className="text-[11px] md:text-[9px] font-semibold text-slate-600 mt-2.5 bg-slate-50 border border-slate-200 p-2 rounded-lg leading-normal flex items-start gap-1">
                         <AlertTriangle size={10} className="text-indigo-500 shrink-0 mt-0.5" />
                         <span>
                           <strong>Evaluation:</strong> {q.reason}
@@ -451,10 +463,18 @@ export const AdminResults: React.FC = () => {
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50">
-              <TableHead className="uppercase text-[10px] font-bold tracking-widest text-slate-500 py-4">Student Name</TableHead>
-              <TableHead className="uppercase text-[10px] font-bold tracking-widest text-slate-500 py-4">Date & Time</TableHead>
-              <TableHead className="text-right uppercase text-[10px] font-bold tracking-widest text-slate-500 py-4">Score</TableHead>
-              <TableHead className="text-right uppercase text-[10px] font-bold tracking-widest text-slate-500 py-4">Action</TableHead>
+              <TableHead className="uppercase text-[11px] md:text-[10px] font-bold tracking-widest text-slate-500 py-4">
+                Student Name
+              </TableHead>
+              <TableHead className="uppercase text-[11px] md:text-[10px] font-bold tracking-widest text-slate-500 py-4">
+                Date & Time
+              </TableHead>
+              <TableHead className="text-right uppercase text-[11px] md:text-[10px] font-bold tracking-widest text-slate-500 py-4">
+                Score
+              </TableHead>
+              <TableHead className="text-right uppercase text-[11px] md:text-[10px] font-bold tracking-widest text-slate-500 py-4">
+                Action
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

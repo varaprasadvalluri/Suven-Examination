@@ -8,6 +8,7 @@ import { storageUploadLimiter } from '../middleware/rateLimit';
 import { createBreaker } from '../lib/circuitBreaker';
 import { requireSession } from '../auth/middleware';
 import { asyncHandler } from '../middleware/errorHandler';
+import { logger } from '../lib/logger';
 import { BadRequestError, InternalServerError } from '../lib/errors';
 
 const router = express.Router();
@@ -142,10 +143,10 @@ export async function cleanupFirebaseStorageAsset(publicId: string | undefined |
   try {
     const bucket = getBucket();
     await deleteStorageObject(bucket.file(objectPath), { ignoreNotFound: true });
-    console.log(`[Firebase Storage Cleanup] Deleted object "${objectPath}"`);
+    logger.info('Firebase Storage object deleted', { objectPath });
     return { success: true };
   } catch (err: any) {
-    console.error(`[Firebase Storage Cleanup Error] Failed to delete "${objectPath}":`, err);
+    logger.error('Firebase Storage object delete failed', { objectPath, err });
     return { success: false, error: err.message || String(err) };
   }
 }

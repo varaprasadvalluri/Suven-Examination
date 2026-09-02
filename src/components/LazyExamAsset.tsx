@@ -43,7 +43,7 @@ export const LazyExamAsset: React.FC<LazyExamAssetProps> = ({ src, type, alt = '
   // If the user isn't on this question yet, render a low-weight placeholder
   if (!isActive) {
     return (
-      <div className="border border-slate-200 border-dashed rounded-2xl p-4 bg-slate-50/50 flex items-center justify-center gap-3 text-slate-400 select-none text-[11px] font-bold">
+      <div className="border border-slate-200 border-dashed rounded-2xl p-4 bg-slate-50/50 flex items-center justify-center gap-3 text-slate-400 select-none text-[12px] md:text-[11px] font-bold">
         {type === 'image' ? <Image className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
         <span>Resource deferred to optimize network budget</span>
       </div>

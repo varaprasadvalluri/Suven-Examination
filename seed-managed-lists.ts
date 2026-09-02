@@ -58,7 +58,9 @@ async function seedCollection(collectionName: string, names: string[]) {
       created++;
     }
   }
-  console.log(`[seed] ${collectionName}: ${APPLY ? `${created} created` : `${names.length - skipped} would be created`}, ${skipped} already present.`);
+  console.log(
+    `[seed] ${collectionName}: ${APPLY ? `${created} created` : `${names.length - skipped} would be created`}, ${skipped} already present.`
+  );
 }
 
 async function main() {

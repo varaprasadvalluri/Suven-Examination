@@ -113,7 +113,7 @@ export const EmbeddedCodeEditor: React.FC<CodeEditorProps> = ({ value, onChange,
       <div className="bg-[#252526] border-b border-[#3c3c3c] px-4 py-2 flex flex-wrap items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-2">
           <Terminal className="h-4 w-4 text-amber-500 animate-pulse" />
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">Target IDE Sandbox</span>
+          <span className="text-[11px] md:text-[10px] font-black uppercase tracking-wider text-slate-300">Target IDE Sandbox</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -122,7 +122,7 @@ export const EmbeddedCodeEditor: React.FC<CodeEditorProps> = ({ value, onChange,
               <button
                 key={lang}
                 onClick={() => handleLanguageChange(lang)}
-                className={`px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${language === lang ? 'bg-[#37373d] text-white font-bold' : 'text-slate-400 hover:text-slate-300 hover:bg-[#37373d]/25'}`}
+                className={`px-2.5 py-1 rounded text-[11px] md:text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${language === lang ? 'bg-[#37373d] text-white font-bold' : 'text-slate-400 hover:text-slate-300 hover:bg-[#37373d]/25'}`}
               >
                 {lang === 'cpp' ? 'C++' : lang}
               </button>
@@ -179,7 +179,7 @@ export const EmbeddedCodeEditor: React.FC<CodeEditorProps> = ({ value, onChange,
       </div>
 
       {/* Footer bar */}
-      <div className="bg-[#1e1e1e] border-t border-[#2d2d2d] px-4 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] text-slate-500 shrink-0 font-mono">
+      <div className="bg-[#1e1e1e] border-t border-[#2d2d2d] px-4 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] md:text-[10px] text-slate-500 shrink-0 font-mono">
         <div className="flex items-center gap-3">
           <span>Language: {language === 'cpp' ? 'C++' : language.toUpperCase()}</span>
           <span>Tab: 4 Spaces</span>

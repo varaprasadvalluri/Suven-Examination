@@ -287,11 +287,11 @@ export const AdminOverview: React.FC = () => {
           <div className="flex items-center gap-2 mb-1">
             <Badge
               variant="outline"
-              className="bg-indigo-50 text-indigo-700 border-indigo-100 font-black text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider"
+              className="bg-indigo-50 text-indigo-700 border-indigo-100 font-black text-[11px] md:text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider"
             >
               System Status: Online
             </Badge>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Operations Platform</span>
+            <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Operations Platform</span>
           </div>
           <h2 className="text-3xl md:text-4xl font-display font-black text-slate-900 tracking-tight flex items-center gap-3">
             Global Overview <Activity className="text-indigo-600 animate-pulse" size={32} />
@@ -303,14 +303,14 @@ export const AdminOverview: React.FC = () => {
             variant="outline"
             onClick={handleMasterExport}
             disabled={isExporting}
-            className="border-slate-200 text-slate-700 h-14 px-8 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-50 w-full sm:w-auto"
+            className="border-slate-200 text-slate-700 h-14 px-8 rounded-2xl font-black text-[12px] md:text-[11px] uppercase tracking-widest hover:bg-slate-50 w-full sm:w-auto"
           >
             {isExporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
             Export Intelligence
           </Button>
           <Button
             onClick={() => navigate('/admin/exams')}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xl shadow-indigo-200/50 h-14 px-8 rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 group w-full sm:w-auto"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xl shadow-indigo-200/50 h-14 px-8 rounded-2xl font-black text-[12px] md:text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 group w-full sm:w-auto"
           >
             Initialize Exam <Plus className="h-4 w-4 group-hover:rotate-90 transition-transform" />
           </Button>
@@ -329,7 +329,9 @@ export const AdminOverview: React.FC = () => {
                   Completed assessments per day over the last 7 days.
                 </CardDescription>
               </div>
-              <Badge className="bg-emerald-500/10 text-emerald-600 border-0 font-black text-[10px] uppercase px-3 py-1">Live Feed</Badge>
+              <Badge className="bg-emerald-500/10 text-emerald-600 border-0 font-black text-[11px] md:text-[10px] uppercase px-3 py-1">
+                Live Feed
+              </Badge>
             </div>
           </CardHeader>
           <CardContent className="p-6 md:p-10 flex-grow h-[300px]">
@@ -355,28 +357,32 @@ export const AdminOverview: React.FC = () => {
           <div className="bg-slate-50 p-6 md:p-8 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100">
             <div className="flex gap-6 md:gap-10">
               <div className="flex flex-col">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Peak Day</span>
+                <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                  Peak Day
+                </span>
                 <span className="text-2xl font-black text-slate-900 mt-1">
                   {throughputPeak.count}
                   {throughputPeak.day && <span className="text-xs font-bold text-slate-400 ml-1">{throughputPeak.day}</span>}{' '}
                   {throughputWeekChangePct !== null && (
-                    <span className={`text-[10px] ${throughputWeekChangePct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    <span className={`text-[11px] md:text-[10px] ${throughputWeekChangePct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                       {throughputWeekChangePct >= 0 ? '▲' : '▼'} {Math.abs(throughputWeekChangePct)}%
                     </span>
                   )}
                 </span>
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Daily Average</span>
+                <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                  Daily Average
+                </span>
                 <span className="text-2xl font-black text-slate-900 mt-1">
-                  {throughputDailyAvg} <span className="text-[10px] text-slate-400">PER DAY</span>
+                  {throughputDailyAvg} <span className="text-[11px] md:text-[10px] text-slate-400">PER DAY</span>
                 </span>
               </div>
             </div>
             <Button
               variant="ghost"
               onClick={() => navigate('/admin/analytics')}
-              className="rounded-xl font-black text-[10px] uppercase tracking-widest text-indigo-600 hover:bg-indigo-100 h-10 px-6 cursor-pointer"
+              className="rounded-xl font-black text-[11px] md:text-[10px] uppercase tracking-widest text-indigo-600 hover:bg-indigo-100 h-10 px-6 cursor-pointer"
             >
               Detailed Analytics
             </Button>
@@ -393,16 +399,18 @@ export const AdminOverview: React.FC = () => {
           </div>
           <div className="relative z-10 flex flex-col h-full justify-between">
             <div>
-              <Badge className="bg-white/10 text-white border-0 font-black text-[10px] uppercase mb-4">Total Ecosystem</Badge>
+              <Badge className="bg-white/10 text-white border-0 font-black text-[11px] md:text-[10px] uppercase mb-4">
+                Total Ecosystem
+              </Badge>
               <h3 className="text-5xl md:text-6xl font-black tracking-tighter">{stats.attempts}</h3>
-              <p className="text-indigo-300 font-bold mt-2 uppercase tracking-widest text-[11px]">Submissions Processed</p>
+              <p className="text-indigo-300 font-bold mt-2 uppercase tracking-widest text-[12px] md:text-[11px]">Submissions Processed</p>
             </div>
             <div className="mt-8 pt-8 border-t border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[10px] font-black uppercase text-white/50 tracking-widest">Active Now</span>
+                <span className="text-[11px] md:text-[10px] font-black uppercase text-white/50 tracking-widest">Active Now</span>
               </div>
-              <span className="text-[11px] font-black">
+              <span className="text-[12px] md:text-[11px] font-black">
                 {activeNowCount} {activeNowCount === 1 ? 'Student' : 'Students'}
               </span>
             </div>
@@ -413,7 +421,7 @@ export const AdminOverview: React.FC = () => {
         <Card className="md:col-span-2 lg:col-span-2 row-span-2 shadow-2xl shadow-slate-200/40 border-0 rounded-[40px] overflow-hidden bg-white border border-slate-100">
           <CardHeader className="p-6 md:p-8">
             <CardTitle className="text-lg font-black text-slate-900 uppercase tracking-tighter">Academic Purity Radar</CardTitle>
-            <CardDescription className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+            <CardDescription className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
               Strength vectors across disciplines
             </CardDescription>
           </CardHeader>
@@ -427,14 +435,14 @@ export const AdminOverview: React.FC = () => {
             </ResponsiveContainer>
           </CardContent>
           <div className="p-6 md:p-8 pt-0 flex flex-col gap-3">
-            <div className="flex justify-between items-center text-[11px] font-bold">
+            <div className="flex justify-between items-center text-[12px] md:text-[11px] font-bold">
               <span className="text-slate-400">MATH PROFICIENCY</span>
               <span className="text-indigo-600">82%</span>
             </div>
             <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
               <div className="h-full bg-indigo-600 rounded-full" style={{ width: '82%' }} />
             </div>
-            <div className="flex justify-between items-center text-[11px] font-bold mt-2">
+            <div className="flex justify-between items-center text-[12px] md:text-[11px] font-bold mt-2">
               <span className="text-slate-400">LOGICAL DENSITY</span>
               <span className="text-indigo-600">94%</span>
             </div>
@@ -466,7 +474,7 @@ export const AdminOverview: React.FC = () => {
           </div>
           <div onClick={() => navigate('/admin/schools')}>
             <p className="text-4xl md:text-5xl font-black text-indigo-900 tracking-tighter">{stats.schools}</p>
-            <p className="text-[11px] font-black text-indigo-400 uppercase tracking-widest mt-2">Vetted Institutions</p>
+            <p className="text-[12px] md:text-[11px] font-black text-indigo-400 uppercase tracking-widest mt-2">Vetted Institutions</p>
           </div>
         </Card>
 
@@ -481,12 +489,14 @@ export const AdminOverview: React.FC = () => {
               <Zap size={20} className="text-amber-400" />
             </div>
             <div>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">Security Status</span>
+              <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+                Security Status
+              </span>
               <span className="text-sm font-black text-slate-900 uppercase">Proctoring Wall</span>
             </div>
           </div>
           <div className="space-y-4">
-            <div className="flex items-center justify-between text-[11px] font-bold">
+            <div className="flex items-center justify-between text-[12px] md:text-[11px] font-bold">
               <span className="text-slate-500">ANOMALIES DETECTED</span>
               <span className={anomalyCount > 0 ? 'text-rose-600' : 'text-emerald-600'}>
                 {anomalyCount > 0 ? `${anomalyCount} ALERT${anomalyCount > 1 ? 'S' : ''}` : 'CLEAR'}
@@ -504,18 +514,18 @@ export const AdminOverview: React.FC = () => {
                   </div>
                 ))}
                 {activeNowCount > activeNowStudents.length && (
-                  <div className="h-10 w-10 rounded-full border-4 border-white bg-indigo-600 flex items-center justify-center text-white text-[9px] font-black">
+                  <div className="h-10 w-10 rounded-full border-4 border-white bg-indigo-600 flex items-center justify-center text-white text-[11px] md:text-[9px] font-black">
                     +{activeNowCount - activeNowStudents.length}
                   </div>
                 )}
               </div>
             ) : (
-              <p className="text-[11px] font-semibold text-slate-400">No students currently taking an exam</p>
+              <p className="text-[12px] md:text-[11px] font-semibold text-slate-400">No students currently taking an exam</p>
             )}
           </div>
           <Button
             onClick={() => navigate('/admin/proctoring')}
-            className="mt-8 bg-slate-900 text-white rounded-2xl h-12 font-black text-[10px] uppercase tracking-widest cursor-pointer"
+            className="mt-8 bg-slate-900 text-white rounded-2xl h-12 font-black text-[11px] md:text-[10px] uppercase tracking-widest cursor-pointer"
           >
             Open Monitor
           </Button>
@@ -527,7 +537,9 @@ export const AdminOverview: React.FC = () => {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">LIVE TRACKING METAMETRICS</span>
+                <span className="text-[11px] md:text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                  LIVE TRACKING METAMETRICS
+                </span>
               </div>
               <CardTitle className="text-2xl font-black text-slate-900 uppercase tracking-tighter">
                 Live School Attendance Monitor
@@ -539,12 +551,12 @@ export const AdminOverview: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 flex gap-6 text-center">
                 <div>
-                  <p className="text-[9px] font-black text-indigo-500 uppercase tracking-wider">Total Attending</p>
+                  <p className="text-[11px] md:text-[9px] font-black text-indigo-500 uppercase tracking-wider">Total Attending</p>
                   <p className="text-xl font-bold text-slate-800">{schoolStats.reduce((sum, s) => sum + s.attending, 0)}</p>
                 </div>
                 <div className="w-[1px] bg-slate-200" />
                 <div>
-                  <p className="text-[9px] font-black text-emerald-500 uppercase tracking-wider">Total Completed</p>
+                  <p className="text-[11px] md:text-[9px] font-black text-emerald-500 uppercase tracking-wider">Total Completed</p>
                   <p className="text-xl font-bold text-slate-800">{schoolStats.reduce((sum, s) => sum + s.completed, 0)}</p>
                 </div>
               </div>
@@ -578,10 +590,18 @@ export const AdminOverview: React.FC = () => {
               <table className="w-full text-left border-collapse">
                 <thead className="bg-[#0B1E3F]">
                   <tr>
-                    <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-300">Institution</th>
-                    <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-300 text-center">Attending</th>
-                    <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-300 text-center">Completed</th>
-                    <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-300 w-56">Completion</th>
+                    <th className="px-6 py-3.5 text-[11px] md:text-[10px] font-black uppercase tracking-wider text-slate-300">
+                      Institution
+                    </th>
+                    <th className="px-6 py-3.5 text-[11px] md:text-[10px] font-black uppercase tracking-wider text-slate-300 text-center">
+                      Attending
+                    </th>
+                    <th className="px-6 py-3.5 text-[11px] md:text-[10px] font-black uppercase tracking-wider text-slate-300 text-center">
+                      Completed
+                    </th>
+                    <th className="px-6 py-3.5 text-[11px] md:text-[10px] font-black uppercase tracking-wider text-slate-300 w-56">
+                      Completion
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -592,7 +612,7 @@ export const AdminOverview: React.FC = () => {
                       <tr key={school.schoolId} className="odd:bg-slate-50/50 even:bg-white hover:bg-indigo-50/30 transition-colors">
                         <td className="px-6 py-3.5">
                           <p className="text-xs font-black text-slate-900 uppercase tracking-tight">{school.name}</p>
-                          <p className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                          <p className="text-[11px] md:text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider mt-0.5">
                             Id: {school.schoolId}
                           </p>
                         </td>
@@ -629,56 +649,58 @@ export const AdminOverview: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4">
-            {schoolStats.map((school) => {
-              const total = school.attending + school.completed;
-              const ratio = total > 0 ? Math.round((school.completed / total) * 100) : 0;
-              return (
-                <div
-                  key={school.schoolId}
-                  id={`school-monitor-${school.schoolId}`}
-                  className="border border-slate-100 hover:border-indigo-100 rounded-3xl p-6 bg-slate-50/50 hover:bg-white transition-all space-y-4"
-                >
-                  <div className="flex justify-between items-start gap-2">
-                    <div>
-                      <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">{school.name}</h4>
-                      <p className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider mt-0.5">Id: {school.schoolId}</p>
+              {schoolStats.map((school) => {
+                const total = school.attending + school.completed;
+                const ratio = total > 0 ? Math.round((school.completed / total) * 100) : 0;
+                return (
+                  <div
+                    key={school.schoolId}
+                    id={`school-monitor-${school.schoolId}`}
+                    className="border border-slate-100 hover:border-indigo-100 rounded-3xl p-6 bg-slate-50/50 hover:bg-white transition-all space-y-4"
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">{school.name}</h4>
+                        <p className="text-[11px] md:text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                          Id: {school.schoolId}
+                        </p>
+                      </div>
+                      <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold text-[11px] md:text-[9px] px-2.5 py-1">
+                        {ratio}% Done
+                      </Badge>
                     </div>
-                    <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold text-[9px] px-2.5 py-1">
-                      {ratio}% Done
-                    </Badge>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-4 text-center bg-white border border-slate-100 rounded-2xl p-3">
-                    <div>
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Attending</p>
-                      <p className="text-base font-bold text-indigo-600 flex items-center justify-center gap-1">
-                        {school.attending}{' '}
-                        {school.attending > 0 && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                      </p>
+                    <div className="grid grid-cols-2 gap-4 text-center bg-white border border-slate-100 rounded-2xl p-3">
+                      <div>
+                        <p className="text-[11px] md:text-[9px] font-black text-slate-400 uppercase tracking-wider">Attending</p>
+                        <p className="text-base font-bold text-indigo-600 flex items-center justify-center gap-1">
+                          {school.attending}{' '}
+                          {school.attending > 0 && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] md:text-[9px] font-black text-slate-400 uppercase tracking-wider">Completed</p>
+                        <p className="text-base font-bold text-emerald-600">{school.completed}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Completed</p>
-                      <p className="text-base font-bold text-emerald-600">{school.completed}</p>
-                    </div>
-                  </div>
 
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[9px] font-black text-slate-400">
-                      <span>STREAMS CONSOLIDATION</span>
-                      <span>{ratio}%</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-indigo-600 rounded-full transition-all duration-500" style={{ width: `${ratio}%` }} />
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] md:text-[9px] font-black text-slate-400">
+                        <span>STREAMS CONSOLIDATION</span>
+                        <span>{ratio}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-600 rounded-full transition-all duration-500" style={{ width: `${ratio}%` }} />
+                      </div>
                     </div>
                   </div>
+                );
+              })}
+              {schoolStats.length === 0 && (
+                <div className="col-span-full py-10 text-center text-slate-400 font-semibold text-xs uppercase tracking-widest border border-dashed rounded-3xl">
+                  No institution analytics stream connected
                 </div>
-              );
-            })}
-            {schoolStats.length === 0 && (
-              <div className="col-span-full py-10 text-center text-slate-400 font-semibold text-xs uppercase tracking-widest border border-dashed rounded-3xl">
-                No institution analytics stream connected
-              </div>
-            )}
+              )}
             </div>
           )}
         </Card>
@@ -694,7 +716,7 @@ export const AdminOverview: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-xl font-black text-[10px] uppercase tracking-widest"
+                className="rounded-xl font-black text-[11px] md:text-[10px] uppercase tracking-widest"
                 onClick={() => navigate('/admin/exams')}
               >
                 Global Bank
@@ -720,19 +742,23 @@ export const AdminOverview: React.FC = () => {
                         {exam.title}
                       </p>
                       <div className="flex items-center gap-3 mt-1">
-                        <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">{exam.subject}</span>
+                        <span className="text-[11px] md:text-[10px] font-black text-indigo-500 uppercase tracking-widest">
+                          {exam.subject}
+                        </span>
                         <div className="h-1 w-1 bg-slate-300 rounded-full" />
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{exam.totalMarks} Points</span>
+                        <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          {exam.totalMarks} Points
+                        </span>
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-6">
                     <div className="text-right hidden md:block">
-                      <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Difficulty</p>
+                      <p className="text-[11px] md:text-[10px] font-black text-slate-300 uppercase tracking-widest">Difficulty</p>
                       <p className="text-xs font-bold text-slate-600">{exam.difficulty}</p>
                     </div>
                     <Badge
-                      className={`${exam.status === 'published' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-100'} border font-black text-[9px] uppercase px-3 py-1`}
+                      className={`${exam.status === 'published' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-100'} border font-black text-[11px] md:text-[9px] uppercase px-3 py-1`}
                     >
                       {exam.status}
                     </Badge>
@@ -790,7 +816,7 @@ export const AdminOverview: React.FC = () => {
                         <p className="text-xs font-black uppercase tracking-tight truncate text-slate-900">
                           {student.studentName || 'Unknown Student'}
                         </p>
-                        <p className="text-[9px] font-bold text-slate-500 truncate">
+                        <p className="text-[11px] md:text-[9px] font-bold text-slate-500 truncate">
                           {schoolNameById[student.schoolId || ''] || 'Unknown School'}
                         </p>
                       </div>
@@ -806,7 +832,7 @@ export const AdminOverview: React.FC = () => {
             <Button
               variant="ghost"
               onClick={() => navigate('/admin/merit')}
-              className="w-full mt-10 border border-slate-200 hover:bg-slate-50 rounded-2xl h-12 text-[10px] font-black uppercase tracking-widest text-slate-700 cursor-pointer"
+              className="w-full mt-10 border border-slate-200 hover:bg-slate-50 rounded-2xl h-12 text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-700 cursor-pointer"
             >
               Full Consolidated List
             </Button>

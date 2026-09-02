@@ -147,10 +147,10 @@ const UpcomingCard: React.FC<{ item: UpcomingItem; onViewInProgress: () => void 
             </div>
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full text-slate-400 bg-slate-200/70 flex items-center gap-1">
+                <span className="text-[11px] md:text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full text-slate-400 bg-slate-200/70 flex items-center gap-1">
                   Soon
                 </span>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{item.subject}</span>
+                <span className="text-[11px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400">{item.subject}</span>
               </div>
               <p className="text-xs text-slate-400 font-semibold italic">Details unlock once your school triggers this exam.</p>
             </div>
@@ -178,10 +178,10 @@ const UpcomingCard: React.FC<{ item: UpcomingItem; onViewInProgress: () => void 
           </div>
           <div className="min-w-0 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full text-emerald-700 bg-emerald-100">
+              <span className="text-[11px] md:text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full text-emerald-700 bg-emerald-100">
                 Triggered
               </span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{item.subject}</span>
+              <span className="text-[11px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400">{item.subject}</span>
             </div>
             <h3 className="text-base sm:text-lg font-black text-slate-900 leading-snug truncate">{item.exam?.title}</h3>
             <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-500">
@@ -382,7 +382,7 @@ export const StudentDashboard: React.FC = () => {
     return (
       <button
         onClick={() => setActiveView(view)}
-        className={`flex-1 md:flex-none md:w-full flex flex-col md:flex-row items-center justify-center md:justify-start gap-1 md:gap-3 px-2 md:px-3.5 h-14 md:h-11 rounded-xl font-bold text-[10px] md:text-sm transition-colors cursor-pointer relative overflow-hidden shrink-0 ${
+        className={`flex-1 md:flex-none md:w-full flex flex-col md:flex-row items-center justify-center md:justify-start gap-1 md:gap-3 px-2 md:px-3.5 h-14 md:h-11 rounded-xl font-bold text-[11px] md:text-sm transition-colors cursor-pointer relative overflow-hidden shrink-0 ${
           active ? 'text-indigo-950 font-black' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
         }`}
       >
@@ -406,7 +406,7 @@ export const StudentDashboard: React.FC = () => {
             initial={{ scale: 0.7 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-            className="z-10 absolute top-1 right-1 md:static md:ml-auto h-4 min-w-[16px] md:h-5 md:min-w-[20px] px-1 md:px-1.5 rounded-full bg-[#f2a81e] text-indigo-950 text-[9px] md:text-[10px] font-black flex items-center justify-center"
+            className="z-10 absolute top-1 right-1 md:static md:ml-auto h-4 min-w-[16px] md:h-5 md:min-w-[20px] px-1 md:px-1.5 rounded-full bg-[#f2a81e] text-indigo-950 text-[11px] md:text-[10px] font-black flex items-center justify-center"
           >
             {badge}
           </motion.span>
@@ -435,7 +435,9 @@ export const StudentDashboard: React.FC = () => {
               <span className="font-sans font-extrabold text-sm uppercase tracking-wider text-indigo-950 block leading-none">
                 SUVEN EDU
               </span>
-              <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest block mt-0.5">Student Portal</span>
+              <span className="text-[11px] md:text-[9px] font-black text-indigo-400 uppercase tracking-widest block mt-0.5">
+                Student Portal
+              </span>
             </div>
           </div>
 
@@ -457,28 +459,25 @@ export const StudentDashboard: React.FC = () => {
             </div>
             <div className="min-w-0">
               <p className="text-sm font-black text-slate-900 truncate">{profile?.name || 'Student'}</p>
-              {subtitleParts.length > 0 && <p className="text-[11px] font-semibold text-slate-500 truncate">{subtitleParts.join(' · ')}</p>}
+              {subtitleParts.length > 0 && (
+                <p className="text-[12px] md:text-[11px] font-semibold text-slate-500 truncate">{subtitleParts.join(' · ')}</p>
+              )}
             </div>
           </div>
           {isReturning && (
-            <p className="text-[11px] font-semibold text-amber-600 px-1 flex items-center gap-1.5">
+            <p className="text-[12px] md:text-[11px] font-semibold text-amber-600 px-1 flex items-center gap-1.5">
               <span>👋</span> Welcome back!
             </p>
           )}
           {!!completedPage?.total && (
-            <p className="text-[11px] font-bold text-slate-500 px-1">
+            <p className="text-[12px] md:text-[11px] font-bold text-slate-500 px-1">
               🎉 {completedPage.total} quiz{completedPage.total === 1 ? '' : 'zes'} completed
             </p>
           )}
         </div>
 
         <nav className="px-3 md:px-4 pb-3 md:pb-0 flex flex-row gap-2 md:flex-col md:gap-0 md:space-y-1 md:flex-1">
-          <NavButton
-            view="in-progress"
-            icon={<PlayCircle className="h-5 w-5 shrink-0" />}
-            label="In Progress"
-            badge={inProgress ? 1 : 0}
-          />
+          <NavButton view="in-progress" icon={<PlayCircle className="h-5 w-5 shrink-0" />} label="In Progress" badge={inProgress ? 1 : 0} />
           <NavButton
             view="upcoming"
             icon={<NotebookPen className="h-5 w-5 shrink-0" />}
@@ -555,7 +554,7 @@ export const StudentDashboard: React.FC = () => {
               <p className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
                 {tile.value === null ? <span className="text-slate-300">···</span> : tile.value}
               </p>
-              <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wide mt-1 truncate">{tile.label}</p>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mt-1 truncate">{tile.label}</p>
             </button>
           ))}
         </div>
@@ -612,7 +611,7 @@ export const StudentDashboard: React.FC = () => {
                               <SubjectIcon className="h-6 w-6" />
                             </div>
                             <div className="min-w-0">
-                              <span className="text-[10px] font-black uppercase tracking-widest text-[#0B1E3F] bg-white px-2.5 py-1 rounded-full border border-[#0B1E3F]/15">
+                              <span className="text-[11px] md:text-[10px] font-black uppercase tracking-widest text-[#0B1E3F] bg-white px-2.5 py-1 rounded-full border border-[#0B1E3F]/15">
                                 {candidateStatusLabel(inProgress)}
                               </span>
                               <h3 className="text-lg sm:text-xl font-black text-slate-900 mt-2.5 leading-snug truncate">
@@ -699,7 +698,7 @@ export const StudentDashboard: React.FC = () => {
                         >
                           <ChevronLeft className="h-4 w-4 mr-1" /> Prev
                         </Button>
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        <span className="text-[12px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                           Page {upcomingPage.page} of {upcomingPage.totalPages}
                         </span>
                         <Button
@@ -750,7 +749,7 @@ export const StudentDashboard: React.FC = () => {
                         return (
                           <span
                             key={tier.count}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wide border-2 ${
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] md:text-[10px] font-black uppercase tracking-wide border-2 ${
                               unlocked
                                 ? 'bg-[#f2a81e]/15 border-[#f2a81e] text-[#8a5c00]'
                                 : 'bg-slate-100 border-slate-200 text-slate-400 grayscale opacity-60'
@@ -790,7 +789,7 @@ export const StudentDashboard: React.FC = () => {
                                       {attemptData.examTitle || 'Exam'}
                                     </span>
                                     {(accuracy !== null || dateLabel) && (
-                                      <span className="text-[11px] font-semibold text-slate-500 truncate block">
+                                      <span className="text-[12px] md:text-[11px] font-semibold text-slate-500 truncate block">
                                         {accuracy !== null ? `${accuracy}%` : ''}
                                         {accuracy !== null && dateLabel ? ' · ' : ''}
                                         {dateLabel || ''}
@@ -816,7 +815,7 @@ export const StudentDashboard: React.FC = () => {
                         >
                           <ChevronLeft className="h-4 w-4 mr-1" /> Prev
                         </Button>
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        <span className="text-[12px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                           Page {completedPage.page} of {completedPage.totalPages}
                         </span>
                         <Button

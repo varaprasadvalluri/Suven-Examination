@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { toast } from 'sonner';
+import { FieldError } from './ui/field-error';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, doc, getDoc, collection, query, where, getDocs, onSnapshot } from '../lib/firebase';
 import { handleErrorAndLog } from '../lib/customErrors';
@@ -76,6 +77,26 @@ export const LoginPage: React.FC = () => {
   // signInWithEmail in src/lib/firebase.ts.
   const [rememberMe, setRememberMe] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Per-field validation messages. Validation failures used to fire a toast AND a form-level
+  // banner for the same problem: the toast vanished before it could be read and neither said
+  // which input was at fault. These stay on screen, next to the field, until it is corrected.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const failField = (field: string, message: string) => {
+    setFieldErrors({ [field]: message });
+    // Move the caret to the offending input so keyboard and screen-reader users land on it
+    // instead of having to hunt down the form.
+    requestAnimationFrame(() => document.getElementById(field)?.focus());
+  };
+
+  const clearFieldError = (field: string) =>
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
 
   // Direct student login (no exam link/invite): name + roll/register number + date of
   // birth. DOB is the actual credential — roll number alone is guessable/semi-public.
@@ -450,10 +471,15 @@ export const LoginPage: React.FC = () => {
 
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!studentLoginName.trim() || !studentLoginRoll.trim()) {
-      toast.error('Please enter both your Full Name and Register / Roll Number');
+    if (!studentLoginName.trim()) {
+      failField('student-login-name', 'Enter your full name as registered by your school.');
       return;
     }
+    if (!studentLoginRoll.trim()) {
+      failField('student-login-roll', 'Enter your register / roll number.');
+      return;
+    }
+    setFieldErrors({});
 
     setIsStudentLoggingIn(true);
     const toastId = toast.loading('Verifying student credentials...');
@@ -475,30 +501,26 @@ export const LoginPage: React.FC = () => {
     e.preventDefault();
     setErrorMessage(null);
     if (!email) {
-      setErrorMessage('Please enter your institution email address.');
-      toast.error('Institution email is required.');
+      failField('login-email', 'Enter your institution email address.');
       return;
     }
     if (!isValidEmail(email)) {
-      setErrorMessage('Please enter a valid institution email address.');
-      toast.error('Invalid email format.');
+      failField('login-email', 'That does not look like a valid email address.');
       return;
     }
     if (!password) {
-      setErrorMessage('Please enter your password.');
-      toast.error('Password is required.');
+      failField('login-password', 'Enter your password.');
       return;
     }
     if (password.length < 6) {
-      setErrorMessage('Password must contain at least 6 characters.');
-      toast.error('Password too short.');
+      failField('login-password', 'Password must be at least 6 characters.');
       return;
     }
     if (!selectedRole) {
-      setErrorMessage('Please select your Authorized Role Node.');
-      toast.error('Role selection is mandatory.');
+      setErrorMessage('Select your Authorized Role Node above before signing in.');
       return;
     }
+    setFieldErrors({});
 
     setIsLoading(true);
     try {
@@ -514,6 +536,7 @@ export const LoginPage: React.FC = () => {
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setFieldErrors({});
     const trimmedName = name.trim();
     const trimmedEmail = signUpEmail.trim();
 
@@ -527,37 +550,32 @@ export const LoginPage: React.FC = () => {
     }
 
     if (!trimmedName || trimmedName.length < 3) {
-      setErrorMessage('Name must be at least 3 alphabetical characters long.');
-      toast.error('Invalid Name.');
+      failField('signup-name', 'Name must be at least 3 characters long.');
       return;
     }
     if (!selectedRole || selectedRole !== 'school') {
-      setErrorMessage('Please select Teacher / School Role.');
-      toast.error('Role Selection Required.');
+      setErrorMessage('Select the Teacher / School role above to register an account.');
       return;
     }
     if (!trimmedEmail) {
-      setErrorMessage('Please enter your pre-registered institution email address.');
-      toast.error('Email is required.');
+      failField('signup-email', 'Enter your pre-registered institution email address.');
       return;
     }
     if (!isValidEmail(trimmedEmail)) {
-      setErrorMessage('Please enter a valid institution email formatted address.');
-      toast.error('Invalid email format.');
+      failField('signup-email', 'That does not look like a valid email address.');
       return;
     }
 
     const checkEmail = trimmedEmail.toLowerCase();
     if (!signUpPassword) {
-      setErrorMessage('Please enter a password.');
-      toast.error('Password is required.');
+      failField('signup-password', 'Choose a password.');
       return;
     }
     if (signUpPassword.length < 6) {
-      setErrorMessage('For enterprise protection, password must contain at least 6 characters.');
-      toast.error('Password must be at least 6 characters.');
+      failField('signup-password', 'Password must be at least 6 characters.');
       return;
     }
+    setFieldErrors({});
 
     setIsLoading(true);
     try {
@@ -723,13 +741,15 @@ export const LoginPage: React.FC = () => {
           </div>
           <div>
             <span className="font-sans font-extrabold text-sm uppercase tracking-wider text-white block leading-none">SUVEN EDU</span>
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">EXAM PORTAL</span>
+            <span className="text-[11px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">EXAM PORTAL</span>
           </div>
         </div>
 
         {/* Welcoming Messages (Figma matches) */}
         <div className="my-auto py-8 lg:py-0 relative z-10">
-          <span className="text-[#38bdf8] font-extrabold text-[11px] uppercase tracking-[0.2em] block mb-3">WELCOME BACK</span>
+          <span className="text-[#38bdf8] font-extrabold text-[12px] md:text-[11px] uppercase tracking-[0.2em] block mb-3">
+            WELCOME BACK
+          </span>
           <h1 className="text-3xl md:text-4.5xl font-extrabold text-white tracking-tight leading-[1.15] mb-4">
             Your academic
             <br />
@@ -747,15 +767,17 @@ export const LoginPage: React.FC = () => {
           <div className="grid grid-cols-3 gap-2 bg-white/[0.04] border border-white/10 rounded-2xl p-5 backdrop-blur-md text-center">
             <div>
               <span className="text-xl font-black text-white block tracking-tight">12,400+</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Students</span>
+              <span className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Students</span>
             </div>
             <div className="border-x border-white/10">
               <span className="text-xl font-black text-white block tracking-tight">340+</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Teachers</span>
+              <span className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Teachers</span>
             </div>
             <div>
               <span className="text-xl font-black text-white block tracking-tight">98%</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Satisfaction</span>
+              <span className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">
+                Satisfaction
+              </span>
             </div>
           </div>
 
@@ -789,17 +811,19 @@ export const LoginPage: React.FC = () => {
           {/* Invite Token Authorized Metadata Block */}
           {inviteData && (
             <div className="mb-6 p-4 bg-gradient-to-br from-indigo-50/40 to-sky-50/30 border border-slate-100 rounded-2xl space-y-3 shadow-sm">
-              <div className="flex items-center gap-2 font-black text-[10px] uppercase text-indigo-700 tracking-widest">
+              <div className="flex items-center gap-2 font-black text-[11px] md:text-[10px] uppercase text-indigo-700 tracking-widest">
                 <ShieldCheck size={14} className="text-indigo-600 shrink-0" />
                 <span>SECURE ASSESSMENT PASS AUTHORIZED</span>
               </div>
               <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-slate-200/60">
                 <div>
-                  <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold">School Unit</span>
+                  <span className="text-[11px] md:text-[9px] uppercase tracking-wider text-slate-400 font-extrabold">School Unit</span>
                   <p className="font-extrabold text-slate-800 text-xs mt-0.5 truncate">{inviteSchool?.name || 'Academic Partner Entity'}</p>
                 </div>
                 <div>
-                  <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold">Active Assessment</span>
+                  <span className="text-[11px] md:text-[9px] uppercase tracking-wider text-slate-400 font-extrabold">
+                    Active Assessment
+                  </span>
                   <p className="font-extrabold text-slate-800 text-xs mt-0.5 truncate">{inviteData.examTitle || 'General Diagnosis'}</p>
                 </div>
               </div>
@@ -813,11 +837,14 @@ export const LoginPage: React.FC = () => {
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
+                role="alert"
                 className="bg-rose-50 border border-rose-100 text-rose-800 p-3.5 rounded-2xl flex items-start gap-2.5 mb-6 shadow-sm"
               >
                 <AlertCircle className="h-5 w-5 text-rose-600 mt-0.5 shrink-0" />
                 <div className="space-y-0.5 text-xs">
-                  <span className="font-extrabold uppercase tracking-wider block text-[10px] text-rose-900">Sign In Issue</span>
+                  <span className="font-extrabold uppercase tracking-wider block text-[11px] md:text-[10px] text-rose-900">
+                    Sign In Issue
+                  </span>
                   <p className="font-medium text-rose-700 leading-snug">{errorMessage}</p>
                 </div>
               </motion.div>
@@ -829,7 +856,9 @@ export const LoginPage: React.FC = () => {
             <form onSubmit={handleVerifySubmit} className="space-y-4">
               {/* Field 1: Enter Name */}
               <div className="space-y-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Student Full Name</span>
+                <span className="text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                  Student Full Name
+                </span>
                 <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                   <User2 className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
                   <input
@@ -847,7 +876,9 @@ export const LoginPage: React.FC = () => {
 
               {/* Field 2: Enter Student Number (ID) */}
               <div className="space-y-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Student Register ID</span>
+                <span className="text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                  Student Register ID
+                </span>
                 <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                   <Key className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
                   <input
@@ -866,8 +897,10 @@ export const LoginPage: React.FC = () => {
               {/* Proctor compliance security check */}
               <div className="bg-amber-50/60 border border-amber-100/80 p-3.5 rounded-2xl flex items-start gap-2.5 mt-5">
                 <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-[10px] font-semibold text-slate-700 leading-normal">
-                  <p className="font-extrabold text-slate-800 uppercase tracking-wider text-[8px] mb-0.5">Lobby Verification Consent</p>
+                <div className="text-[11px] md:text-[10px] font-semibold text-slate-700 leading-normal">
+                  <p className="font-extrabold text-slate-800 uppercase tracking-wider text-[11px] md:text-[8px] mb-0.5">
+                    Lobby Verification Consent
+                  </p>
                   By activating this exam, you agree to secure browser lockdowns and temporary test progress tracking.
                 </div>
               </div>
@@ -898,7 +931,7 @@ export const LoginPage: React.FC = () => {
                     }
                     window.location.href = '/login';
                   }}
-                  className="w-full h-12 rounded-xl bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 text-[10px] font-extrabold uppercase tracking-widest cursor-pointer transition-colors"
+                  className="w-full h-12 rounded-xl bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 text-[11px] md:text-[10px] font-extrabold uppercase tracking-widest cursor-pointer transition-colors"
                 >
                   Return to Main Login
                 </button>
@@ -927,7 +960,7 @@ export const LoginPage: React.FC = () => {
                       >
                         <ClipboardList className="h-5 w-5" />
                       </div>
-                      <span className="text-[11px] sm:text-xs font-bold leading-none">School</span>
+                      <span className="text-[12px] md:text-[11px] sm:text-xs font-bold leading-none">School</span>
                     </button>
 
                     <button
@@ -947,7 +980,7 @@ export const LoginPage: React.FC = () => {
                       >
                         <GraduationCap className="h-5 w-5" />
                       </div>
-                      <span className="text-[11px] sm:text-xs font-bold leading-none">Student</span>
+                      <span className="text-[12px] md:text-[11px] sm:text-xs font-bold leading-none">Student</span>
                     </button>
 
                     <button
@@ -967,7 +1000,7 @@ export const LoginPage: React.FC = () => {
                       >
                         <Settings className="h-5 w-5" />
                       </div>
-                      <span className="text-[11px] sm:text-xs font-bold leading-none">Admin</span>
+                      <span className="text-[12px] md:text-[11px] sm:text-xs font-bold leading-none">Admin</span>
                     </button>
                   </div>
 
@@ -978,16 +1011,23 @@ export const LoginPage: React.FC = () => {
                         <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                           <User2 className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
                           <input
+                            id="student-login-name"
                             type="text"
                             placeholder="e.g. Leo Skywalker"
                             value={studentLoginName}
-                            onChange={(e) => setStudentLoginName(e.target.value)}
+                            onChange={(e) => {
+                              setStudentLoginName(e.target.value);
+                              clearFieldError('student-login-name');
+                            }}
+                            aria-invalid={Boolean(fieldErrors['student-login-name'])}
+                            aria-describedby={fieldErrors['student-login-name'] ? 'student-login-name-error' : undefined}
                             className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-400 text-xs font-medium focus:ring-0"
                             required
                             disabled={isStudentLoggingIn}
                             autoComplete="off"
                           />
                         </div>
+                        <FieldError id="student-login-name-error" message={fieldErrors['student-login-name']} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -995,16 +1035,23 @@ export const LoginPage: React.FC = () => {
                         <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                           <Key className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
                           <input
+                            id="student-login-roll"
                             type="text"
                             placeholder="e.g. REG-78401"
                             value={studentLoginRoll}
-                            onChange={(e) => setStudentLoginRoll(e.target.value)}
+                            onChange={(e) => {
+                              setStudentLoginRoll(e.target.value);
+                              clearFieldError('student-login-roll');
+                            }}
+                            aria-invalid={Boolean(fieldErrors['student-login-roll'])}
+                            aria-describedby={fieldErrors['student-login-roll'] ? 'student-login-roll-error' : undefined}
                             className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-400 text-xs font-semibold focus:ring-0 font-mono"
                             required
                             disabled={isStudentLoggingIn}
                             autoComplete="off"
                           />
                         </div>
+                        <FieldError id="student-login-roll-error" message={fieldErrors['student-login-roll']} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -1039,7 +1086,7 @@ export const LoginPage: React.FC = () => {
                         )}
                       </button>
 
-                      <p className="text-center text-[10px] text-slate-400 font-semibold leading-relaxed">
+                      <p className="text-center text-[11px] md:text-[10px] text-slate-400 font-semibold leading-relaxed">
                         No account yet? Your school onboards you first — ask them for your Roll Number, or use the exam link they send you.
                       </p>
                     </form>
@@ -1050,7 +1097,9 @@ export const LoginPage: React.FC = () => {
                         <div className="flex justify-between items-center">
                           <label className="text-xs font-semibold text-slate-700 block">Roll Number / Email</label>
                           {emailTouched && !isEmailValid && (
-                            <span className="text-[10px] font-semibold text-rose-600 block animate-fadeIn">Invalid email</span>
+                            <span className="text-[11px] md:text-[10px] font-semibold text-rose-600 block animate-fadeIn">
+                              Invalid email
+                            </span>
                           )}
                         </div>
                         <div
@@ -1060,16 +1109,23 @@ export const LoginPage: React.FC = () => {
                         >
                           <Mail className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
                           <input
+                            id="login-email"
                             type="email"
                             placeholder="e.g. 2026-CS-101"
                             value={email}
                             onBlur={() => setEmailTouched(true)}
-                            onChange={(e) => setEmail(e.target.value)}
+                            onChange={(e) => {
+                              setEmail(e.target.value);
+                              clearFieldError('login-email');
+                            }}
+                            aria-invalid={Boolean(fieldErrors['login-email']) || (emailTouched && !isEmailValid)}
+                            aria-describedby={fieldErrors['login-email'] ? 'login-email-error' : undefined}
                             className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-450 text-xs font-medium focus:ring-0"
                             required
                             autoComplete="off"
                           />
                         </div>
+                        <FieldError id="login-email-error" message={fieldErrors['login-email']} />
                       </div>
 
                       {/* Password Input */}
@@ -1093,11 +1149,17 @@ export const LoginPage: React.FC = () => {
                         >
                           <Lock className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
                           <input
+                            id="login-password"
                             type={showPassword ? 'text' : 'password'}
                             placeholder="Enter your password"
                             value={password}
                             onBlur={() => setPasswordTouched(true)}
-                            onChange={(e) => setPassword(e.target.value)}
+                            onChange={(e) => {
+                              setPassword(e.target.value);
+                              clearFieldError('login-password');
+                            }}
+                            aria-invalid={Boolean(fieldErrors['login-password']) || (passwordTouched && !isPasswordValid)}
+                            aria-describedby={fieldErrors['login-password'] ? 'login-password-error' : undefined}
                             className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-450 text-xs font-medium focus:ring-0"
                             required
                             autoComplete="current-password"
@@ -1110,6 +1172,7 @@ export const LoginPage: React.FC = () => {
                             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
                         </div>
+                        <FieldError id="login-password-error" message={fieldErrors['login-password']} />
                       </div>
 
                       {/* Remember Option */}
@@ -1207,7 +1270,7 @@ export const LoginPage: React.FC = () => {
                     </div>
 
                     {selectedRole === 'admin' && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-900 text-[11px] leading-relaxed flex items-start gap-2 mt-2 animate-in fade-in duration-200">
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-900 text-[12px] md:text-[11px] leading-relaxed flex items-start gap-2 mt-2 animate-in fade-in duration-200">
                         <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                         <div>
                           <strong className="font-extrabold block">Admin Access Restricted</strong>
@@ -1224,15 +1287,22 @@ export const LoginPage: React.FC = () => {
                     <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                       <User2 className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
                       <input
+                        id="signup-name"
                         type="text"
                         placeholder="Enter your name"
                         value={name}
-                        onChange={(e) => setName(e.target.value)}
+                        onChange={(e) => {
+                          setName(e.target.value);
+                          clearFieldError('signup-name');
+                        }}
+                        aria-invalid={Boolean(fieldErrors['signup-name'])}
+                        aria-describedby={fieldErrors['signup-name'] ? 'signup-name-error' : undefined}
                         className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-400 text-xs font-medium focus:ring-0"
                         required
                         autoComplete="off"
                       />
                     </div>
+                    <FieldError id="signup-name-error" message={fieldErrors['signup-name']} />
                   </div>
 
                   {/* Email Input */}
@@ -1241,21 +1311,28 @@ export const LoginPage: React.FC = () => {
                     <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                       <Mail className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
                       <input
+                        id="signup-email"
                         type="email"
                         placeholder="Enter your email"
                         value={signUpEmail}
-                        onChange={(e) => setSignUpEmail(e.target.value)}
+                        onChange={(e) => {
+                          setSignUpEmail(e.target.value);
+                          clearFieldError('signup-email');
+                        }}
+                        aria-invalid={Boolean(fieldErrors['signup-email'])}
+                        aria-describedby={fieldErrors['signup-email'] ? 'signup-email-error' : undefined}
                         className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-450 text-xs font-medium focus:ring-0"
                         required
                         autoComplete="off"
                       />
                     </div>
+                    <FieldError id="signup-email-error" message={fieldErrors['signup-email']} />
 
                     {/* School Email Authorization Notice */}
                     {selectedRole === 'school' && signUpEmail.trim().length > 0 && (
                       <div className="mt-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
                         {isEmailOnboarded ? (
-                          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-start gap-2 text-emerald-800 text-[11px] font-medium leading-relaxed">
+                          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-start gap-2 text-emerald-800 text-[12px] md:text-[11px] font-medium leading-relaxed">
                             <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                             <div>
                               <strong className="font-extrabold text-emerald-900 block">Pre-Authorized School Email</strong>
@@ -1264,7 +1341,7 @@ export const LoginPage: React.FC = () => {
                             </div>
                           </div>
                         ) : (
-                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-2.5 text-amber-800 text-[11px] leading-relaxed">
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-2.5 text-amber-800 text-[12px] md:text-[11px] leading-relaxed">
                             <div className="flex items-start gap-2">
                               <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                               <div>
@@ -1288,10 +1365,16 @@ export const LoginPage: React.FC = () => {
                     <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                       <Lock className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
                       <input
+                        id="signup-password"
                         type={showPassword ? 'text' : 'password'}
                         placeholder="Enter password"
                         value={signUpPassword}
-                        onChange={(e) => setSignUpPassword(e.target.value)}
+                        onChange={(e) => {
+                          setSignUpPassword(e.target.value);
+                          clearFieldError('signup-password');
+                        }}
+                        aria-invalid={Boolean(fieldErrors['signup-password'])}
+                        aria-describedby={fieldErrors['signup-password'] ? 'signup-password-error' : undefined}
                         className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-400 text-xs font-medium focus:ring-0"
                         required
                         autoComplete="new-password"
@@ -1304,6 +1387,7 @@ export const LoginPage: React.FC = () => {
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    <FieldError id="signup-password-error" message={fieldErrors['signup-password']} />
                   </div>
 
                   {/* Sign Up button */}

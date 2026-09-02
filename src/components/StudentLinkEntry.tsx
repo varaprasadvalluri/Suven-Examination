@@ -503,7 +503,7 @@ export const StudentLinkEntry: React.FC = () => {
             </div>
             <CardTitle className="text-xl font-black text-rose-950 uppercase tracking-tight">Security Gateway Blocked</CardTitle>
             <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl text-left">
-              <p className="text-[#C62828] text-[10px] font-black uppercase tracking-wider mb-1">Violation Diagnostics:</p>
+              <p className="text-[#C62828] text-[11px] md:text-[10px] font-black uppercase tracking-wider mb-1">Violation Diagnostics:</p>
               <p className="text-rose-800 text-xs font-semibold leading-relaxed">{tokenError}</p>
             </div>
             <CardDescription className="text-slate-500 text-xs font-medium leading-relaxed">
@@ -585,13 +585,15 @@ export const StudentLinkEntry: React.FC = () => {
           </div>
           <div>
             <span className="font-sans font-extrabold text-sm uppercase tracking-wider text-white block leading-none">SUVEN EDU</span>
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">EXAM PORTAL</span>
+            <span className="text-[11px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">EXAM PORTAL</span>
           </div>
         </div>
 
         {/* Welcoming Messages */}
         <div className="my-auto py-8 lg:py-0 relative z-10">
-          <span className="text-[#38bdf8] font-extrabold text-[11px] uppercase tracking-[0.2em] block mb-3">WELCOME BACK</span>
+          <span className="text-[#38bdf8] font-extrabold text-[12px] md:text-[11px] uppercase tracking-[0.2em] block mb-3">
+            WELCOME BACK
+          </span>
           <h1 className="text-3xl md:text-4.5xl font-extrabold text-white tracking-tight leading-[1.15] mb-4">
             Your academic
             <br />
@@ -609,15 +611,17 @@ export const StudentLinkEntry: React.FC = () => {
           <div className="grid grid-cols-3 gap-2 bg-white/[0.04] border border-white/10 rounded-2xl p-5 backdrop-blur-md text-center">
             <div>
               <span className="text-xl font-black text-white block tracking-tight">12,400+</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Students</span>
+              <span className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Students</span>
             </div>
             <div className="border-x border-white/10">
               <span className="text-xl font-black text-white block tracking-tight">340+</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Teachers</span>
+              <span className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Teachers</span>
             </div>
             <div>
               <span className="text-xl font-black text-white block tracking-tight">98%</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Satisfaction</span>
+              <span className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">
+                Satisfaction
+              </span>
             </div>
           </div>
 
@@ -646,17 +650,17 @@ export const StudentLinkEntry: React.FC = () => {
 
           {/* Authorized Metadata Block */}
           <div className="mb-6 p-4 bg-gradient-to-br from-indigo-50/40 to-sky-50/30 border border-slate-100 rounded-2xl space-y-3 shadow-sm">
-            <div className="flex items-center gap-2 font-black text-[10px] uppercase text-indigo-700 tracking-widest">
+            <div className="flex items-center gap-2 font-black text-[11px] md:text-[10px] uppercase text-indigo-700 tracking-widest">
               <ShieldCheck size={14} className="text-indigo-600 shrink-0" />
               <span>SECURE ASSESSMENT PASS AUTHORIZED</span>
             </div>
             <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-slate-200/60">
               <div>
-                <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold">School Unit</span>
+                <span className="text-[11px] md:text-[9px] uppercase tracking-wider text-slate-400 font-extrabold">School Unit</span>
                 <p className="font-extrabold text-slate-800 text-xs mt-0.5 truncate">{school?.name || 'Test001'}</p>
               </div>
               <div>
-                <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold">Active Assessment</span>
+                <span className="text-[11px] md:text-[9px] uppercase tracking-wider text-slate-400 font-extrabold">Active Assessment</span>
                 <p className="font-extrabold text-slate-800 text-xs mt-0.5 truncate">{exam?.title || 'Test'}</p>
               </div>
             </div>
@@ -665,7 +669,7 @@ export const StudentLinkEntry: React.FC = () => {
           <form onSubmit={handleLaunch} className="space-y-4">
             {/* Field 1: Enter Name */}
             <div className="space-y-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Student Full Name</span>
+              <span className="text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Student Full Name</span>
               <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                 <User2 className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
                 <input
@@ -683,7 +687,9 @@ export const StudentLinkEntry: React.FC = () => {
 
             {/* Field 2: Enter Student Register ID */}
             <div className="space-y-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Student Register ID</span>
+              <span className="text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                Student Register ID
+              </span>
               <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                 <Key className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
                 <input
@@ -702,8 +708,10 @@ export const StudentLinkEntry: React.FC = () => {
             {/* Proctor compliance security check */}
             <div className="bg-amber-50/60 border border-amber-100/80 p-3.5 rounded-2xl flex items-start gap-2.5 mt-5">
               <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <div className="text-[10px] font-semibold text-slate-700 leading-normal">
-                <p className="font-extrabold text-slate-800 uppercase tracking-wider text-[8px] mb-0.5">Lobby Verification Consent</p>
+              <div className="text-[11px] md:text-[10px] font-semibold text-slate-700 leading-normal">
+                <p className="font-extrabold text-slate-800 uppercase tracking-wider text-[11px] md:text-[8px] mb-0.5">
+                  Lobby Verification Consent
+                </p>
                 By activating this exam, you agree to secure browser lockdowns and temporary test progress tracking.
               </div>
             </div>
@@ -727,7 +735,7 @@ export const StudentLinkEntry: React.FC = () => {
               <button
                 type="button"
                 onClick={handleReturnToLogin}
-                className="w-full h-12 rounded-xl bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 text-[10px] font-extrabold uppercase tracking-widest cursor-pointer transition-colors"
+                className="w-full h-12 rounded-xl bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 text-[11px] md:text-[10px] font-extrabold uppercase tracking-widest cursor-pointer transition-colors"
               >
                 Return to Main Login
               </button>

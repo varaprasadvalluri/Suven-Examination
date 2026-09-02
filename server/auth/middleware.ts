@@ -1,5 +1,6 @@
 import { verifySessionToken } from './tokens';
 import { clientDb, clientDoc, clientGetDoc } from '../firestoreClient';
+import { logger } from '../lib/logger';
 
 export interface RequestAuth {
   uid: string;
@@ -73,7 +74,7 @@ export async function requireSession(req: any, res: any, next: () => void) {
     req.auth = auth;
     next();
   } catch (err: any) {
-    console.error('[Auth] Session validation error:', err);
+    logger.error('Session validation error', { err });
     return res.status(500).json({ error: err.message || String(err) });
   }
 }

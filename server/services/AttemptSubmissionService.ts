@@ -50,12 +50,7 @@ class AttemptSubmissionService {
    * isn't configured (local dev), taskQueueService.enqueueGradingTask falls back to grading
    * inline, so the attempt still reaches 'completed' — just synchronously.
    */
-  async submit(
-    auth: RequestAuth,
-    attemptId: string,
-    writeType: 'update' | 'set',
-    data: any
-  ): Promise<SubmissionResult | SubmissionDenied> {
+  async submit(auth: RequestAuth, attemptId: string, writeType: 'update' | 'set', data: any): Promise<SubmissionResult | SubmissionDenied> {
     // IDEMPOTENCY — this, not the middleware lock, is what makes double submission safe.
     //
     // There is no Redis in this deployment, so the in-process lock in

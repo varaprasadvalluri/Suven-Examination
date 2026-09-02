@@ -19,10 +19,7 @@ describe('withRetry', () => {
   });
 
   it('retries a transient 503 and returns the eventual success', async () => {
-    const fn = vi
-      .fn()
-      .mockRejectedValueOnce(new FirestoreRestError(503, 'unavailable'))
-      .mockResolvedValue('recovered');
+    const fn = vi.fn().mockRejectedValueOnce(new FirestoreRestError(503, 'unavailable')).mockResolvedValue('recovered');
     const wrapped = withRetry('test.op', fn);
 
     await expect(wrapped()).resolves.toBe('recovered');

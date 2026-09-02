@@ -6,7 +6,11 @@ import { NamedListItem, subjectCategoriesService, academicLevelsService } from '
 // update local state directly from the create/delete response instead of refetching, so a
 // newly-added category shows up in every open dropdown immediately (sidesteps the client
 // requestCache's 15s TTL and the server write-queue's batched cache-invalidation lag).
-function useNamedList(service: { list(): Promise<NamedListItem[]>; create(name: string): Promise<NamedListItem>; remove(id: string): Promise<void> }) {
+function useNamedList(service: {
+  list(): Promise<NamedListItem[]>;
+  create(name: string): Promise<NamedListItem>;
+  remove(id: string): Promise<void>;
+}) {
   const [items, setItems] = useState<NamedListItem[]>([]);
   const [loading, setLoading] = useState(true);
 
