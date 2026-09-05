@@ -27,8 +27,8 @@
  *                                                                # also write accuracy-changed attempts, once reviewed
  */
 import './server/loadEnv';
-import { clientDb, clientCollection, clientQuery, clientWhere, clientGetDocs } from './server/firestoreClient';
-import { enqueueWrite } from './server/db/writeQueue';
+import { clientDb, clientCollection, clientQuery, clientWhere, clientGetDocs } from './server/adapters/out/firestore/firestoreClient';
+import { enqueueWrite } from './server/adapters/out/firestore/writeQueue';
 import { scoreExam } from './shared/examScoring';
 import { orderQuestionsForAttempt } from './shared/examQuestionOrder';
 

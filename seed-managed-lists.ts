@@ -13,8 +13,8 @@
  *   npx tsx seed-managed-lists.ts --apply     # actually write the seed values
  */
 import './server/loadEnv';
-import { clientDb, clientCollection, clientGetDocs } from './server/firestoreClient';
-import { enqueueWrite } from './server/db/writeQueue';
+import { clientDb, clientCollection, clientGetDocs } from './server/adapters/out/firestore/firestoreClient';
+import { enqueueWrite } from './server/adapters/out/firestore/writeQueue';
 
 const APPLY = process.argv.includes('--apply');
 

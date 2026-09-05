@@ -1,0 +1,844 @@
+import React, { useEffect, useState } from 'react';
+import { db, collection, getDocs, query, orderBy, limit, where, getCountFromServer } from '../../../lib/firebase';
+import { Exam, Attempt } from '../../../types';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/card';
+import { Button } from '../../../components/ui/button';
+import { Badge } from '../../../components/ui/badge';
+import {
+  Users,
+  FileText,
+  School as SchoolIcon,
+  Plus,
+  ChevronRight,
+  Download,
+  Loader2,
+  Zap,
+  Activity,
+  LayoutGrid,
+  Crown,
+  Medal,
+  Award,
+  Table2
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
+import { useAuth } from '../../../lib/AuthContext';
+import * as XLSX from 'xlsx';
+import { toast } from 'sonner';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis
+} from 'recharts';
+
+const loginActivityData = [
+  { day: 'Mon', value: 400 },
+  { day: 'Tue', value: 300 },
+  { day: 'Wed', value: 600 },
+  { day: 'Thu', value: 800 },
+  { day: 'Fri', value: 500 },
+  { day: 'Sat', value: 200 },
+  { day: 'Sun', value: 100 }
+];
+
+const subjectMasteryData = [
+  { subject: 'Math', A: 120, B: 110, fullMark: 150 },
+  { subject: 'Physics', A: 98, B: 130, fullMark: 150 },
+  { subject: 'Chemistry', A: 86, B: 130, fullMark: 150 },
+  { subject: 'Biology', A: 99, B: 100, fullMark: 150 },
+  { subject: 'English', A: 85, B: 90, fullMark: 150 },
+  { subject: 'CS', A: 145, B: 85, fullMark: 150 }
+];
+
+export const AdminOverview: React.FC = () => {
+  const { profile } = useAuth();
+  const navigate = useNavigate();
+  const [stats, setStats] = useState({
+    exams: 0,
+    schools: 0,
+    attempts: 0,
+    activeExams: 0
+  });
+  const [recentExams, setRecentExams] = useState<Exam[]>([]);
+  const [topStudents, setTopStudents] = useState<Attempt[]>([]);
+  const [schoolNameById, setSchoolNameById] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
+
+  interface SchoolMetrics {
+    schoolId: string;
+    name: string;
+    attending: number;
+    completed: number;
+  }
+  const [schoolStats, setSchoolStats] = useState<SchoolMetrics[]>([]);
+  const [activeNowStudents, setActiveNowStudents] = useState<{ id: string; name: string }[]>([]);
+  const [activeNowCount, setActiveNowCount] = useState(0);
+  const [anomalyCount, setAnomalyCount] = useState(0);
+  const [schoolViewMode, setSchoolViewMode] = useState<'grid' | 'table'>('grid');
+
+  const handleMasterExport = async () => {
+    setIsExporting(true);
+    try {
+      const attemptsSnap = await getDocs(collection(db, 'attempts'));
+      const examsSnap = await getDocs(collection(db, 'exams'));
+      const schoolsSnap = await getDocs(collection(db, 'schools'));
+
+      const attempts = attemptsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as any);
+      const exams = examsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as any);
+      const schools = schoolsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as any);
+
+      const examsMap = new Map(exams.map((e) => [e.id, e]));
+      const schoolsMap = new Map(schools.map((s) => [s.id, s]));
+
+      const exportData = attempts.map((attemptRecord) => {
+        const exam = examsMap.get(attemptRecord.examId) as any;
+        const school = schoolsMap.get(attemptRecord.schoolId) as any;
+
+        return {
+          'Student Name': attemptRecord.studentName,
+          'Student Email': attemptRecord.studentEmail || 'N/A',
+          Institution: school?.name || 'N/A',
+          'Exam Title': exam?.title || 'N/A',
+          Subject: exam?.subject || 'N/A',
+          Score: attemptRecord.score,
+          'Total Marks': exam?.totalMarks || 0,
+          Status: attemptRecord.status,
+          'Date Completed': attemptRecord.endTime ? new Date(attemptRecord.endTime).toLocaleString() : 'N/A'
+        };
+      });
+
+      const resultsWorksheet = XLSX.utils.json_to_sheet(exportData);
+      const resultsWorkbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(resultsWorkbook, resultsWorksheet, 'Master Results Report');
+      XLSX.writeFile(resultsWorkbook, 'Master_Intelligence_Report.xlsx');
+      toast.success('Master report generated successfully');
+    } catch (error) {
+      console.error('Export error', error);
+      toast.error('Failed to generate master report');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const [dynamicLoginActivityData, setDynamicLoginActivityData] = useState(loginActivityData);
+  const [dynamicSubjectMasteryData, setDynamicSubjectMasteryData] = useState(subjectMasteryData);
+  const [throughputPeak, setThroughputPeak] = useState<{ count: number; day: string }>({ count: 0, day: '' });
+  const [throughputWeekChangePct, setThroughputWeekChangePct] = useState<number | null>(null);
+  const [throughputDailyAvg, setThroughputDailyAvg] = useState(0);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const examsSnap = await getCountFromServer(collection(db, 'exams'));
+        const schoolsSnap = await getCountFromServer(collection(db, 'schools'));
+        const attemptsSnap = await getCountFromServer(collection(db, 'attempts'));
+        const activeExamsQuery = query(collection(db, 'exams'), where('status', '==', 'published'));
+        const activeExamsSnap = await getCountFromServer(activeExamsQuery);
+
+        setStats({
+          exams: examsSnap.data().count,
+          schools: schoolsSnap.data().count,
+          attempts: attemptsSnap.data().count,
+          activeExams: activeExamsSnap.data().count
+        });
+
+        const recentExamsQuery = query(collection(db, 'exams'), orderBy('createdAt', 'desc'), limit(5));
+        const recentSnap = await getDocs(recentExamsQuery);
+
+        setRecentExams(recentSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Exam));
+
+        // Retrieve real-time school metrics
+        const schoolsQuerySnap = await getDocs(collection(db, 'schools'));
+        const attemptsQuerySnap = await getDocs(collection(db, 'attempts'));
+        const schoolsList = schoolsQuerySnap.docs.map((dDoc) => ({ id: dDoc.id, ...dDoc.data() }) as any);
+        const attemptsList = attemptsQuerySnap.docs.map((aDoc) => ({ id: aDoc.id, ...aDoc.data() }) as any);
+
+        // Real top-5 merit ranking (was hardcoded placeholder data before) — ranked by
+        // accuracy, which is computed once at submission time in ExamInterface.tsx and
+        // doesn't need an exam totalMarks join to turn into a percentage.
+        // Master Admin (no schoolId) sees the global top 5 across every school; a
+        // school-scoped admin account (profile.schoolId set, labeled "School Admin" above)
+        // sees only their own school's top 5 — same widget, scoped by whoever's viewing it.
+        const topByAccuracy = attemptsList
+          .filter((a) => a.status === 'completed' && (!profile?.schoolId || a.schoolId === profile.schoolId))
+          .sort((a, b) => (b.accuracy ?? 0) - (a.accuracy ?? 0))
+          .slice(0, 5) as Attempt[];
+        setTopStudents(topByAccuracy);
+        setSchoolNameById(Object.fromEntries(schoolsList.map((s) => [s.id, s.name || 'Unknown School'])));
+
+        // Real "students currently taking an exam" sample and count — replaces the
+        // hardcoded "42 Nodes" + fixed dicebear avatar placeholders that used to sit here.
+        const scopedAttempts = !profile?.schoolId ? attemptsList : attemptsList.filter((a) => a.schoolId === profile.schoolId);
+        const liveAttempts = scopedAttempts.filter((a) => a.status === 'started' || a.status === 'in-progress');
+        setActiveNowCount(liveAttempts.length);
+        setActiveNowStudents(liveAttempts.slice(0, 4).map((a) => ({ id: a.id, name: a.studentName || 'Student' })));
+
+        // Real proctoring-anomaly count — replaces the hardcoded "03 ALERT" that used to
+        // sit here regardless of actual attempt data.
+        const flaggedCount = scopedAttempts.filter((a) => (a.violationsCount || 0) > 0 || (a.malpracticeScore || 0) > 0).length;
+        setAnomalyCount(flaggedCount);
+
+        const calculatedSchoolStats = schoolsList.map((school) => {
+          const schoolAttempts = attemptsList.filter((att) => att.schoolId === school.id);
+          const attendingCount = schoolAttempts.filter((att) => att.status !== 'completed').length;
+          const completedCount = schoolAttempts.filter((att) => att.status === 'completed').length;
+          return {
+            schoolId: school.id,
+            name: school.name || 'Unknown School Unit',
+            attending: attendingCount,
+            completed: completedCount
+          };
+        });
+        setSchoolStats(calculatedSchoolStats);
+
+        // Compute dynamic intelligence base data
+
+        // 1. Subject Mastery Data
+        const subjectStats: Record<string, { totalScore: number; maxScore: number; count: number }> = {};
+        attemptsList
+          .filter((attempt) => attempt.status === 'completed')
+          .forEach((attempt) => {
+            const matchedExam = recentSnap.docs.find((examDoc) => examDoc.id === attempt.examId)?.data() as any;
+            const subjectName = matchedExam?.subject || 'General';
+            const maxMarksForSubject = matchedExam?.totalMarks || 150;
+            if (!subjectStats[subjectName]) subjectStats[subjectName] = { totalScore: 0, maxScore: maxMarksForSubject, count: 0 };
+            subjectStats[subjectName].totalScore += attempt.score;
+            subjectStats[subjectName].count += 1;
+          });
+
+        const computedMastery = Object.keys(subjectStats).map((subjectName) => {
+          const subjectStat = subjectStats[subjectName];
+          return {
+            subject: subjectName,
+            A: Math.round(subjectStat.totalScore / subjectStat.count),
+            B: Math.round(subjectStat.maxScore * 0.8), // Mock target
+            fullMark: subjectStat.maxScore
+          };
+        });
+
+        if (computedMastery.length > 0) {
+          setDynamicSubjectMasteryData(computedMastery);
+        }
+
+        // 2. Daily Throughput — real rolling 7-day count of completed assessments, replacing
+        // the old all-time weekday-bucket mock (which conflated every past Monday ever into
+        // one bar via an arbitrary x10 multiplier, and filled empty days with Math.random()).
+        // scopedAttempts already holds full history in memory for the other widgets above, so
+        // this — plus a genuine week-over-week comparison — costs no extra reads.
+        const completedScoped = scopedAttempts.filter((a) => a.status === 'completed' && a.endTime);
+        const dayMs = 24 * 60 * 60 * 1000;
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const countForDayOffset = (offsetFromToday: number) => {
+          const dayStartMs = todayStart.getTime() - offsetFromToday * dayMs;
+          const dayEndMs = dayStartMs + dayMs;
+          return completedScoped.filter((a) => {
+            const t = new Date(a.endTime).getTime();
+            return t >= dayStartMs && t < dayEndMs;
+          }).length;
+        };
+
+        const last7 = Array.from({ length: 7 }, (_, i) => 6 - i).map((offset) => ({
+          day: new Date(todayStart.getTime() - offset * dayMs).toLocaleDateString('en-US', { weekday: 'short' }),
+          count: countForDayOffset(offset)
+        }));
+        setDynamicLoginActivityData(last7.map((d) => ({ day: d.day, value: d.count })));
+
+        const totalThisWeek = last7.reduce((sum, d) => sum + d.count, 0);
+        const peakDay = last7.reduce((best, d) => (d.count > best.count ? d : best), last7[0]);
+        setThroughputPeak({ count: peakDay.count, day: peakDay.day });
+        setThroughputDailyAvg(Math.round((totalThisWeek / 7) * 10) / 10);
+
+        const totalPrevWeek = Array.from({ length: 7 }, (_, i) => 13 - i).reduce((sum, offset) => sum + countForDayOffset(offset), 0);
+        setThroughputWeekChangePct(totalPrevWeek > 0 ? Math.round(((totalThisWeek - totalPrevWeek) / totalPrevWeek) * 100) : null);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [profile?.schoolId]);
+
+  if (loading)
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+        <Loader2 className="h-10 w-10 text-indigo-600 animate-spin" />
+        <p className="text-slate-500 font-bold animate-pulse uppercase tracking-widest text-sm">Synchronizing Intelligence Base...</p>
+      </div>
+    );
+
+  return (
+    <div className="space-y-8 pb-20">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-1">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Badge
+              variant="outline"
+              className="bg-indigo-50 text-indigo-700 border-indigo-100 font-black text-[11px] md:text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider"
+            >
+              System Status: Online
+            </Badge>
+            <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Operations Platform</span>
+          </div>
+          <h2 className="text-3xl md:text-4xl font-display font-black text-slate-900 tracking-tight flex items-center gap-3">
+            Global Overview <Activity className="text-indigo-600 animate-pulse" size={32} />
+          </h2>
+          <p className="text-slate-500 font-medium mt-1">Infrastructure Metrics & Governance.</p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <Button
+            variant="outline"
+            onClick={handleMasterExport}
+            disabled={isExporting}
+            className="border-slate-200 text-slate-700 h-14 px-8 rounded-2xl font-black text-[12px] md:text-[11px] uppercase tracking-widest hover:bg-slate-50 w-full sm:w-auto"
+          >
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+            Export Intelligence
+          </Button>
+          <Button
+            onClick={() => navigate('/admin/exams')}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xl shadow-indigo-200/50 h-14 px-8 rounded-2xl font-black text-[12px] md:text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 group w-full sm:w-auto"
+          >
+            Initialize Exam <Plus className="h-4 w-4 group-hover:rotate-90 transition-transform" />
+          </Button>
+        </div>
+      </header>
+
+      {/* Bento Grid Dashboard */}
+      <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 grid-rows-auto gap-6">
+        {/* Main Stats Area Chart */}
+        <Card className="md:col-span-4 lg:col-span-4 row-span-2 shadow-2xl shadow-slate-200/40 border-0 rounded-[40px] overflow-hidden bg-white group flex flex-col border border-slate-100">
+          <CardHeader className="p-6 md:p-10 pb-0">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Daily Throughput</CardTitle>
+                <CardDescription className="font-semibold text-slate-400 mt-1">
+                  Completed assessments per day over the last 7 days.
+                </CardDescription>
+              </div>
+              <Badge className="bg-emerald-500/10 text-emerald-600 border-0 font-black text-[11px] md:text-[10px] uppercase px-3 py-1">
+                Live Feed
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 md:p-10 flex-grow h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={dynamicLoginActivityData}>
+                <defs>
+                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
+                <YAxis hide />
+                <Tooltip
+                  contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.15)', padding: '20px' }}
+                  labelStyle={{ fontWeight: 900, marginBottom: '8px', color: '#1e293b', textTransform: 'uppercase', fontSize: '10px' }}
+                />
+                <Area type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={4} fillOpacity={1} fill="url(#colorValue)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+          <div className="bg-slate-50 p-6 md:p-8 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100">
+            <div className="flex gap-6 md:gap-10">
+              <div className="flex flex-col">
+                <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                  Peak Day
+                </span>
+                <span className="text-2xl font-black text-slate-900 mt-1">
+                  {throughputPeak.count}
+                  {throughputPeak.day && <span className="text-xs font-bold text-slate-400 ml-1">{throughputPeak.day}</span>}{' '}
+                  {throughputWeekChangePct !== null && (
+                    <span className={`text-[11px] md:text-[10px] ${throughputWeekChangePct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {throughputWeekChangePct >= 0 ? '▲' : '▼'} {Math.abs(throughputWeekChangePct)}%
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                  Daily Average
+                </span>
+                <span className="text-2xl font-black text-slate-900 mt-1">
+                  {throughputDailyAvg} <span className="text-[11px] md:text-[10px] text-slate-400">PER DAY</span>
+                </span>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/admin/analytics')}
+              className="rounded-xl font-black text-[11px] md:text-[10px] uppercase tracking-widest text-indigo-600 hover:bg-indigo-100 h-10 px-6 cursor-pointer"
+            >
+              Detailed Analytics
+            </Button>
+          </div>
+        </Card>
+
+        {/* Quick Stats - Bento Tiles */}
+        <motion.div
+          whileHover={{ y: -5 }}
+          className="md:col-span-2 lg:col-span-2 bg-slate-900 rounded-[40px] p-6 md:p-10 text-white shadow-2xl shadow-indigo-900/20 relative overflow-hidden group"
+        >
+          <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Users size={120} />
+          </div>
+          <div className="relative z-10 flex flex-col h-full justify-between">
+            <div>
+              <Badge className="bg-white/10 text-white border-0 font-black text-[11px] md:text-[10px] uppercase mb-4">
+                Total Ecosystem
+              </Badge>
+              <h3 className="text-5xl md:text-6xl font-black tracking-tighter">{stats.attempts}</h3>
+              <p className="text-indigo-300 font-bold mt-2 uppercase tracking-widest text-[12px] md:text-[11px]">Submissions Processed</p>
+            </div>
+            <div className="mt-8 pt-8 border-t border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[11px] md:text-[10px] font-black uppercase text-white/50 tracking-widest">Active Now</span>
+              </div>
+              <span className="text-[12px] md:text-[11px] font-black">
+                {activeNowCount} {activeNowCount === 1 ? 'Student' : 'Students'}
+              </span>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Subject Radar Mastery */}
+        <Card className="md:col-span-2 lg:col-span-2 row-span-2 shadow-2xl shadow-slate-200/40 border-0 rounded-[40px] overflow-hidden bg-white border border-slate-100">
+          <CardHeader className="p-6 md:p-8">
+            <CardTitle className="text-lg font-black text-slate-900 uppercase tracking-tighter">Academic Purity Radar</CardTitle>
+            <CardDescription className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+              Strength vectors across disciplines
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="h-[250px] p-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={dynamicSubjectMasteryData}>
+                <PolarGrid stroke="#f1f5f9" />
+                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
+                <Radar name="Student Average" dataKey="A" stroke="#6366f1" fill="#6366f1" fillOpacity={0.6} />
+              </RadarChart>
+            </ResponsiveContainer>
+          </CardContent>
+          <div className="p-6 md:p-8 pt-0 flex flex-col gap-3">
+            <div className="flex justify-between items-center text-[12px] md:text-[11px] font-bold">
+              <span className="text-slate-400">MATH PROFICIENCY</span>
+              <span className="text-indigo-600">82%</span>
+            </div>
+            <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full bg-indigo-600 rounded-full" style={{ width: '82%' }} />
+            </div>
+            <div className="flex justify-between items-center text-[12px] md:text-[11px] font-bold mt-2">
+              <span className="text-slate-400">LOGICAL DENSITY</span>
+              <span className="text-indigo-600">94%</span>
+            </div>
+            <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full bg-indigo-600 rounded-full" style={{ width: '94%' }} />
+            </div>
+          </div>
+        </Card>
+
+        {/* Institutions Tile */}
+        <Card className="md:col-span-2 lg:col-span-2 bg-indigo-50 border-0 rounded-[40px] p-6 md:p-10 flex flex-col justify-between group cursor-pointer hover:bg-indigo-100 transition-colors relative">
+          <div className="flex flex-wrap justify-between items-start gap-3" onClick={() => navigate('/admin/schools')}>
+            <div className="h-14 w-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-xl shadow-indigo-200">
+              <SchoolIcon size={28} />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate('/admin/schools/onboard');
+                }}
+                className="bg-indigo-600 hover:bg-indigo-900 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer z-10"
+              >
+                <Plus size={14} /> Onboard School
+              </button>
+              <ChevronRight className="text-indigo-300 group-hover:translate-x-2 transition-transform" />
+            </div>
+          </div>
+          <div onClick={() => navigate('/admin/schools')}>
+            <p className="text-4xl md:text-5xl font-black text-indigo-900 tracking-tighter">{stats.schools}</p>
+            <p className="text-[12px] md:text-[11px] font-black text-indigo-400 uppercase tracking-widest mt-2">Vetted Institutions</p>
+          </div>
+        </Card>
+
+        {/* Live Monitoring Pulse */}
+        <Card
+          className="md:col-span-2 lg:col-span-2 bg-slate-50 border border-slate-100 rounded-[40px] p-6 md:p-10 flex flex-col justify-between overflow-hidden relative"
+          onClick={() => navigate('/admin/proctoring')}
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-200/20 blur-3xl -mr-10 -mt-10" />
+          <div className="flex items-center gap-3 mb-6">
+            <div className="h-10 w-10 bg-slate-900 rounded-xl flex items-center justify-center text-white">
+              <Zap size={20} className="text-amber-400" />
+            </div>
+            <div>
+              <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+                Security Status
+              </span>
+              <span className="text-sm font-black text-slate-900 uppercase">Proctoring Wall</span>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between text-[12px] md:text-[11px] font-bold">
+              <span className="text-slate-500">ANOMALIES DETECTED</span>
+              <span className={anomalyCount > 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                {anomalyCount > 0 ? `${anomalyCount} ALERT${anomalyCount > 1 ? 'S' : ''}` : 'CLEAR'}
+              </span>
+            </div>
+            {activeNowStudents.length > 0 ? (
+              <div className="flex -space-x-4">
+                {activeNowStudents.map((student) => (
+                  <div
+                    key={student.id}
+                    title={student.name}
+                    className="h-10 w-10 rounded-full border-4 border-white bg-slate-200 overflow-hidden"
+                  >
+                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${student.id}`} alt={student.name} />
+                  </div>
+                ))}
+                {activeNowCount > activeNowStudents.length && (
+                  <div className="h-10 w-10 rounded-full border-4 border-white bg-indigo-600 flex items-center justify-center text-white text-[11px] md:text-[9px] font-black">
+                    +{activeNowCount - activeNowStudents.length}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-[12px] md:text-[11px] font-semibold text-slate-400">No students currently taking an exam</p>
+            )}
+          </div>
+          <Button
+            onClick={() => navigate('/admin/proctoring')}
+            className="mt-8 bg-slate-900 text-white rounded-2xl h-12 font-black text-[11px] md:text-[10px] uppercase tracking-widest cursor-pointer"
+          >
+            Open Monitor
+          </Button>
+        </Card>
+
+        {/* Live Institution Monitoring Terminal */}
+        <Card className="col-span-1 md:col-span-4 lg:col-span-6 shadow-2xl shadow-slate-200/40 border-0 rounded-[40px] overflow-hidden bg-white border border-slate-100 p-6 md:p-10 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[11px] md:text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                  LIVE TRACKING METAMETRICS
+                </span>
+              </div>
+              <CardTitle className="text-2xl font-black text-slate-900 uppercase tracking-tighter">
+                Live School Attendance Monitor
+              </CardTitle>
+              <CardDescription className="text-xs font-semibold text-slate-400 mt-1">
+                Attending (in-session) vs. Completed standardized diagnostic registrations grouped by institution.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 flex gap-6 text-center">
+                <div>
+                  <p className="text-[11px] md:text-[9px] font-black text-indigo-500 uppercase tracking-wider">Total Attending</p>
+                  <p className="text-xl font-bold text-slate-800">{schoolStats.reduce((sum, s) => sum + s.attending, 0)}</p>
+                </div>
+                <div className="w-[1px] bg-slate-200" />
+                <div>
+                  <p className="text-[11px] md:text-[9px] font-black text-emerald-500 uppercase tracking-wider">Total Completed</p>
+                  <p className="text-xl font-bold text-slate-800">{schoolStats.reduce((sum, s) => sum + s.completed, 0)}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200/60 rounded-2xl p-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setSchoolViewMode('grid')}
+                  title="Grid view"
+                  className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+                    schoolViewMode === 'grid' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-100'
+                  }`}
+                >
+                  <LayoutGrid size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSchoolViewMode('table')}
+                  title="Table view"
+                  className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+                    schoolViewMode === 'table' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-100'
+                  }`}
+                >
+                  <Table2 size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {schoolViewMode === 'table' ? (
+            <div className="overflow-x-auto rounded-3xl border border-slate-100">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-[#0B1E3F]">
+                  <tr>
+                    <th className="px-6 py-3.5 text-[11px] md:text-[10px] font-black uppercase tracking-wider text-slate-300">
+                      Institution
+                    </th>
+                    <th className="px-6 py-3.5 text-[11px] md:text-[10px] font-black uppercase tracking-wider text-slate-300 text-center">
+                      Attending
+                    </th>
+                    <th className="px-6 py-3.5 text-[11px] md:text-[10px] font-black uppercase tracking-wider text-slate-300 text-center">
+                      Completed
+                    </th>
+                    <th className="px-6 py-3.5 text-[11px] md:text-[10px] font-black uppercase tracking-wider text-slate-300 w-56">
+                      Completion
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {schoolStats.map((school) => {
+                    const total = school.attending + school.completed;
+                    const ratio = total > 0 ? Math.round((school.completed / total) * 100) : 0;
+                    return (
+                      <tr key={school.schoolId} className="odd:bg-slate-50/50 even:bg-white hover:bg-indigo-50/30 transition-colors">
+                        <td className="px-6 py-3.5">
+                          <p className="text-xs font-black text-slate-900 uppercase tracking-tight">{school.name}</p>
+                          <p className="text-[11px] md:text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                            Id: {school.schoolId}
+                          </p>
+                        </td>
+                        <td className="px-6 py-3.5 text-center">
+                          <span className="inline-flex items-center gap-1.5 text-sm font-bold text-indigo-600">
+                            {school.attending}
+                            {school.attending > 0 && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3.5 text-center text-sm font-bold text-emerald-600">{school.completed}</td>
+                        <td className="px-6 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-full transition-all duration-500"
+                                style={{ width: `${ratio}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-black text-indigo-700 w-10 text-right shrink-0">{ratio}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {schoolStats.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-10 text-center text-slate-400 font-semibold text-xs uppercase tracking-widest">
+                        No institution analytics stream connected
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4">
+              {schoolStats.map((school) => {
+                const total = school.attending + school.completed;
+                const ratio = total > 0 ? Math.round((school.completed / total) * 100) : 0;
+                return (
+                  <div
+                    key={school.schoolId}
+                    id={`school-monitor-${school.schoolId}`}
+                    className="border border-slate-100 hover:border-indigo-100 rounded-3xl p-6 bg-slate-50/50 hover:bg-white transition-all space-y-4"
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">{school.name}</h4>
+                        <p className="text-[11px] md:text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                          Id: {school.schoolId}
+                        </p>
+                      </div>
+                      <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold text-[11px] md:text-[9px] px-2.5 py-1">
+                        {ratio}% Done
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-center bg-white border border-slate-100 rounded-2xl p-3">
+                      <div>
+                        <p className="text-[11px] md:text-[9px] font-black text-slate-400 uppercase tracking-wider">Attending</p>
+                        <p className="text-base font-bold text-indigo-600 flex items-center justify-center gap-1">
+                          {school.attending}{' '}
+                          {school.attending > 0 && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] md:text-[9px] font-black text-slate-400 uppercase tracking-wider">Completed</p>
+                        <p className="text-base font-bold text-emerald-600">{school.completed}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] md:text-[9px] font-black text-slate-400">
+                        <span>STREAMS CONSOLIDATION</span>
+                        <span>{ratio}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-600 rounded-full transition-all duration-500" style={{ width: `${ratio}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {schoolStats.length === 0 && (
+                <div className="col-span-full py-10 text-center text-slate-400 font-semibold text-xs uppercase tracking-widest border border-dashed rounded-3xl">
+                  No institution analytics stream connected
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+
+        {/* Recent Deployments Table */}
+        <Card className="md:col-span-4 lg:col-span-4 row-span-2 shadow-2xl shadow-slate-200/40 border-0 rounded-[40px] overflow-hidden bg-white border border-slate-100">
+          <CardHeader className="p-6 md:p-10 border-b border-slate-50">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tighter">Academic Stream</CardTitle>
+                <CardDescription className="text-slate-400 font-semibold">Latest standardized assessment deployments.</CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl font-black text-[11px] md:text-[10px] uppercase tracking-widest"
+                onClick={() => navigate('/admin/exams')}
+              >
+                Global Bank
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-slate-100">
+              {recentExams.map((exam) => (
+                <div
+                  key={exam.id}
+                  className="px-6 md:px-10 py-6 flex flex-wrap items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors cursor-pointer group"
+                  onClick={() => navigate(`/admin/exam/${exam.id}`)}
+                >
+                  <div className="flex items-center space-x-6 min-w-0">
+                    <div
+                      className={`h-14 w-14 rounded-2xl flex items-center justify-center text-white shrink-0 ${exam.status === 'published' ? 'bg-emerald-500 shadow-xl shadow-emerald-200' : 'bg-slate-400 shadow-xl shadow-slate-200'}`}
+                    >
+                      <FileText size={24} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-lg font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight truncate">
+                        {exam.title}
+                      </p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-[11px] md:text-[10px] font-black text-indigo-500 uppercase tracking-widest">
+                          {exam.subject}
+                        </span>
+                        <div className="h-1 w-1 bg-slate-300 rounded-full" />
+                        <span className="text-[11px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          {exam.totalMarks} Points
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="text-right hidden md:block">
+                      <p className="text-[11px] md:text-[10px] font-black text-slate-300 uppercase tracking-widest">Difficulty</p>
+                      <p className="text-xs font-bold text-slate-600">{exam.difficulty}</p>
+                    </div>
+                    <Badge
+                      className={`${exam.status === 'published' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-100'} border font-black text-[11px] md:text-[9px] uppercase px-3 py-1`}
+                    >
+                      {exam.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+              {recentExams.length === 0 && (
+                <div className="p-10 md:p-20 text-center">
+                  <div className="h-20 w-20 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-slate-200">
+                    <LayoutGrid size={40} />
+                  </div>
+                  <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">No active deployments</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Global Rankings Preview */}
+        <Card className="md:col-span-2 lg:col-span-2 shadow-2xl shadow-slate-200/40 border-0 rounded-[40px] overflow-hidden bg-white border border-slate-100 p-6 md:p-10 relative">
+          <div className="relative z-10">
+            <h3 className="text-xl font-black uppercase tracking-tighter mb-6 text-slate-900">
+              Merit Matrix {profile?.schoolId ? '' : '· All Schools'}
+            </h3>
+            <div className="space-y-5">
+              {topStudents.map((student, i) => {
+                const rankIcon =
+                  i === 0 ? (
+                    <Crown size={16} className="text-amber-500" />
+                  ) : i === 1 ? (
+                    <Medal size={16} className="text-slate-400" />
+                  ) : i === 2 ? (
+                    <Award size={16} className="text-orange-500" />
+                  ) : null;
+                const accuracy = student.accuracy ?? 0;
+                return (
+                  <div key={student.id} className="flex items-center justify-between group/row cursor-pointer">
+                    <div className="flex items-center gap-3">
+                      <div className="flex flex-col items-center w-5">
+                        {rankIcon || <span className="text-xs font-black text-indigo-500">0{i + 1}</span>}
+                      </div>
+                      {/* Spike bar: height scales with accuracy, gives an at-a-glance rank gap visual for the top 3 */}
+                      {i < 3 && (
+                        <div className="h-8 w-1.5 rounded-full bg-slate-200/70 overflow-hidden flex items-end shrink-0">
+                          <div
+                            className={`w-full rounded-full ${i === 0 ? 'bg-amber-500' : i === 1 ? 'bg-slate-400' : 'bg-orange-500'}`}
+                            style={{ height: `${Math.max(10, Math.min(100, accuracy))}%` }}
+                          />
+                        </div>
+                      )}
+                      <div className="h-8 w-8 rounded-full bg-slate-100 overflow-hidden border border-slate-200 shrink-0">
+                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${student.id}`} alt="rank" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-black uppercase tracking-tight truncate text-slate-900">
+                          {student.studentName || 'Unknown Student'}
+                        </p>
+                        <p className="text-[11px] md:text-[9px] font-bold text-slate-500 truncate">
+                          {schoolNameById[student.schoolId || ''] || 'Unknown School'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full shrink-0 ml-2">
+                      {accuracy.toFixed(1)}%
+                    </span>
+                  </div>
+                );
+              })}
+              {topStudents.length === 0 && <p className="text-xs font-bold text-slate-400 text-center py-4">No completed exams yet</p>}
+            </div>
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/admin/merit')}
+              className="w-full mt-10 border border-slate-200 hover:bg-slate-50 rounded-2xl h-12 text-[11px] md:text-[10px] font-black uppercase tracking-widest text-slate-700 cursor-pointer"
+            >
+              Full Consolidated List
+            </Button>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};

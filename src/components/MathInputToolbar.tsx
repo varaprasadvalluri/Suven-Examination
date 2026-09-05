@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { MathRenderer } from './MathRenderer';
+import { MathRenderer } from '../shared/components/MathRenderer';
 import { HelpCircle, Sparkles } from 'lucide-react';
 
 interface MathInputToolbarProps {

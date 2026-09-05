@@ -1,5 +1,5 @@
 import './server/loadEnv';
-import { clientDb, clientDoc, clientDeleteDoc } from './server/firestoreClient';
+import { clientDb, clientDoc, clientDeleteDoc } from './server/adapters/out/firestore/firestoreClient';
 
 async function main() {
   await clientDeleteDoc(clientDoc(clientDb, 'users', 'edu-usr-fc73396a75e6-mt5k593o'));
