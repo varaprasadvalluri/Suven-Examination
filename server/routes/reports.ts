@@ -95,7 +95,11 @@ router.post(
       clientQuery(
         clientCollection(clientDb, 'users'),
         ...studentConstraints,
-        clientSelect('name', 'rollNumber', 'schoolId', 'class'),
+        // Must list every field the row builder below reads — a projection silently returns
+        // undefined for anything omitted, so a missing name here becomes a blank column in the
+        // exported sheet rather than an error. 'section' feeds the Section column, 'schoolName'
+        // the Branch column's first fallback.
+        clientSelect('name', 'rollNumber', 'schoolId', 'class', 'section', 'schoolName'),
         clientLimit(MAX_EXPORT_ROWS)
       )
     );

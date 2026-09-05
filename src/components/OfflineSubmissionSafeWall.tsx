@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardFooter, CardTitle } from './ui/card';
 import { WifiOff, ShieldAlert, Loader2, Copy, Check, Lock, Laptop, FileSignature } from 'lucide-react';
@@ -26,6 +26,18 @@ export const OfflineSubmissionSafeWall: React.FC<OfflineSubmissionSafeWallProps>
   const [copied, setCopied] = useState(false);
   const [proofHash, setProofHash] = useState('');
   const [isSyncingToServer, setIsSyncingToServer] = useState(false);
+  const [autoRetriesExhausted, setAutoRetriesExhausted] = useState(false);
+  const [manualTrigger, setManualTrigger] = useState(0);
+  const autoAttemptsRef = useRef(0);
+
+  // onOnlineSubmit is a fresh inline arrow from ExamInterface on every parent render. Held in
+  // a ref so the sync effect below can call the latest one WITHOUT taking it as a dependency
+  // — as a dependency it re-armed the effect on every render, which combined with the
+  // failure path clearing isSyncingToServer to produce an unbounded submit/fail/submit loop.
+  const submitRef = useRef(onOnlineSubmit);
+  useEffect(() => {
+    submitRef.current = onOnlineSubmit;
+  });
 
   // Display-only receipt for the student to quote to support if sync fails — NOT a
   // cryptographic proof (non-standard 32-bit hash, no server-side verification exists).
@@ -63,25 +75,53 @@ export const OfflineSubmissionSafeWall: React.FC<OfflineSubmissionSafeWallProps>
     };
   }, []);
 
-  // Sync automatically when online is recovered
-  useEffect(() => {
-    if (isOnline && !isSyncingToServer) {
-      const triggerSubmissionSync = async () => {
-        setIsSyncingToServer(true);
-        const toastId = toast.loading('Detecting live socket... Syncing locked response payload to primary database node.');
-        try {
-          await onOnlineSubmit();
-          toast.success('Synchronized successfully! Redirecting securely...', { id: toastId });
-        } catch (err: any) {
-          console.error('Online transition sync failed:', err);
-          toast.error('Retry failed. Secure cloud target rejected stream.', { id: toastId });
-          setIsSyncingToServer(false);
-        }
-      };
+  // A server that rejects the submission (500, expired session, open circuit breaker) fails
+  // the same way every time, so retrying it without a ceiling helps nobody: it just repeats
+  // the toast and the crash report until the student closes the tab. Four tries with
+  // increasing gaps, then the decision goes to the student via the footer button.
+  const MAX_AUTO_RETRIES = 4;
 
-      triggerSubmissionSync();
+  const runSync = useCallback(async () => {
+    setIsSyncingToServer(true);
+    autoAttemptsRef.current += 1;
+    const toastId = toast.loading('Detecting live socket... Syncing locked response payload to primary database node.');
+    try {
+      await submitRef.current();
+      toast.success('Synchronized successfully! Redirecting securely...', { id: toastId });
+      // isSyncingToServer stays true on purpose — the parent unmounts this wall on success.
+    } catch (err: any) {
+      console.error('Online transition sync failed:', err);
+      if (autoAttemptsRef.current >= MAX_AUTO_RETRIES) {
+        setAutoRetriesExhausted(true);
+        toast.error("Couldn't reach the server. Your answers are saved on this device — use Retry Submission below.", {
+          id: toastId
+        });
+      } else {
+        toast.error('Retry failed. Secure cloud target rejected stream.', { id: toastId });
+      }
+      setIsSyncingToServer(false);
     }
-  }, [isOnline, onOnlineSubmit, isSyncingToServer]);
+  }, []);
+
+  // Sync automatically when online is recovered, with backoff and a hard cap
+  useEffect(() => {
+    if (!isOnline || isSyncingToServer || autoRetriesExhausted) return;
+
+    // Immediate on the first try, then 1s, 2s, 4s.
+    const delay = autoAttemptsRef.current === 0 ? 0 : 1000 * 2 ** (autoAttemptsRef.current - 1);
+    const timer = window.setTimeout(() => {
+      void runSync();
+    }, delay);
+
+    return () => window.clearTimeout(timer);
+  }, [isOnline, isSyncingToServer, autoRetriesExhausted, manualTrigger, runSync]);
+
+  // Manual retry resets the budget: a student pressing a button four times is not a loop.
+  const handleManualRetry = () => {
+    autoAttemptsRef.current = 0;
+    setAutoRetriesExhausted(false);
+    setManualTrigger((n) => n + 1);
+  };
 
   const handleCopyHash = () => {
     navigator.clipboard.writeText(proofHash);
@@ -179,14 +219,25 @@ export const OfflineSubmissionSafeWall: React.FC<OfflineSubmissionSafeWallProps>
             </div>
 
             {/* Simulated Live Socket syncing state */}
-            <div className="flex items-center justify-center p-4 border border-indigo-100 rounded-2xl bg-indigo-50/20">
-              <div className="flex items-center gap-3">
-                <Loader2 className="h-5 w-5 text-indigo-600 animate-spin" />
-                <p className="text-xs font-black uppercase tracking-wider text-indigo-950">
-                  {isSyncingToServer ? 'Sending secure handshake payload...' : 'Awaiting network socket reconnect...'}
-                </p>
+            {autoRetriesExhausted ? (
+              <div className="flex items-center justify-center p-4 border border-amber-200 rounded-2xl bg-amber-50/60">
+                <div className="flex items-center gap-3">
+                  <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0" />
+                  <p className="text-xs font-black uppercase tracking-wider text-amber-900">
+                    Automatic retries stopped — your answers are still saved here. Press Retry Submission below.
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center justify-center p-4 border border-indigo-100 rounded-2xl bg-indigo-50/20">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-5 w-5 text-indigo-600 animate-spin" />
+                  <p className="text-xs font-black uppercase tracking-wider text-indigo-950">
+                    {isSyncingToServer ? 'Sending secure handshake payload...' : 'Awaiting network socket reconnect...'}
+                  </p>
+                </div>
+              </div>
+            )}
           </CardContent>
 
           <CardFooter className="bg-slate-50 border-t p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-0 bg-slate-50/50">
@@ -194,11 +245,11 @@ export const OfflineSubmissionSafeWall: React.FC<OfflineSubmissionSafeWallProps>
               <Laptop size={12} strokeWidth={2.5} /> Attempt Reference ID: {studentId.substring(0, 10)}
             </span>
             <Button
-              disabled={!isOnline}
-              onClick={onOnlineSubmit}
-              className="h-10 px-6 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all w-full sm:w-auto"
+              disabled={!isOnline || isSyncingToServer}
+              onClick={handleManualRetry}
+              className="h-10 px-6 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all w-full sm:w-auto disabled:opacity-60"
             >
-              Force Check Cloud Link
+              {autoRetriesExhausted ? 'Retry Submission' : 'Force Check Cloud Link'}
             </Button>
           </CardFooter>
         </Card>

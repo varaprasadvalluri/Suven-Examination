@@ -106,6 +106,11 @@ export const AdminAnalytics: React.FC = () => {
 
     return {
       totalAttempts,
+      // The fetch is capped at REAL_ANALYTICS_FETCH_LIMIT, so once the platform has more
+      // attempts than that, totalAttempts stops being a total and becomes the cap. Surfacing
+      // the difference is the whole point — a headline number frozen at 3,000 while the real
+      // figure climbs is worse than no number.
+      isSampleCapped: attempts.length >= REAL_ANALYTICS_FETCH_LIMIT,
       completedAttempts: completedAttempts.length,
       averageScore,
       totalExams,
@@ -182,24 +187,40 @@ export const AdminAnalytics: React.FC = () => {
   // Real hourly distribution of the bounded attempts sample, bucketed by each attempt's
   // actual startTime — previously a fixed percentage-of-total formula with hardcoded
   // violation counts per hour, framed as a pulsing "Telemetry Stream" despite having no real
-  // per-hour query behind it anywhere in this app. Both fields here are now genuinely derived
-  // from the same `attempts` array the rest of the page uses (bounded to the most recent
+  // per-hour query behind it anywhere in this app. Now genuinely derived from the same
+  // `attempts` array the rest of the page uses (bounded to the most recent
   // REAL_ANALYTICS_FETCH_LIMIT attempts — a real recent-activity profile, not a live stream).
+  //
+  // One bucket per hour, not per two hours. The previous `getHours() / 2` produced 12 buckets
+  // while the caption said "hourly", so every plotted point was a two-hour total read as an
+  // hourly rate — a peak looked half as sharp as it was. An exam window is three hours wide,
+  // so two-hour resolution cannot show its shape at all.
+  //
+  // Buckets are in the VIEWER'S timezone: startTime is stored as a UTC ISO string and
+  // getHours() is local, so an admin in IST and one elsewhere see different charts. That is
+  // the right default (staff reason about their own school day) but it has to be labelled,
+  // hence the zone in the card description.
   const diurnalLoadData = useMemo(() => {
-    const buckets = Array.from({ length: 12 }, (_, i) => ({
-      interval: `${(i * 2).toString().padStart(2, '0')}:00`,
-      loadedAttempts: 0,
-      violations: 0
+    const buckets = Array.from({ length: 24 }, (_, i) => ({
+      interval: `${i.toString().padStart(2, '0')}:00`,
+      loadedAttempts: 0
     }));
     attempts.forEach((a) => {
       const start = a.startTime ? new Date(a.startTime) : null;
       if (!start || isNaN(start.getTime())) return;
-      const bucketIndex = Math.floor(start.getHours() / 2);
-      buckets[bucketIndex].loadedAttempts++;
-      buckets[bucketIndex].violations += a.violationsCount || 0;
+      buckets[start.getHours()].loadedAttempts++;
     });
     return buckets;
   }, [attempts]);
+
+  // Resolved once: what the hour buckets above are actually relative to.
+  const viewerTimeZone = useMemo(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time';
+    } catch {
+      return 'local time';
+    }
+  }, []);
 
   const handleExportSystemAnalytics = async () => {
     setIsExporting(true);
@@ -290,9 +311,13 @@ export const AdminAnalytics: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
             {
-              title: 'Global Assessments',
+              // Not "Global": this is the bounded recent sample every stat on this page is
+              // computed from, not a platform-wide count.
+              title: computedStats.isSampleCapped ? 'Recent Assessments (capped)' : 'Recent Assessments',
               value: computedStats.totalAttempts,
-              desc: `${computedStats.completedAttempts} Completed successfully`,
+              desc: computedStats.isSampleCapped
+                ? `${computedStats.completedAttempts} completed · newest ${REAL_ANALYTICS_FETCH_LIMIT.toLocaleString()} sampled, more exist`
+                : `${computedStats.completedAttempts} Completed successfully`,
               icon: BrainCircuit,
               color: 'indigo'
             },
@@ -427,7 +452,8 @@ export const AdminAnalytics: React.FC = () => {
                 <div>
                   <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">Active Load Velocity</CardTitle>
                   <CardDescription className="text-slate-400 font-semibold text-xs mt-1">
-                    Hourly distribution of the {computedStats.totalAttempts} most recent attempts, by start time.
+                    Hourly distribution of the {computedStats.totalAttempts} most recent attempts with a recorded start time, in{' '}
+                    {viewerTimeZone}.
                   </CardDescription>
                 </div>
               </div>
@@ -442,7 +468,15 @@ export const AdminAnalytics: React.FC = () => {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="interval" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }} />
+                  {/* 24 hourly labels at 9px overlap and render as an unreadable smear — show
+                      every third (00:00, 03:00, …) while every hour keeps its own data point. */}
+                  <XAxis
+                    dataKey="interval"
+                    axisLine={false}
+                    tickLine={false}
+                    interval={2}
+                    tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }}
+                  />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} />
                   <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }} />
                   <Area

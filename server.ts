@@ -1,3 +1,6 @@
+// FIRST IMPORT, DELIBERATELY. The OpenTelemetry auto-instrumentations patch module exports
+// as they load, so anything imported above this line produces no spans. See server/telemetry.ts.
+import './server/telemetry';
 import express from 'express';
 import compression from 'compression';
 import path from 'path';

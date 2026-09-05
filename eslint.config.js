@@ -71,5 +71,16 @@ export default tseslint.config(
     languageOptions: {
       globals: { ...globals.node, __ENV: 'readonly', __VU: 'readonly', __ITER: 'readonly' }
     }
+  },
+  {
+    // Developer tooling run directly with `node` (ESM, not bundled by Vite or esbuild) —
+    // needs Node globals for console/process/Buffer. Only the block above for *.ts/tsx
+    // declares globals, so without this every console.log here is a no-undef error.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { ...globals.node }
+    }
   }
 );

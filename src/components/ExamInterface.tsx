@@ -1574,7 +1574,14 @@ const ExamInterfaceCore: React.FC = () => {
                       ? String(answers[currentIndex])
                       : ''
                   }
-                  onChange={(e) => handleAnswer(e.target.value)}
+                  onChange={(e) => {
+                    // An empty box is unanswered, not an answer of ''. answeredCount and
+                    // getStatusCounts only test for null/undefined, so storing '' would turn the
+                    // palette tile green and hide the question from the "you have unanswered
+                    // questions" warning on submit — for a question the student left blank.
+                    const raw = e.target.value;
+                    handleAnswer(raw.trim() === '' ? null : raw);
+                  }}
                   placeholder="e.g. 9.81"
                   className="w-full h-14 rounded-xl bg-slate-900/70 border border-slate-700 px-4 text-lg font-mono font-bold text-slate-100 placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 transition-all"
                 />
