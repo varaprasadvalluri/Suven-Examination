@@ -9,6 +9,8 @@ import { useAuth } from '../../../lib/AuthContext';
 import { setSessionToken } from '../../../lib/sessionStore';
 import { ExamInstructionsScreen } from '../../exam-session';
 import { isAttemptFinished } from '../../../../shared/attemptStatus';
+import { BrandingPanel } from '../../../shared/components/BrandingPanel';
+import { LobbyConsentNotice } from '../../../shared/components/LobbyConsentNotice';
 
 export const StudentLinkEntry: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -568,74 +570,7 @@ export const StudentLinkEntry: React.FC = () => {
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#f3f6f9] relative overflow-hidden font-sans text-slate-800">
       {/* LEFT SIDE PANEL: Educational Identity (matches Figma/Screenshot design) */}
-      <div className="w-full lg:w-[45%] bg-[#0B1E3F] p-8 md:p-12 lg:p-16 flex flex-col justify-between relative text-white min-h-[450px] lg:min-h-screen overflow-hidden">
-        {/* Subtle decorative glowing lights */}
-        <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full bg-sky-500/10 blur-3xl pointer-events-none" />
-
-        {/* Abstract curve decorations in background */}
-        <div className="absolute top-0 right-0 w-[450px] h-[450px] rounded-full border border-white/[0.03] translate-x-1/3 -translate-y-1/3 pointer-events-none" />
-        <div className="absolute top-0 right-0 w-[550px] h-[550px] rounded-full border border-white/[0.02] translate-x-1/4 -translate-y-1/4 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] rounded-full border border-white/[0.03] -translate-x-1/3 translate-y-1/3 pointer-events-none" />
-
-        {/* Header branding on left corner */}
-        <div className="flex items-center gap-3 relative z-10">
-          <div className="h-10 w-10 rounded-xl bg-[#f2a81e] flex items-center justify-center font-black text-white text-lg shadow-md shadow-[#f2a81e]/20">
-            S
-          </div>
-          <div>
-            <span className="font-sans font-extrabold text-sm uppercase tracking-wider text-white block leading-none">SUVEN EDU</span>
-            <span className="text-[11px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">EXAM PORTAL</span>
-          </div>
-        </div>
-
-        {/* Welcoming Messages */}
-        <div className="my-auto py-8 lg:py-0 relative z-10">
-          <span className="text-[#38bdf8] font-extrabold text-[12px] md:text-[11px] uppercase tracking-[0.2em] block mb-3">
-            WELCOME BACK
-          </span>
-          <h1 className="text-3xl md:text-4.5xl font-extrabold text-white tracking-tight leading-[1.15] mb-4">
-            Your academic
-            <br />
-            journey,
-            <br />
-            <span className="text-[#f2a81e]">simplified.</span>
-          </h1>
-          <p className="text-xs md:text-sm text-slate-300 leading-relaxed max-w-sm font-medium mt-6 opacity-80">
-            Conduct, manage, and analyze examinations with one unified platform built for modern schools.
-          </p>
-        </div>
-
-        {/* Bottom Section: Translucent Stats Card & Social proof */}
-        <div className="space-y-6 relative z-10 mt-auto">
-          <div className="grid grid-cols-3 gap-2 bg-white/[0.04] border border-white/10 rounded-2xl p-5 backdrop-blur-md text-center">
-            <div>
-              <span className="text-xl font-black text-white block tracking-tight">12,400+</span>
-              <span className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Students</span>
-            </div>
-            <div className="border-x border-white/10">
-              <span className="text-xl font-black text-white block tracking-tight">340+</span>
-              <span className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Teachers</span>
-            </div>
-            <div>
-              <span className="text-xl font-black text-white block tracking-tight">98%</span>
-              <span className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">
-                Satisfaction
-              </span>
-            </div>
-          </div>
-
-          {/* Overlapping colored circle avatars */}
-          <div className="flex items-center gap-3">
-            <div className="flex -space-x-2">
-              <div className="w-6 h-6 rounded-full bg-blue-600 border border-[#0B1E3F]" />
-              <div className="w-6 h-6 rounded-full bg-cyan-400 border border-[#0B1E3F]" />
-              <div className="w-6 h-6 rounded-full bg-emerald-500 border border-[#0B1E3F]" />
-            </div>
-            <span className="text-xs text-slate-300 font-semibold opacity-90">Trusted by 50+ schools nationwide</span>
-          </div>
-        </div>
-      </div>
+      <BrandingPanel />
 
       {/* RIGHT SIDE PANEL: "Verify Academic Pass" Card */}
       <div className="w-full lg:w-[55%] bg-[#f3f6f9] p-6 md:p-12 lg:p-16 flex flex-col justify-center items-center min-h-[500px] lg:min-h-screen relative">
@@ -705,16 +640,7 @@ export const StudentLinkEntry: React.FC = () => {
               </div>
             </div>
 
-            {/* Proctor compliance security check */}
-            <div className="bg-amber-50/60 border border-amber-100/80 p-3.5 rounded-2xl flex items-start gap-2.5 mt-5">
-              <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <div className="text-[11px] md:text-[10px] font-semibold text-slate-700 leading-normal">
-                <p className="font-extrabold text-slate-800 uppercase tracking-wider text-[11px] md:text-[8px] mb-0.5">
-                  Lobby Verification Consent
-                </p>
-                By activating this exam, you agree to secure browser lockdowns and temporary test progress tracking.
-              </div>
-            </div>
+            <LobbyConsentNotice />
 
             {/* Submit Block */}
             <div className="pt-3 space-y-2.5">

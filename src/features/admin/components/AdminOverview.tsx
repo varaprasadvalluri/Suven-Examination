@@ -23,8 +23,9 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuth } from '../../../lib/AuthContext';
-import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
+import { exportSheet } from '../../../shared/lib/spreadsheet';
+import { formatDateTime } from '../../../shared/lib/format';
 import {
   AreaChart,
   Area,
@@ -112,14 +113,11 @@ export const AdminOverview: React.FC = () => {
           Score: attemptRecord.score,
           'Total Marks': exam?.totalMarks || 0,
           Status: attemptRecord.status,
-          'Date Completed': attemptRecord.endTime ? new Date(attemptRecord.endTime).toLocaleString() : 'N/A'
+          'Date Completed': formatDateTime(attemptRecord.endTime)
         };
       });
 
-      const resultsWorksheet = XLSX.utils.json_to_sheet(exportData);
-      const resultsWorkbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(resultsWorkbook, resultsWorksheet, 'Master Results Report');
-      XLSX.writeFile(resultsWorkbook, 'Master_Intelligence_Report.xlsx');
+      await exportSheet('Master_Intelligence_Report', 'Master Results Report', exportData);
       toast.success('Master report generated successfully');
     } catch (error) {
       console.error('Export error', error);

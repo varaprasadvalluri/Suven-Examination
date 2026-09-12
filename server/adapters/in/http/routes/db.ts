@@ -6,7 +6,12 @@ import { enqueueWrite } from '../../../out/firestore/writeQueue';
 import { attemptSubmissionService } from '../../../../composition';
 import { asyncHandler } from '../middleware/errorHandler';
 import { BadRequestError, UnauthorizedError, ForbiddenError, NotFoundError, InternalServerError } from '../../../../lib/errors';
-import { ProxyRole, PUBLIC_READ_COLLECTIONS, TOKEN_LOOKUP_COLLECTIONS, COLLECTION_ACCESS } from '../../../../application/services/authorization';
+import {
+  ProxyRole,
+  PUBLIC_READ_COLLECTIONS,
+  TOKEN_LOOKUP_COLLECTIONS,
+  COLLECTION_ACCESS
+} from '../../../../application/services/authorization';
 import { scopeFieldFor, scopeValueFor, injectReadScope, authorizeWrite, sanitizeForPublicRead } from '../../../../composition';
 import {
   clientDb,

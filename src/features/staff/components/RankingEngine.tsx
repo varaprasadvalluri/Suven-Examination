@@ -33,6 +33,7 @@ import {
   Building2
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { summarisePerformance } from '../lib/ranking';
 
 // Deterministic color per class name — same class always renders the same badge color
 // across the table, so an admin can visually group students by class without a legend.
@@ -185,56 +186,21 @@ export const RankingEngine: React.FC = () => {
       const sId = stud.id || stud.uid;
       processedStudentIds.add(sId);
 
-      const studAttempts = attemptsByStudent[sId] || [];
-      const completedAttempts = studAttempts.filter((a) => a.status === 'completed');
-
-      const examsAttended = completedAttempts.length;
-
-      let averagePercentage = 0;
-      let averageScore = 0;
-
-      if (examsAttended > 0) {
-        const totalAccuracy = completedAttempts.reduce((sum, a) => sum + (a.accuracy !== undefined ? a.accuracy : a.score || 0), 0);
-        averagePercentage = Math.round(totalAccuracy / examsAttended);
-
-        const totalScore = completedAttempts.reduce((sum, a) => sum + (a.score || 0), 0);
-        averageScore = Math.round(totalScore / examsAttended);
-      }
-
-      // Calculate trend/improvement dynamically based on difference between the two most recent attempts
-      let improvement = '0%';
-      if (examsAttended >= 2) {
-        const sortedAtts = [...completedAttempts].sort((a, b) => {
-          const timeA = a.endTime ? new Date(a.endTime).getTime() : 0;
-          const timeB = b.endTime ? new Date(b.endTime).getTime() : 0;
-          return timeA - timeB; // oldest to newest
-        });
-        const latest = sortedAtts[sortedAtts.length - 1];
-        const prev = sortedAtts[sortedAtts.length - 2];
-        const accuracyLatest = latest.accuracy !== undefined ? latest.accuracy : latest.score || 0;
-        const accuracyPrev = prev.accuracy !== undefined ? prev.accuracy : prev.score || 0;
-        const diff = accuracyLatest - accuracyPrev;
-        const roundDiff = Math.round(diff);
-        improvement = `${roundDiff >= 0 ? '+' : ''}${roundDiff}%`;
-      } else if (examsAttended === 1) {
-        improvement = '+0%';
-      } else {
-        improvement = '-';
-      }
+      const perf = summarisePerformance(attemptsByStudent[sId] || []);
 
       list.push({
         id: sId,
         name: stud.name || 'Autonomous Candidate',
         rollNumber: stud.rollNumber || '',
-        score: averageScore,
-        percentile: averagePercentage,
-        examsAttended,
-        improvement,
+        score: perf.averageScore,
+        percentile: perf.averagePercentage,
+        examsAttended: perf.examsAttended,
+        improvement: perf.improvement,
         branch: stud.schoolName || schoolNameMap[stud.schoolId] || 'Autonomous Hub',
         schoolId: stud.schoolId || '',
         class: stud.class || 'Unassigned',
         section: stud.section || '',
-        status: averagePercentage >= 90 ? 'Elite' : averagePercentage >= 75 ? 'Advanced' : 'Rising'
+        status: perf.status
       });
     });
 
@@ -244,54 +210,21 @@ export const RankingEngine: React.FC = () => {
       if (sId && !processedStudentIds.has(sId)) {
         processedStudentIds.add(sId);
 
-        const studAttempts = attemptsByStudent[sId] || [];
-        const completedAttempts = studAttempts.filter((a) => a.status === 'completed');
-        const examsAttended = completedAttempts.length;
-
-        let averagePercentage = 0;
-        let averageScore = 0;
-
-        if (examsAttended > 0) {
-          const totalAccuracy = completedAttempts.reduce((sum, a) => sum + (a.accuracy !== undefined ? a.accuracy : a.score || 0), 0);
-          averagePercentage = Math.round(totalAccuracy / examsAttended);
-
-          const totalScore = completedAttempts.reduce((sum, a) => sum + (a.score || 0), 0);
-          averageScore = Math.round(totalScore / examsAttended);
-        }
-
-        let improvement = '0%';
-        if (examsAttended >= 2) {
-          const sortedAtts = [...completedAttempts].sort((a, b) => {
-            const timeA = a.endTime ? new Date(a.endTime).getTime() : 0;
-            const timeB = b.endTime ? new Date(b.endTime).getTime() : 0;
-            return timeA - timeB;
-          });
-          const latest = sortedAtts[sortedAtts.length - 1];
-          const prev = sortedAtts[sortedAtts.length - 2];
-          const accuracyLatest = latest.accuracy !== undefined ? latest.accuracy : latest.score || 0;
-          const accuracyPrev = prev.accuracy !== undefined ? prev.accuracy : prev.score || 0;
-          const diff = accuracyLatest - accuracyPrev;
-          const roundDiff = Math.round(diff);
-          improvement = `${roundDiff >= 0 ? '+' : ''}${roundDiff}%`;
-        } else if (examsAttended === 1) {
-          improvement = '+0%';
-        } else {
-          improvement = '-';
-        }
+        const perf = summarisePerformance(attemptsByStudent[sId] || []);
 
         list.push({
           id: sId,
           name: att.studentName || 'Autonomous Candidate',
           rollNumber: att.studentRollNumber || '',
-          score: averageScore,
-          percentile: averagePercentage,
-          examsAttended,
-          improvement,
+          score: perf.averageScore,
+          percentile: perf.averagePercentage,
+          examsAttended: perf.examsAttended,
+          improvement: perf.improvement,
           branch: att.schoolName || schoolNameMap[att.schoolId] || 'Autonomous Hub',
           schoolId: att.schoolId || '',
           class: 'Unassigned',
           section: '',
-          status: averagePercentage >= 90 ? 'Elite' : averagePercentage >= 75 ? 'Advanced' : 'Rising'
+          status: perf.status
         });
       }
     });

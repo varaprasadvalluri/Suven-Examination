@@ -2,6 +2,31 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Pencil, Trash2, Eraser, EyeOff } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 
+// The scratchpad's graph-paper backdrop, drawn on first open and again after every clear.
+// Both call sites redrew it with their own copy of the loop, so a change to the grid spacing
+// or colour had to be made twice or the canvas would look different after a clear than it did
+// when opened.
+const GRID_CELL_PX = 20;
+const GRID_LINE_COLOR = '#F1F5F9';
+
+function drawGrid(ctx: CanvasRenderingContext2D, rect: { width: number; height: number }) {
+  ctx.strokeStyle = GRID_LINE_COLOR;
+  ctx.lineWidth = 0.5;
+
+  for (let x = 0; x < rect.width; x += GRID_CELL_PX) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, rect.height);
+    ctx.stroke();
+  }
+  for (let y = 0; y < rect.height; y += GRID_CELL_PX) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(rect.width, y);
+    ctx.stroke();
+  }
+}
+
 export const ScratchpadCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -27,22 +52,7 @@ export const ScratchpadCanvas: React.FC = () => {
     ctx.lineJoin = 'round';
 
     // Draw subtle math grid cells
-    ctx.strokeStyle = '#F1F5F9';
-    ctx.lineWidth = 0.5;
-    const gridSize = 20;
-
-    for (let x = 0; x < rect.width; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, rect.height);
-      ctx.stroke();
-    }
-    for (let y = 0; y < rect.height; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(rect.width, y);
-      ctx.stroke();
-    }
+    drawGrid(ctx, rect);
   }, [isOpen]);
 
   // Shared coordinate extraction for both input types — a touch event carries its
@@ -103,21 +113,7 @@ export const ScratchpadCanvas: React.FC = () => {
     ctx.clearRect(0, 0, rect.width, rect.height);
 
     // Re-draw grid lines
-    ctx.strokeStyle = '#F1F5F9';
-    ctx.lineWidth = 0.5;
-    const gridSize = 20;
-    for (let x = 0; x < rect.width; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, rect.height);
-      ctx.stroke();
-    }
-    for (let y = 0; y < rect.height; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(rect.width, y);
-      ctx.stroke();
-    }
+    drawGrid(ctx, rect);
   };
 
   if (!isOpen) {

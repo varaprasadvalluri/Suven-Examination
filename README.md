@@ -4,15 +4,15 @@ A school examination platform built to hold a single exam window: tens of thousa
 
 `React 19` · `Express` · `Firestore` · `Cloud Run (asia-south1)` · `Capacitor (Android/iOS)`
 
-|                      |                                                                           |
-| -------------------- | ------------------------------------------------------------------------- |
-| **Design capacity**  | 50,000 concurrent in-flight requests (100 instances × 500 concurrency)    |
-| **Write throughput** | ~6,000 document writes per flush wave (500-doc batches × 12 concurrent)   |
-| **Source**           | ~43,700 lines across `server/`, `shared/`, `src/`                         |
-| **Tests**            | 202 passing across 19 files, gated in CI before any deploy                |
-| **API**              | 12 route modules + 11 versioned `/api/v1` controllers, OpenAPI documented |
-| **Data access**      | 23 DAO modules behind swappable interfaces                                |
-| **UI**               | 46 feature components + 18 shared primitives                              |
+|                      |                                                                              |
+| -------------------- | ---------------------------------------------------------------------------- |
+| **Design capacity**  | 50,000 concurrent in-flight requests (100 instances × 500 concurrency)       |
+| **Write throughput** | ~6,000 document writes per flush wave (500-doc batches × 12 concurrent)      |
+| **Source**           | ~44,200 lines across `server/`, `shared/`, `src/`                            |
+| **Tests**            | 211 passing across 21 files, gated in CI before any deploy                   |
+| **API**              | 12 route modules + 11 versioned `/api/v1` controllers, OpenAPI documented    |
+| **Backend**          | Hexagonal — 16 ports, adapters for Firestore/Firebase/Cloud Tasks/Cloudinary |
+| **Frontend**         | Feature-based — 8 features + 6 shared components + 17 UI primitives          |
 
 ---
 
@@ -75,22 +75,63 @@ Browser (React 19 SPA, Capacitor shell on mobile)
    ▼
 Cloud Run · suven-examination        2 vCPU · 4 GiB · concurrency 500 · max 100 instances
    │  one Node worker per vCPU (cluster)
-   ├─ Express routers ──► auth middleware ──► authorization ──► controllers
-   ├─ Services (AttemptSubmission, StudentDashboard)
-   ├─ DAO layer (23 modules, interface-first)
-   ├─ Write queue ──────────────────► Firestore REST (batched, circuit-broken)
-   └─ Cloud Tasks enqueue ──► (delayed) ──► /api/v1/internal/grading-tasks ──► scoring
+   │
+   ├─ adapters/in/http     Express routers ─► auth middleware ─► controllers
+   │                              │
+   ├─ application/         services + use cases, depending only on ports
+   │                              │
+   ├─ application/ports/   16 interfaces — the seam
+   │                              │
+   └─ adapters/out/        firestore · firebase · cloudtasks · cloudinary · system
+                                   │
+        write queue ──────────────►  Firestore REST (batched, circuit-broken)
+        grading dispatch ─► Cloud Tasks ─► /api/v1/internal/grading-tasks ─► scoring
 ```
 
-**The backend is designed to be replaceable.** Every data access goes through a DAO interface with a Firestore implementation behind it, wired in one composition root (`server/dao/index.ts`). Swapping Firestore for another database, or Express for Spring Boot, means writing new implementations — not rewriting controllers. That constraint is why the DAO layer exists at all.
+**The backend is hexagonal (ports and adapters), and that is a deliberate constraint rather than decoration.** Everything in `application/` depends only on the interfaces in `application/ports/`; the concrete Firestore, Firebase, Cloud Tasks and Cloudinary implementations live in `adapters/out/` and are named in exactly one file — the composition root at `server/composition/index.ts`. Swapping Firestore for another database, or Express for Spring Boot, means writing new adapters, not rewriting business logic.
+
+The direction of imports is the architecture, so it is enforced by `eslint-plugin-boundaries` rather than left to discipline:
+
+| Layer          | May import                                            |
+| -------------- | ----------------------------------------------------- |
+| `ports`        | other ports, shared kernel                            |
+| `application`  | ports, other application code, shared kernel          |
+| `adapters/in`  | ports, application, composition, shared kernel        |
+| `adapters/out` | ports, application, shared kernel — never composition |
+| `composition`  | everything (the only place both sides are named)      |
+
+`shared/` holds the scoring rules used by both client and server, and depends on nothing.
+
+Thirteen legacy route files still read Firestore directly instead of going through a port. They are named individually in `eslint.config.js` as a debt list rather than being waved through by a blanket exemption, so the count is visible and every new route is held to the rule by default. That list may only get shorter.
 
 ### Request path
 
 1. `requestContextMiddleware` establishes a trace id for the request, propagated implicitly through every async call.
-2. `requireSession` validates the JWT session; `requireRole` gates by role.
-3. `server/authorization.ts` decides tenant scope — which school's data this caller may touch.
-4. Controllers call services; services call DAOs; DAOs call the Firestore REST client.
-5. Writes are enqueued, not awaited against Firestore directly.
+2. `requireSession` validates the JWT session against the `DocumentStore` port; `requireRole` gates by role.
+3. `application/services/authorization.ts` decides tenant scope — which school's data this caller may touch.
+4. Controllers resolve collaborators from `server/composition`, call application services, which call ports.
+5. Ports are satisfied at runtime by `adapters/out/firestore/*`; writes are enqueued, not awaited against Firestore directly.
+
+### Frontend: feature-based
+
+Hexagonal is the wrong shape for a UI — a screen has no domain to protect. The frontend is sliced vertically instead, by the role that reaches it, matching the `roles={[...]}` gate each route already declares:
+
+| Feature        | Route gate         | Holds                                                                                      |
+| -------------- | ------------------ | ------------------------------------------------------------------------------------------ |
+| `auth`         | public             | login, role selection                                                                      |
+| `admin`        | `admin`            | overview, school management, analytics, billing                                            |
+| `school`       | `school` (via `/`) | school dashboard, student onboarding — reached from the role-based home, not its own route |
+| `staff`        | `admin, school`    | exams, results, questions, proctoring, merit, syllabus                                     |
+| `student`      | `student` + public | dashboard (`student`); invite and secure-link entry are public by design                   |
+| `exam-session` | `student`          | exam interface plus its in-exam tools and offline sync                                     |
+| `results`      | any authenticated  | result detail                                                                              |
+| `ops`          | `admin`            | migrations, load testing, API docs                                                         |
+
+`staff` exists because ten screens are gated `['admin', 'school']`, not `['admin']`. Folding them into either role would have forced the other to reach across a feature boundary to use them.
+
+Each feature exposes a public surface through its `index.ts`; other features import from there and never from another feature's internals. The same `eslint-plugin-boundaries` setup enforces it — `features/staff` resolves, `features/staff/components/AdminExams` is an error. `app/` composes features into routes and may reach into them for lazy loading; `shared/` and `components/ui/` must never depend on a feature, since that inverts the dependency and re-couples everything.
+
+One consequence worth recording: session state (`lib/AuthContext`) deliberately does **not** live in `features/auth`. Routing it through that barrel dragged `LoginPage` into all six features that use `useAuth` and closed an import cycle — which typechecks, builds, and passes tests, then renders an undefined component at runtime. Shared state used by many features belongs in `lib/`.
 
 ---
 
@@ -177,7 +218,7 @@ OTEL_TRACES_ENABLED=true OTEL_EXPORTER=otlp npm start           # terminal 2
 trace 6fe5c87c1121dddea758a1b3e3b774ab  12 spans · 17.6ms  1 error
 POST /api/v1/exam-entry/invitations/lookup  ██████████████████  17.6ms  status=400
 └ middleware - jsonParser                     ███████████        7.9ms
-└ request handler - /api/v1/exam-entry/…               ███       1.7ms 
+└ request handler - /api/v1/exam-entry/…               ███       1.7ms
 ```
 
 ---
@@ -195,7 +236,7 @@ npm run dev                    # Vite + Express on one port, http://localhost:30
 | `npm run dev`                               | Development server with HMR                  |
 | `npm run build`                             | Client bundle + esbuild server bundle        |
 | `npm start`                                 | Run the production bundle                    |
-| `npm test`                                  | Vitest — 202 tests                           |
+| `npm test`                                  | Vitest — 211 tests                           |
 | `npm run test:e2e`                          | Playwright suite (targets a live deployment) |
 | `npm run lint`                              | TypeScript, both client and server configs   |
 | `npm run eslint` / `npm run format:check`   | Lint and formatting gates                    |
@@ -216,21 +257,33 @@ Feature branches and pull requests are verified but never released — the deplo
 
 ```
 server/
-  auth/          session validation, JWT issuing, role gates
-  dao/           23 data-access modules behind swappable interfaces
-  db/            write queue, query cache
-  lib/           logger, tracing context, circuit breaker, retry, scoring, task queue
-  middleware/    error handling, rate limiting, Cloud Tasks OIDC verification
-  routes/        12 route modules, plus 11 versioned v1 controllers
-  services/      submission and dashboard orchestration
-shared/          scoring and question-order logic shared by client and server
+  application/
+    ports/       16 interfaces — DAOs, DocumentStore, TokenVerifier,
+                 GradingDispatcher, MediaStore, Clock. No implementations.
+    services/    authorization, submission, scoring, grading, dashboards, tokens
+  adapters/
+    in/http/     12 route modules + 11 versioned v1 controllers + 5 middleware
+    out/
+      firestore/ DAO implementations, write queue, query cache, REST client
+      firebase/  ID-token verification, Storage media store
+      cloudtasks/grading dispatch (falls back to inline when unconfigured)
+      cloudinary/legacy image media store
+      system/    system clock
+  composition/   the only file naming both a port and its adapter
+  lib/           shared kernel: logger, tracing, circuit breaker, retry, errors
+shared/          scoring and question-order rules used by client and server
 src/
-  components/    46 feature components, 18 shared UI primitives
+  app/           App, router, layout, error boundaries
+  features/      8 role-sliced features, each with its own index.ts surface
+  shared/        6 feature-agnostic components + hooks
+  components/ui/ 17 UI primitives
   lib/           auth context, API client, Firestore access shim
   services/      typed API wrappers
 android/ ios/    Capacitor native shells
 scripts/         build, signing, and the local trace viewer
 ```
+
+`src/components/` still holds three unreferenced components (`EmbeddedCodeEditor`, `MathInputToolbar`, `RichTextKeyboardEditor`) — nothing imports them, statically or lazily. Left in place rather than deleted silently.
 
 ---
 

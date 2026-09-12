@@ -28,7 +28,12 @@ const options: swaggerJsdoc.Options = {
     },
     security: [{ bearerAuth: [] }]
   },
-  apis: ['./server/routes/**/*.ts']
+  // Path is relative to process.cwd(). It must track wherever the HTTP layer actually lives:
+  // the hexagonal move relocated the routes out of server/routes/ and this glob silently kept
+  // matching nothing, producing a valid-but-empty spec and a blank docs page. swagger-jsdoc
+  // does not warn about a glob with no matches, so swagger.test.ts asserts the spec is
+  // non-empty instead.
+  apis: ['./server/adapters/in/http/routes/**/*.ts']
 };
 
 export const openApiSpec = swaggerJsdoc(options);

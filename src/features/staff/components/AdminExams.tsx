@@ -49,6 +49,7 @@ import { AdminDispatchCenter } from './AdminDispatchCenter';
 import { DataLoader } from '../../../shared/components/DataLoader';
 import { useSubjectCategories } from '../../../shared/hooks/useNamedList';
 import { ManageNamedListDialog } from '../../../shared/components/ManageNamedListDialog';
+import { buildNewExamDocument } from '../lib/examDocument';
 
 const getExamVisualState = (exam: Exam): 'ongoing' | 'upcoming' | 'completed' => {
   if (!exam.startTime || !exam.endTime) {
@@ -333,19 +334,9 @@ export const AdminExams: React.FC = () => {
       return;
     }
 
-    const finalAssignedSchoolIds = newExamMode === 'global' ? [] : newExam.assignedSchoolIds;
-
     try {
       const examsRef = collection(db, 'exams');
-      await addDoc(examsRef, {
-        ...newExam,
-        creatorId: profile.uid,
-        createdAt: new Date().toISOString(),
-        startTime: newExam.startTime || null,
-        endTime: newExam.endTime || null,
-        status: 'draft',
-        assignedSchoolIds: finalAssignedSchoolIds
-      });
+      await addDoc(examsRef, buildNewExamDocument(newExam, newExamMode, profile.uid));
 
       toast.success('Exam created successfully');
       setIsCreateOpen(false);

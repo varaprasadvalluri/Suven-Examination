@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { authHeaders } from '../../../lib/sessionStore';
+import { ConsoleTerminal } from './ConsoleTerminal';
 
 export const DatabaseMigrator: React.FC = () => {
   const [isMigrating, setIsMigrating] = useState(false);
@@ -383,41 +384,12 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             </div>
           )}
 
-          {/* Console Terminal */}
-          <div className="border border-slate-900 bg-slate-950 rounded-[24px] p-6 text-slate-200 font-mono text-xs overflow-hidden shadow-2xl relative">
-            <div className="absolute top-3 right-4 flex gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-            </div>
-            <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-4">
-              <Terminal size={14} className="text-indigo-400" />
-              <span className="text-[11px] md:text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                Migration Stream Console Output
-              </span>
-            </div>
-            <div className="space-y-2 max-h-[240px] overflow-y-auto scroller-hide">
-              {migrationLogs.length === 0 ? (
-                <p className="text-slate-600 italic text-[12px] md:text-[11px] py-4 text-center">
-                  Migration console offline. Click "Start Firestore Migration" to execute dynamic cross-tenant data pipeline.
-                </p>
-              ) : (
-                migrationLogs.map((log, index) => (
-                  <div key={index} className="leading-relaxed whitespace-pre-wrap text-[12px] md:text-[11px]">
-                    {log.includes('[ERROR]') || log.includes('⚠️') ? (
-                      <span className="text-rose-400 font-semibold">{log}</span>
-                    ) : log.includes('success') || log.includes('successfully') || log.includes('completed') ? (
-                      <span className="text-emerald-400 font-semibold">{log}</span>
-                    ) : log.includes('[INFO]') ? (
-                      <span className="text-indigo-400">{log}</span>
-                    ) : (
-                      <span className="text-slate-300">{log}</span>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          <ConsoleTerminal
+            title="Migration Stream Console Output"
+            logs={migrationLogs}
+            emptyMessage={'Migration console offline. Click "Start Firestore Migration" to execute dynamic cross-tenant data pipeline.'}
+            accentClassName="text-indigo-400"
+          />
         </CardContent>
       </Card>
 
@@ -470,41 +442,14 @@ FIREBASE_API_KEY=AIzaSy-your-real-key...`}
             </div>
           )}
 
-          {/* Console Terminal */}
-          <div className="border border-slate-900 bg-slate-950 rounded-[24px] p-6 text-slate-200 font-mono text-xs overflow-hidden shadow-2xl relative">
-            <div className="absolute top-3 right-4 flex gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-            </div>
-            <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-4">
-              <Terminal size={14} className="text-amber-400" />
-              <span className="text-[11px] md:text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                Seeding Engine Console Output
-              </span>
-            </div>
-            <div className="space-y-2 max-h-[240px] overflow-y-auto scroller-hide">
-              {seedingLogs.length === 0 ? (
-                <p className="text-slate-600 italic text-[12px] md:text-[11px] py-4 text-center">
-                  Seeding engine offline. Click "Bootstrap Clean Database" to construct database collections with pre-configured schemas.
-                </p>
-              ) : (
-                seedingLogs.map((log, index) => (
-                  <div key={index} className="leading-relaxed whitespace-pre-wrap text-[12px] md:text-[11px]">
-                    {log.includes('[ERROR]') || log.includes('⚠️') ? (
-                      <span className="text-rose-400 font-semibold">{log}</span>
-                    ) : log.includes('success') || log.includes('successfully') || log.includes('completed') || log.includes('Success') ? (
-                      <span className="text-emerald-400 font-semibold">{log}</span>
-                    ) : log.includes('[INFO]') ? (
-                      <span className="text-amber-400">{log}</span>
-                    ) : (
-                      <span className="text-slate-300">{log}</span>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          <ConsoleTerminal
+            title="Seeding Engine Console Output"
+            logs={seedingLogs}
+            emptyMessage={
+              'Seeding engine offline. Click "Bootstrap Clean Database" to construct database collections with pre-configured schemas.'
+            }
+            accentClassName="text-amber-400"
+          />
         </CardContent>
       </Card>
 

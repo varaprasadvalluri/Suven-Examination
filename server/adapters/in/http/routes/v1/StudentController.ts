@@ -16,6 +16,7 @@ import {
 import { enqueueWrite } from '../../../../out/firestore/writeQueue';
 import { logger } from '../../../../../lib/logger';
 import { NotFoundError, ForbiddenError } from '../../../../../lib/errors';
+import { cascadeDeleteByScope } from '../../../../out/firestore/cascadeDelete';
 
 const router = express.Router();
 
@@ -167,7 +168,6 @@ router.patch(
 // the same fix already applied to school hard-delete (see SchoolController.ts). Uses the
 // real write-cushion (server/db/writeQueue.ts) and reports exact per-collection outcomes.
 const STUDENT_DEPENDENT_COLLECTIONS = ['attempts', 'error_books', 'invitations', 'proctoring_logs'] as const;
-const DELETE_PAGE_SIZE = 500;
 
 /**
  * @openapi
@@ -217,24 +217,7 @@ router.delete(
     const results: Record<string, { deleted: number; failed: number }> = {};
 
     for (const collectionName of STUDENT_DEPENDENT_COLLECTIONS) {
-      let deleted = 0;
-      let failed = 0;
-
-      while (true) {
-        const snap = await clientGetDocs(
-          clientQuery(clientCollection(clientDb, collectionName), clientWhere('studentId', '==', studentId), clientLimit(DELETE_PAGE_SIZE))
-        );
-        if (snap.docs.length === 0) break;
-
-        const settled = await Promise.allSettled(snap.docs.map((d: any) => enqueueWrite({ type: 'delete', collectionName, docId: d.id })));
-        for (const outcome of settled) {
-          if (outcome.status === 'fulfilled') deleted++;
-          else failed++;
-        }
-
-        if (failed > 0) break;
-        if (snap.docs.length < DELETE_PAGE_SIZE) break;
-      }
+      const { deleted, failed } = await cascadeDeleteByScope(collectionName, 'studentId', studentId);
 
       results[collectionName] = { deleted, failed };
     }

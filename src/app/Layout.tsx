@@ -299,6 +299,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       className="flex h-screen overflow-hidden bg-[#F0F4FA] bg-[linear-gradient(to_right,#E1E8F2_1.5px,transparent_1.5px),linear-gradient(to_bottom,#E1E8F2_1.5px,transparent_1.5px)] bg-[size:3.5rem_3.5rem] font-sans text-slate-800 antialiased selection:bg-amber-200 selection:text-slate-900"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
+      {/* Skip link: the sidebar is ~15 focusable items, and without this a keyboard or
+          switch user tabs through all of them on every single page before reaching content.
+          Visually hidden until focused, then rendered above everything. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-lg focus:bg-slate-900 focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-white focus:outline-none focus:ring-4 focus:ring-indigo-300"
+      >
+        Skip to main content
+      </a>
+
       {/* Mobile Sidebar Overlay */}
       <AnimatePresence>
         {isSidebarOpen && (
@@ -314,6 +324,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* FIXED PREMIUM VERTICAL SIDEBAR NAVIGATION RAIL (Left or Right Column: 280px, flex-shrink: 0) */}
       <aside
+        aria-label="Main navigation"
         className={`fixed inset-y-0 lg:relative lg:translate-x-0! w-[280px] bg-white text-slate-800 flex flex-col shrink-0 z-50 transition-transform duration-300 ease-out ${
           isSidebarOpen ? 'translate-x-0' : isStudent ? 'translate-x-full' : '-translate-x-full'
         } ${
@@ -595,7 +606,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             horizontal-scroll container and could rest scrolled sideways, clipping the left
             edge of every header/heading inside it (seen on the native app: "Global Overview"
             rendering as "lobal Overview"). */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 lg:p-10 bg-transparent">
+        {/* tabIndex={-1} makes this programmatically focusable for the skip link and for the
+            route-change focus reset in App.tsx. focus:outline-none because that focus is
+            moved FOR the user rather than by them — a ring around the whole page would read
+            as a rendering glitch. */}
+        <div
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 lg:p-10 bg-transparent focus:outline-none"
+        >
           <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="max-w-[1440px] mx-auto w-full">
             {children}
           </motion.div>

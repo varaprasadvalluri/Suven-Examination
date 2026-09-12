@@ -106,6 +106,25 @@ export async function getAuthHeader(db?: DatabaseHandle): Promise<Record<string,
   return {};
 }
 
+// Every REST call below repeated the same two rituals: build a header bag, await the auth
+// header, Object.assign it in; then, on the way back, check `ok`, read the body as text and
+// throw a FirestoreRestError naming the operation. Eleven copies of the first and ten of the
+// second. These two helpers are deliberately separate rather than one fetch wrapper, because
+// two call sites legitimately break the pattern: getDoc treats 404 as "does not exist" rather
+// than an error, and the transaction rollback is fire-and-forget.
+async function firestoreHeaders(db?: DatabaseHandle, hasJsonBody = false): Promise<Record<string, string>> {
+  const headers: Record<string, string> = hasJsonBody ? { 'Content-Type': 'application/json' } : {};
+  Object.assign(headers, await getAuthHeader(db));
+  return headers;
+}
+
+async function assertFirestoreOk(httpResponse: Response, operation?: string): Promise<void> {
+  if (httpResponse.ok) return;
+  const errText = await httpResponse.text();
+  const label = operation ? `Firestore REST ${operation} error` : 'Firestore REST error';
+  throw new FirestoreRestError(httpResponse.status, `${label}: ${httpResponse.status} ${errText}`);
+}
+
 logger.info('Firestore REST gateway ready', { database: firebaseConfig.firestoreDatabaseId });
 
 // The default handle: no overrides, so every ref built from it resolves to this app's own
@@ -279,9 +298,7 @@ export function clientDoc(...args: any[]) {
 async function clientGetDocImpl(docRef: any) {
   const url = `${getBaseUrl(docRef.db)}/${docRef.collectionName}/${docRef.id}?key=${apiKeyFor(docRef.db)}`;
   try {
-    const headers: Record<string, string> = {};
-    const authHeader = await getAuthHeader(docRef.db);
-    Object.assign(headers, authHeader);
+    const headers = await firestoreHeaders(docRef.db);
 
     const httpResponse = await fetch(url, { headers });
     if (httpResponse.status === 404) {
@@ -291,10 +308,7 @@ async function clientGetDocImpl(docRef: any) {
         data: (): any => null
       };
     }
-    if (!httpResponse.ok) {
-      const errText = await httpResponse.text();
-      throw new FirestoreRestError(httpResponse.status, `Firestore REST error: ${httpResponse.status} ${errText}`);
-    }
+    await assertFirestoreOk(httpResponse);
     const payload = await httpResponse.json();
     const docData = fromFirestoreFields(payload.fields || {});
     return {
@@ -413,14 +427,12 @@ async function clientGetDocsImpl(queryRef: any) {
   }
 
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     // queryRef.db, not the default handle. A query against another project resolved its URL
     // from the ref but its credentials from this app, so a cross-project read (the admin
     // migration route's only job) went out with a token that project would reject — surfacing
     // as an auth error rather than the missing-permission it actually is. getAuthHeader
     // already returns no header for a foreign project; it just was not being told about one.
-    const authHeader = await getAuthHeader(queryRef.db);
-    Object.assign(headers, authHeader);
+    const headers = await firestoreHeaders(queryRef.db, true);
 
     const httpResponse = await fetch(url, {
       method: 'POST',
@@ -428,10 +440,7 @@ async function clientGetDocsImpl(queryRef: any) {
       body: JSON.stringify({ structuredQuery })
     });
 
-    if (!httpResponse.ok) {
-      const errText = await httpResponse.text();
-      throw new FirestoreRestError(httpResponse.status, `Firestore REST runQuery error: ${httpResponse.status} ${errText}`);
-    }
+    await assertFirestoreOk(httpResponse, 'runQuery');
 
     const payload = await httpResponse.json();
     let rawDocs = (payload || [])
@@ -482,9 +491,7 @@ async function clientSetDocImpl(docRef: any, data: any, options?: any) {
     }
   }
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const authHeader = await getAuthHeader();
-  Object.assign(headers, authHeader);
+  const headers = await firestoreHeaders(undefined, true);
 
   const httpResponse = await fetch(url, {
     method: 'PATCH',
@@ -494,10 +501,7 @@ async function clientSetDocImpl(docRef: any, data: any, options?: any) {
     })
   });
 
-  if (!httpResponse.ok) {
-    const errText = await httpResponse.text();
-    throw new FirestoreRestError(httpResponse.status, `Firestore REST setDoc error: ${httpResponse.status} ${errText}`);
-  }
+  await assertFirestoreOk(httpResponse, 'setDoc');
 
   return { success: true };
 }
@@ -509,9 +513,7 @@ async function clientUpdateDocImpl(docRef: any, data: any) {
     url += `&${params}`;
   }
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const authHeader = await getAuthHeader();
-  Object.assign(headers, authHeader);
+  const headers = await firestoreHeaders(undefined, true);
 
   const httpResponse = await fetch(url, {
     method: 'PATCH',
@@ -521,10 +523,7 @@ async function clientUpdateDocImpl(docRef: any, data: any) {
     })
   });
 
-  if (!httpResponse.ok) {
-    const errText = await httpResponse.text();
-    throw new FirestoreRestError(httpResponse.status, `Firestore REST updateDoc error: ${httpResponse.status} ${errText}`);
-  }
+  await assertFirestoreOk(httpResponse, 'updateDoc');
 
   return { success: true };
 }
@@ -532,9 +531,7 @@ async function clientUpdateDocImpl(docRef: any, data: any) {
 async function clientDeleteDocImpl(docRef: any) {
   const url = `${getBaseUrl()}/${docRef.collectionName}/${docRef.id}?key=${firebaseConfig.apiKey}`;
 
-  const headers: Record<string, string> = {};
-  const authHeader = await getAuthHeader();
-  Object.assign(headers, authHeader);
+  const headers = await firestoreHeaders();
 
   const httpResponse = await fetch(url, {
     method: 'DELETE',
@@ -552,9 +549,7 @@ async function clientDeleteDocImpl(docRef: any) {
 async function clientAddDocImpl(collectionRef: any, data: any) {
   const url = `${getBaseUrl()}/${collectionRef.collectionName}?key=${firebaseConfig.apiKey}`;
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const authHeader = await getAuthHeader();
-  Object.assign(headers, authHeader);
+  const headers = await firestoreHeaders(undefined, true);
 
   const httpResponse = await fetch(url, {
     method: 'POST',
@@ -564,10 +559,7 @@ async function clientAddDocImpl(collectionRef: any, data: any) {
     })
   });
 
-  if (!httpResponse.ok) {
-    const errText = await httpResponse.text();
-    throw new FirestoreRestError(httpResponse.status, `Firestore REST addDoc error: ${httpResponse.status} ${errText}`);
-  }
+  await assertFirestoreOk(httpResponse, 'addDoc');
 
   const payload = await httpResponse.json();
   const id = payload.name.split('/').pop();
@@ -693,17 +685,13 @@ async function commitWritesImpl(params: { db?: DatabaseHandle; writes: any[]; tr
   if (writes.length === 0) return;
 
   const url = `${getBaseUrl(db)}:commit?key=${apiKeyFor(db)}`;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  Object.assign(headers, await getAuthHeader(db));
+  const headers = await firestoreHeaders(db, true);
 
   const body: any = { writes };
   if (transaction) body.transaction = transaction;
 
   const httpResponse = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
-  if (!httpResponse.ok) {
-    const errText = await httpResponse.text();
-    throw new FirestoreRestError(httpResponse.status, `Firestore REST commit error: ${httpResponse.status} ${errText}`);
-  }
+  await assertFirestoreOk(httpResponse, 'commit');
 }
 
 // Retried and breaker-wrapped like every other entry point. Safe to retry: every write in a
@@ -761,8 +749,7 @@ export async function clientGetCountFromServer(queryRef: any) {
   }
 
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    Object.assign(headers, await getAuthHeader(queryRef.db));
+    const headers = await firestoreHeaders(queryRef.db, true);
 
     const httpResponse = await fetch(url, {
       method: 'POST',
@@ -775,9 +762,7 @@ export async function clientGetCountFromServer(queryRef: any) {
       })
     });
 
-    if (!httpResponse.ok) {
-      throw new FirestoreRestError(httpResponse.status, `Firestore REST count error: ${httpResponse.status} ${await httpResponse.text()}`);
-    }
+    await assertFirestoreOk(httpResponse, 'count');
 
     const payload = await httpResponse.json();
     const rows = Array.isArray(payload) ? payload : [payload];
@@ -793,14 +778,10 @@ export async function clientGetCountFromServer(queryRef: any) {
 
 async function beginTransaction(db?: DatabaseHandle): Promise<string> {
   const url = `${getBaseUrl(db)}:beginTransaction?key=${apiKeyFor(db)}`;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  Object.assign(headers, await getAuthHeader(db));
+  const headers = await firestoreHeaders(db, true);
 
   const httpResponse = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ options: { readWrite: {} } }) });
-  if (!httpResponse.ok) {
-    const errText = await httpResponse.text();
-    throw new FirestoreRestError(httpResponse.status, `Firestore REST beginTransaction error: ${httpResponse.status} ${errText}`);
-  }
+  await assertFirestoreOk(httpResponse, 'beginTransaction');
   const payload = await httpResponse.json();
   return payload.transaction as string;
 }
@@ -811,8 +792,7 @@ async function beginTransaction(db?: DatabaseHandle): Promise<string> {
 async function rollbackTransaction(transaction: string, db?: DatabaseHandle): Promise<void> {
   try {
     const url = `${getBaseUrl(db)}:rollback?key=${apiKeyFor(db)}`;
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    Object.assign(headers, await getAuthHeader(db));
+    const headers = await firestoreHeaders(db, true);
     await fetch(url, { method: 'POST', headers, body: JSON.stringify({ transaction }) });
   } catch (err) {
     logger.warn('Transaction rollback failed (transaction will expire on its own)', { err });
@@ -826,17 +806,13 @@ async function rollbackTransaction(transaction: string, db?: DatabaseHandle): Pr
 async function getDocInTransaction(docRef: any, transaction: string) {
   const db = docRef.db;
   const url = `${getBaseUrl(db)}/${docRef.collectionName}/${docRef.id}?key=${apiKeyFor(db)}&transaction=${encodeURIComponent(transaction)}`;
-  const headers: Record<string, string> = {};
-  Object.assign(headers, await getAuthHeader(db));
+  const headers = await firestoreHeaders(db);
 
   const httpResponse = await fetch(url, { headers });
   if (httpResponse.status === 404) {
     return { id: docRef.id, exists: () => false, data: (): any => null };
   }
-  if (!httpResponse.ok) {
-    const errText = await httpResponse.text();
-    throw new FirestoreRestError(httpResponse.status, `Firestore REST transactional get error: ${httpResponse.status} ${errText}`);
-  }
+  await assertFirestoreOk(httpResponse, 'transactional get');
   const payload = await httpResponse.json();
   const docData = fromFirestoreFields(payload.fields || {});
   return { id: docRef.id, exists: () => true, data: () => docData };

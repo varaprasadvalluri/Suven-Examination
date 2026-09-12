@@ -5,6 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import prettierConfig from 'eslint-config-prettier';
 import globals from 'globals';
 import boundaries from 'eslint-plugin-boundaries';
+import jsxA11y from 'eslint-plugin-jsx-a11y';
 
 // First lint config this repo has ever had — kept intentionally light (non-type-aware rules
 // only, no `parserOptions.project`) so the initial rollout doesn't require reconciling the
@@ -26,10 +27,30 @@ export default tseslint.config(
     },
     plugins: {
       'react-hooks': reactHooks,
-      'react-refresh': reactRefresh
+      'react-refresh': reactRefresh,
+      'jsx-a11y': jsxA11y
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // Accessibility rules run as WARNINGS, not errors, deliberately.
+      //
+      // The recommended set flags 31 pre-existing issues (unlabelled controls, click handlers
+      // on non-interactive elements, a missing alt). Turning those into errors on day one
+      // would make CI red on work nobody has scheduled, and the usual response to that is a
+      // blanket disable — which loses the signal permanently. As warnings they are visible in
+      // every local lint and every CI run, and each rule can be promoted to 'error' as its
+      // findings reach zero, which makes the improvement one-way.
+      // Note this maps only rules recommended ENABLES down to 'warn'. Rules it ships as 'off'
+      // (deprecated ones like label-has-for, and control-has-associated-label) stay off —
+      // blanket-enabling every key in the set turns on rules the maintainers deliberately
+      // disabled and buries the real findings in noise.
+      ...Object.fromEntries(
+        Object.entries(jsxA11y.flatConfigs.recommended.rules).map(([rule, level]) => {
+          const severity = Array.isArray(level) ? level[0] : level;
+          const isOff = severity === 'off' || severity === 0;
+          return [rule, isOff ? 'off' : Array.isArray(level) ? ['warn', ...level.slice(1)] : 'warn'];
+        })
+      ),
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       // This codebase leans on `any` deliberately in a lot of Firestore-doc-shaped code
       // (raw documents don't have a fixed TS shape at the boundary) — enforcing this now,

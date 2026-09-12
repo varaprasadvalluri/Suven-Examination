@@ -46,9 +46,7 @@ describe('FirebaseTokenVerifier', () => {
     const { FirebaseTokenVerifier } = await import('./FirebaseTokenVerifier');
     const verifier = new FirebaseTokenVerifier(['proj-1']);
 
-    await expect(verifier.verifyIdToken(idTokenWithAudience('someone-elses-project'))).rejects.toThrow(
-      /not an allowed project/
-    );
+    await expect(verifier.verifyIdToken(idTokenWithAudience('someone-elses-project'))).rejects.toThrow(/not an allowed project/);
     expect(verifyIdTokenSpy).not.toHaveBeenCalled();
   });
 

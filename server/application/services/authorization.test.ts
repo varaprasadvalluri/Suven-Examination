@@ -187,6 +187,79 @@ describe('authorizeWrite: generic tenant-scoped collections (attempts) — owner
   });
 });
 
+// The allow paths above are well covered. These are the DENY paths — the direction that
+// matters most for a tenant boundary, because a regression that turns a deny into an allow is
+// silent: no error, no failed request, just one school reading or writing another's data.
+describe('authorizeWrite: tenant-escape attempts', () => {
+  it('refuses to let a school move an attempt into another school', async () => {
+    mockGetDoc.mockResolvedValueOnce(found({ studentId: 'student-a', schoolId: 'school-A' }));
+
+    const decision = await authorizeWrite(schoolA, 'update', 'attempts', 'own-attempt', {
+      canReattempt: true,
+      schoolId: 'school-B'
+    });
+
+    expect(decision).toMatchObject({ ok: false, status: 403 });
+    if (decision.ok === false) expect(decision.error).toMatch(/out of your scope/i);
+  });
+
+  it('refuses the same move when ownership is served from the cache rather than a fresh read', async () => {
+    // First write populates the owner cache for this doc.
+    mockGetDoc.mockResolvedValueOnce(found({ studentId: 'student-a', schoolId: 'school-A' }));
+    expect((await authorizeWrite(schoolA, 'update', 'attempts', 'cached-doc', { canReattempt: true })).ok).toBe(true);
+
+    // Second write is answered from cache — the scope check must still run on that path.
+    const decision = await authorizeWrite(schoolA, 'update', 'attempts', 'cached-doc', { schoolId: 'school-B' });
+
+    expect(decision).toMatchObject({ ok: false, status: 403 });
+    if (decision.ok === false) expect(decision.error).toMatch(/out of your scope/i);
+    // Proves the denial came from the cached branch, not a second lookup.
+    expect(mockGetDoc).toHaveBeenCalledTimes(1);
+  });
+
+  it('denies a cached non-owner without re-reading, rather than failing open', async () => {
+    // A school touches a doc belonging to school-B: denied, and the owner is cached.
+    mockGetDoc.mockResolvedValueOnce(found({ studentId: 'student-x', schoolId: 'school-B' }));
+    expect((await authorizeWrite(schoolA, 'update', 'attempts', 'foreign-doc', { canReattempt: true })).ok).toBe(false);
+
+    // A second attempt must be denied from the cache, not allowed through because no read ran.
+    const second = await authorizeWrite(schoolA, 'update', 'attempts', 'foreign-doc', { canReattempt: true });
+
+    expect(second).toMatchObject({ ok: false, status: 403 });
+    if (second.ok === false) expect(second.error).toMatch(/do not own this document/i);
+  });
+
+  it('re-reads ownership once the cache entry has expired', async () => {
+    vi.useFakeTimers();
+    try {
+      mockGetDoc.mockResolvedValue(found({ studentId: 'student-a', schoolId: 'school-A' }));
+      expect((await authorizeWrite(schoolA, 'update', 'attempts', 'ttl-doc', { canReattempt: true })).ok).toBe(true);
+      expect(mockGetDoc).toHaveBeenCalledTimes(1);
+
+      // Within the TTL the cache answers, so no further read.
+      await vi.advanceTimersByTimeAsync(29 * 60 * 1000);
+      expect((await authorizeWrite(schoolA, 'update', 'attempts', 'ttl-doc', { canReattempt: true })).ok).toBe(true);
+      expect(mockGetDoc).toHaveBeenCalledTimes(1);
+
+      // Past the 30-minute TTL, ownership must be verified against the store again —
+      // otherwise a document that changed hands stays authorised for whoever the cache
+      // remembers. An exam window is longer than this, so it does elapse in practice.
+      await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
+      expect((await authorizeWrite(schoolA, 'update', 'attempts', 'ttl-doc', { canReattempt: true })).ok).toBe(true);
+      expect(mockGetDoc).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('refuses a write to a collection the role has no write access to', async () => {
+    const decision = await authorizeWrite(studentA, 'update', 'invitations', 'inv-1', { status: 'sent' });
+
+    expect(decision).toMatchObject({ ok: false, status: 403 });
+    expect(mockGetDoc).not.toHaveBeenCalled();
+  });
+});
+
 describe('sanitizeForPublicRead', () => {
   // `questions` is publicly readable pre-login (StudentLinkEntry.tsx's invite preview needs
   // subject/marks breakdown before the student has a session) — but the answer key must

@@ -1,3 +1,4 @@
+import type { InstitutionType } from './shared/lib/institutionType';
 export type UserRole = 'admin' | 'school' | 'student';
 export type AppPermission = 'manage_exams' | 'view_results' | 'take_exams' | 'manage_students';
 
@@ -19,6 +20,15 @@ export type AuthPolicy = 'google' | 'password' | 'both';
 export interface School {
   id: string;
   name: string;
+  /**
+   * What kind of organisation this tenant is. Optional because every record created before
+   * this field existed has no value — see institutionProfile(), which treats absent as
+   * 'school'. Kept as a plain field rather than renaming schoolId, which identifies live
+   * records across six collections and five composite indexes.
+   */
+  institutionType?: InstitutionType;
+  /** Affiliation board (CBSE/ICSE/…). Only meaningful when institutionType is 'school'. */
+  board?: string;
   adminEmail: string;
   allowedDomains: string[];
   status: 'active' | 'inactive';

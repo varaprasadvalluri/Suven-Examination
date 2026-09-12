@@ -27,6 +27,8 @@ import { handleErrorAndLog } from '../../../lib/customErrors';
 import { setSessionToken } from '../../../lib/sessionStore';
 import { ExamInstructionsScreen } from '../../exam-session';
 import { gatekeeperApi } from '../../../services/api';
+import { BrandingPanel } from '../../../shared/components/BrandingPanel';
+import { LobbyConsentNotice } from '../../../shared/components/LobbyConsentNotice';
 
 export const LoginPage: React.FC = () => {
   const { user, profile, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, sendPasswordResetEmail } = useAuth();
@@ -724,74 +726,7 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#f3f6f9] relative overflow-hidden font-sans text-slate-800">
       {/* LEFT SIDE PANEL: Beautiful Educational Identity (matches Figma layout mockup) */}
-      <div className="w-full lg:w-[45%] bg-[#0B1E3F] p-8 md:p-12 lg:p-16 flex flex-col justify-between relative text-white min-h-[450px] lg:min-h-screen overflow-hidden">
-        {/* Subtle decorative glowing lights */}
-        <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full bg-sky-500/10 blur-3xl pointer-events-none" />
-
-        {/* Abstract curve decorations in background (recreating the circles in Figma left design) */}
-        <div className="absolute top-0 right-0 w-[450px] h-[450px] rounded-full border border-white/[0.03] translate-x-1/3 -translate-y-1/3 pointer-events-none" />
-        <div className="absolute top-0 right-0 w-[550px] h-[550px] rounded-full border border-white/[0.02] translate-x-1/4 -translate-y-1/4 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] rounded-full border border-white/[0.03] -translate-x-1/3 translate-y-1/3 pointer-events-none" />
-
-        {/* Header branding on left corner */}
-        <div className="flex items-center gap-3 relative z-10">
-          <div className="h-10 w-10 rounded-xl bg-[#f2a81e] flex items-center justify-center font-black text-white text-lg shadow-md shadow-[#f2a81e]/20">
-            S
-          </div>
-          <div>
-            <span className="font-sans font-extrabold text-sm uppercase tracking-wider text-white block leading-none">SUVEN EDU</span>
-            <span className="text-[11px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">EXAM PORTAL</span>
-          </div>
-        </div>
-
-        {/* Welcoming Messages (Figma matches) */}
-        <div className="my-auto py-8 lg:py-0 relative z-10">
-          <span className="text-[#38bdf8] font-extrabold text-[12px] md:text-[11px] uppercase tracking-[0.2em] block mb-3">
-            WELCOME BACK
-          </span>
-          <h1 className="text-3xl md:text-4.5xl font-extrabold text-white tracking-tight leading-[1.15] mb-4">
-            Your academic
-            <br />
-            journey,
-            <br />
-            <span className="text-[#f2a81e]">simplified.</span>
-          </h1>
-          <p className="text-xs md:text-sm text-slate-300 leading-relaxed max-w-sm font-medium mt-6 opacity-80">
-            Conduct, manage, and analyze examinations with one unified platform built for modern schools.
-          </p>
-        </div>
-
-        {/* Bottom Section: Translucent Stats Card & Social proof */}
-        <div className="space-y-6 relative z-10 mt-auto">
-          <div className="grid grid-cols-3 gap-2 bg-white/[0.04] border border-white/10 rounded-2xl p-5 backdrop-blur-md text-center">
-            <div>
-              <span className="text-xl font-black text-white block tracking-tight">12,400+</span>
-              <span className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Students</span>
-            </div>
-            <div className="border-x border-white/10">
-              <span className="text-xl font-black text-white block tracking-tight">340+</span>
-              <span className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">Teachers</span>
-            </div>
-            <div>
-              <span className="text-xl font-black text-white block tracking-tight">98%</span>
-              <span className="text-[11px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">
-                Satisfaction
-              </span>
-            </div>
-          </div>
-
-          {/* Overlapping colored circle avatars */}
-          <div className="flex items-center gap-3">
-            <div className="flex -space-x-2">
-              <div className="w-6 h-6 rounded-full bg-blue-600 border border-[#0B1E3F]" />
-              <div className="w-6 h-6 rounded-full bg-cyan-400 border border-[#0B1E3F]" />
-              <div className="w-6 h-6 rounded-full bg-emerald-500 border border-[#0B1E3F]" />
-            </div>
-            <span className="text-xs text-slate-300 font-semibold opacity-90">Trusted by 50+ schools nationwide</span>
-          </div>
-        </div>
-      </div>
+      <BrandingPanel />
 
       {/* RIGHT SIDE PANEL: Tabbed Form matching Figma layout mockup */}
       <div className="w-full lg:w-[55%] bg-[#f3f6f9] p-6 md:p-12 lg:p-16 flex flex-col justify-center items-center min-h-[500px] lg:min-h-screen relative">
@@ -854,6 +789,13 @@ export const LoginPage: React.FC = () => {
           {/* Conditional Rendering: Invite Verification VS Classic Login/Signup */}
           {inviteToken ? (
             <form onSubmit={handleVerifySubmit} className="space-y-4">
+              {/* autoComplete stays "off" on this form and on the student-login form below,
+                  unlike the staff credential forms. These fields are a student's name, register
+                  number and date of birth, and exams are commonly sat on shared school lab
+                  desktops — browser autofill there offers the PREVIOUS student's identity to the
+                  next one. The staff email/password pair is tagged normally (username /
+                  current-password) because it is a real credential pair belonging in a password
+                  manager. */}
               {/* Field 1: Enter Name */}
               <div className="space-y-1.5">
                 <span className="text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
@@ -894,16 +836,7 @@ export const LoginPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Proctor compliance security check */}
-              <div className="bg-amber-50/60 border border-amber-100/80 p-3.5 rounded-2xl flex items-start gap-2.5 mt-5">
-                <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-[11px] md:text-[10px] font-semibold text-slate-700 leading-normal">
-                  <p className="font-extrabold text-slate-800 uppercase tracking-wider text-[11px] md:text-[8px] mb-0.5">
-                    Lobby Verification Consent
-                  </p>
-                  By activating this exam, you agree to secure browser lockdowns and temporary test progress tracking.
-                </div>
-              </div>
+              <LobbyConsentNotice />
 
               {/* Submit Block */}
               <div className="pt-3 space-y-2.5">
@@ -1007,7 +940,9 @@ export const LoginPage: React.FC = () => {
                   {selectedRole === 'student' ? (
                     <form onSubmit={handleStudentLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-700 block">Full Name</label>
+                        <label htmlFor="student-login-name" className="text-xs font-semibold text-slate-700 block">
+                          Full Name
+                        </label>
                         <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                           <User2 className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
                           <input
@@ -1031,7 +966,9 @@ export const LoginPage: React.FC = () => {
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-700 block">Register / Roll Number</label>
+                        <label htmlFor="student-login-roll" className="text-xs font-semibold text-slate-700 block">
+                          Register / Roll Number
+                        </label>
                         <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                           <Key className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
                           <input
@@ -1055,12 +992,13 @@ export const LoginPage: React.FC = () => {
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-700 block">
+                        <label htmlFor="student-login-dob" className="text-xs font-semibold text-slate-700 block">
                           Date of Birth <span className="font-normal text-slate-400 normal-case">(optional)</span>
                         </label>
                         <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                           <Calendar className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
                           <input
+                            id="student-login-dob"
                             type="date"
                             value={studentLoginDob}
                             onChange={(e) => setStudentLoginDob(e.target.value)}
@@ -1095,7 +1033,9 @@ export const LoginPage: React.FC = () => {
                       {/* Email Input */}
                       <div className="space-y-1.5">
                         <div className="flex justify-between items-center">
-                          <label className="text-xs font-semibold text-slate-700 block">Roll Number / Email</label>
+                          <label htmlFor="login-email" className="text-xs font-semibold text-slate-700 block">
+                            Roll Number / Email
+                          </label>
                           {emailTouched && !isEmailValid && (
                             <span className="text-[11px] md:text-[10px] font-semibold text-rose-600 block animate-fadeIn">
                               Invalid email
@@ -1122,7 +1062,7 @@ export const LoginPage: React.FC = () => {
                             aria-describedby={fieldErrors['login-email'] ? 'login-email-error' : undefined}
                             className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-450 text-xs font-medium focus:ring-0"
                             required
-                            autoComplete="off"
+                            autoComplete="username"
                           />
                         </div>
                         <FieldError id="login-email-error" message={fieldErrors['login-email']} />
@@ -1131,7 +1071,9 @@ export const LoginPage: React.FC = () => {
                       {/* Password Input */}
                       <div className="space-y-1.5">
                         <div className="flex justify-between items-center">
-                          <label className="text-xs font-semibold text-slate-700 block">Password</label>
+                          <label htmlFor="login-password" className="text-xs font-semibold text-slate-700 block">
+                            Password
+                          </label>
                           <button
                             type="button"
                             onClick={handleForgotPassword}
@@ -1283,7 +1225,9 @@ export const LoginPage: React.FC = () => {
 
                   {/* Name Input */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700 block">Your Name / Title</label>
+                    <label htmlFor="signup-name" className="text-xs font-semibold text-slate-700 block">
+                      Your Name / Title
+                    </label>
                     <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                       <User2 className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
                       <input
@@ -1299,7 +1243,7 @@ export const LoginPage: React.FC = () => {
                         aria-describedby={fieldErrors['signup-name'] ? 'signup-name-error' : undefined}
                         className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-400 text-xs font-medium focus:ring-0"
                         required
-                        autoComplete="off"
+                        autoComplete="name"
                       />
                     </div>
                     <FieldError id="signup-name-error" message={fieldErrors['signup-name']} />
@@ -1307,7 +1251,9 @@ export const LoginPage: React.FC = () => {
 
                   {/* Email Input */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700 block">Email Address</label>
+                    <label htmlFor="signup-email" className="text-xs font-semibold text-slate-700 block">
+                      Email Address
+                    </label>
                     <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                       <Mail className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
                       <input
@@ -1323,7 +1269,7 @@ export const LoginPage: React.FC = () => {
                         aria-describedby={fieldErrors['signup-email'] ? 'signup-email-error' : undefined}
                         className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-450 text-xs font-medium focus:ring-0"
                         required
-                        autoComplete="off"
+                        autoComplete="email"
                       />
                     </div>
                     <FieldError id="signup-email-error" message={fieldErrors['signup-email']} />
@@ -1361,7 +1307,9 @@ export const LoginPage: React.FC = () => {
 
                   {/* Password Input */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700 block">Password</label>
+                    <label htmlFor="signup-password" className="text-xs font-semibold text-slate-700 block">
+                      Password
+                    </label>
                     <div className="relative flex items-center h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 focus-within:bg-white focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all duration-200">
                       <Lock className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
                       <input

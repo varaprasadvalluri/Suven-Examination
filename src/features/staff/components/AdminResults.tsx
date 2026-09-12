@@ -8,9 +8,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Button } from '../../../components/ui/button';
 import { ArrowLeft, Download, Users, TrendingUp, Award, Brain, AlertTriangle, ShieldAlert, Sparkles, Clock, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
 import { ConfirmationDialog } from '../../../shared/components/ConfirmationDialog';
 import { orderQuestionsForAttempt } from '../../../../shared/examQuestionOrder';
+import { exportSheet } from '../../../shared/lib/spreadsheet';
+import { formatDate, formatDateTime, formatTimeOfDay, percentageLabel } from '../../../shared/lib/format';
 
 export const AdminResults: React.FC = () => {
   const { examId } = useParams<{ examId: string }>();
@@ -107,7 +108,7 @@ export const AdminResults: React.FC = () => {
     fetchListPage();
   }, [examId, page, pageSize, canViewResults, profile, refreshTrigger]);
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (attempts.length === 0) {
       toast.error('No results to export');
       return;
@@ -115,17 +116,14 @@ export const AdminResults: React.FC = () => {
 
     const exportData = attempts.map((attempt) => ({
       'Student Name': attempt.studentName,
-      Date: attempt.endTime ? new Date(attempt.endTime).toLocaleDateString() : 'N/A',
-      Time: attempt.endTime ? new Date(attempt.endTime).toLocaleTimeString() : 'N/A',
+      Date: formatDate(attempt.endTime),
+      Time: formatTimeOfDay(attempt.endTime),
       Score: attempt.score,
       'Total Marks': exam?.totalMarks || 0,
-      Percentage: `${Math.round((attempt.score / (exam?.totalMarks || 1)) * 100)}%`
+      Percentage: percentageLabel(attempt.score, exam?.totalMarks ?? 0)
     }));
 
-    const resultsWorksheet = XLSX.utils.json_to_sheet(exportData);
-    const resultsWorkbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(resultsWorkbook, resultsWorksheet, 'Exam Results');
-    XLSX.writeFile(resultsWorkbook, `${exam?.title}_Results.xlsx`);
+    await exportSheet(`${exam?.title}_Results`, 'Exam Results', exportData);
     toast.success('Spreadsheet generated successfully');
   };
 
@@ -481,7 +479,7 @@ export const AdminResults: React.FC = () => {
             {attempts.map((a) => (
               <TableRow key={a.id} className="hover:bg-slate-50/50 transition-colors">
                 <TableCell className="font-semibold text-slate-900 py-4">{a.studentName}</TableCell>
-                <TableCell className="text-sm text-slate-500 py-4">{a.endTime ? new Date(a.endTime).toLocaleString() : 'N/A'}</TableCell>
+                <TableCell className="text-sm text-slate-500 py-4">{formatDateTime(a.endTime)}</TableCell>
                 <TableCell className="text-right py-4">
                   <span
                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${a.score / exam.totalMarks >= 0.4 ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}

@@ -7,7 +7,6 @@ import { RequestAuth } from '../../../../application/ports/RequestAuth';
 // that attaches it; the definition itself belongs to the application layer.
 export type { RequestAuth };
 
-
 // One-device-at-a-time enforcement (see server/auth/tokens.ts's SessionClaims.sessionId):
 // caches each uid's current users/{uid}.activeSessionId so resolveAuth — which runs on every
 // single authenticated request, the hottest path in the app — doesn't add a Firestore read per

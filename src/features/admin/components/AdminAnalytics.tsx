@@ -24,9 +24,9 @@ import {
   PolarRadiusAxis,
   Radar
 } from 'recharts';
-import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import { DataLoader } from '../../../shared/components/DataLoader';
+import { exportSheets } from '../../../shared/lib/spreadsheet';
 
 // This page's "Institutional Benchmarks"/"Subject Performance"/"Active Load Velocity" charts
 // used to fall back to fully invented data (fake comparison schools like "Stanford Med",
@@ -253,15 +253,10 @@ export const AdminAnalytics: React.FC = () => {
         'Security System Incidents': schoolStat.securityEscalations
       }));
 
-      const insightsWorkbook = XLSX.utils.book_new();
-
-      const wsAttempts = XLSX.utils.json_to_sheet(reportData);
-      XLSX.utils.book_append_sheet(insightsWorkbook, wsAttempts, 'Global Student Submissions');
-
-      const wsSchools = XLSX.utils.json_to_sheet(schoolSummary);
-      XLSX.utils.book_append_sheet(insightsWorkbook, wsSchools, 'Institutional Benchmarks');
-
-      XLSX.writeFile(insightsWorkbook, 'SuvenEdu_System_Insight.xlsx');
+      await exportSheets('SuvenEdu_System_Insight', [
+        { name: 'Global Student Submissions', rows: reportData },
+        { name: 'Institutional Benchmarks', rows: schoolSummary }
+      ]);
       toast.success('Consolidated insights spreadsheet downloaded successfully.');
     } catch (error) {
       console.error('Export System Analytics Error:', error);

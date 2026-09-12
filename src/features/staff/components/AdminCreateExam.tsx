@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSubjectCategories } from '../../../shared/hooks/useNamedList';
 import { ManageNamedListDialog } from '../../../shared/components/ManageNamedListDialog';
+import { buildNewExamDocument } from '../lib/examDocument';
 
 // Lookup-only now — the admin-managed list itself comes from useSubjectCategories(). Any name
 // not in this map (e.g. an admin-added "B.Tech") falls back to the generic FileText icon below.
@@ -128,19 +129,10 @@ export const AdminCreateExam: React.FC = () => {
     }
 
     setIsSubmitting(true);
-    const finalAssignedSchoolIds = newExamMode === 'global' ? [] : newExam.assignedSchoolIds;
 
     try {
       const examsRef = collection(db, 'exams');
-      await addDoc(examsRef, {
-        ...newExam,
-        creatorId: profile.uid,
-        createdAt: new Date().toISOString(),
-        startTime: newExam.startTime || null,
-        endTime: newExam.endTime || null,
-        status: 'draft',
-        assignedSchoolIds: finalAssignedSchoolIds
-      });
+      await addDoc(examsRef, buildNewExamDocument(newExam, newExamMode, profile.uid));
 
       toast.success('Exam created successfully!');
       navigate('/admin/exams');

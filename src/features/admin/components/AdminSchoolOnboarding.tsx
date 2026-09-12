@@ -9,6 +9,12 @@ import { Badge } from '../../../components/ui/badge';
 import { Building2, Globe, X, Check, ArrowLeft, Key, Sparkles, CheckCircle2, Copy, ExternalLink, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
+import {
+  DEFAULT_INSTITUTION_TYPE,
+  INSTITUTION_TYPE_OPTIONS,
+  InstitutionType,
+  institutionProfile
+} from '../../../shared/lib/institutionType';
 
 const TagInput: React.FC<{
   tags: string[];
@@ -73,6 +79,7 @@ export const AdminSchoolOnboarding: React.FC = () => {
   // Streamlined Form State
   const [formData, setFormData] = useState({
     name: '',
+    institutionType: DEFAULT_INSTITUTION_TYPE as InstitutionType,
     board: 'CBSE',
     centerCode: '',
     city: '',
@@ -84,6 +91,9 @@ export const AdminSchoolOnboarding: React.FC = () => {
     authPolicy: 'both' as AuthPolicy,
     totalStudents: 500
   });
+  // Single source for every label and conditional field on this form, so the vocabulary
+  // follows the selected type instead of being hardcoded to schools.
+  const institution = institutionProfile(formData.institutionType);
 
   // Deterministically generate center code as user types school name
   const generateCenterCodeFromName = (name: string) => {
@@ -125,7 +135,7 @@ export const AdminSchoolOnboarding: React.FC = () => {
   const handleOnboardSchool = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isFormValid) {
-      toast.error('Please fill in the School Name and Admin Email.');
+      toast.error(`Please fill in the ${institution.label} Name and Admin Email.`);
       return;
     }
 
@@ -136,11 +146,12 @@ export const AdminSchoolOnboarding: React.FC = () => {
       const generatedCode =
         formData.centerCode || generateCenterCodeFromName(formData.name) || `SCH-${Math.floor(100 + Math.random() * 900)}`;
       const generatedPassword = formData.adminPassword.trim() || `Suven@${Math.floor(1000 + Math.random() * 9000)}`;
-      const adminName = formData.adminName.trim() || 'School Principal';
+      const adminName = formData.adminName.trim() || `${institution.label} Administrator`;
 
       const schoolPayload = {
         name: formData.name.trim(),
-        board: formData.board,
+        institutionType: formData.institutionType,
+        ...(institutionProfile(formData.institutionType).hasAffiliationBoard ? { board: formData.board } : {}),
         centerCode: generatedCode,
         address: formData.city ? `${formData.city}, ${formData.state}` : '',
         city: formData.city.trim(),
@@ -192,10 +203,10 @@ export const AdminSchoolOnboarding: React.FC = () => {
         portalUrl
       });
 
-      toast.success(`School "${formData.name}" successfully onboarded!`, { id: toastId });
+      toast.success(`${institution.label} "${formData.name}" successfully onboarded!`, { id: toastId });
     } catch (err) {
       console.error(err);
-      toast.error('Failed to onboard school. Please check connection and retry.', { id: toastId });
+      toast.error(`Failed to onboard ${institution.label.toLowerCase()}. Please check connection and retry.`, { id: toastId });
     } finally {
       setIsSubmitting(false);
     }
@@ -228,6 +239,7 @@ export const AdminSchoolOnboarding: React.FC = () => {
     setCreatedSchoolData(null);
     setFormData({
       name: '',
+      institutionType: DEFAULT_INSTITUTION_TYPE as InstitutionType,
       board: 'CBSE',
       centerCode: '',
       city: '',
@@ -288,7 +300,7 @@ export const AdminSchoolOnboarding: React.FC = () => {
                     <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[11px] md:text-[10px] font-black">
                       1
                     </span>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">School Identity</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">{institution.label} Identity</h3>
                   </div>
 
                   <div className="space-y-3">
@@ -299,7 +311,7 @@ export const AdminSchoolOnboarding: React.FC = () => {
                       <Input
                         value={formData.name}
                         onChange={handleNameChange}
-                        placeholder="e.g. Delhi Public School, R.K. Puram"
+                        placeholder={institution.namePlaceholder}
                         required
                         className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm font-medium focus:border-indigo-600 focus:bg-white"
                       />
@@ -307,20 +319,46 @@ export const AdminSchoolOnboarding: React.FC = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <Label className="text-xs font-bold text-slate-700 mb-1.5 block">Affiliation Board</Label>
+                        <Label htmlFor="institution-type" className="text-xs font-bold text-slate-700 mb-1.5 block">
+                          Institution Type
+                        </Label>
                         <select
-                          value={formData.board}
-                          onChange={(e) => setFormData({ ...formData, board: e.target.value })}
+                          id="institution-type"
+                          value={formData.institutionType}
+                          onChange={(e) => setFormData({ ...formData, institutionType: e.target.value as InstitutionType })}
                           className="w-full h-11 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-3 text-xs font-medium focus:border-indigo-600 focus:bg-white outline-none"
                         >
-                          <option value="CBSE">CBSE (Central Board)</option>
-                          <option value="ICSE">ICSE / ISC</option>
-                          <option value="IB">IB World School</option>
-                          <option value="State Board">State Board</option>
-                          <option value="Cambridge">Cambridge / IGCSE</option>
-                          <option value="Autonomous">Autonomous College</option>
+                          {INSTITUTION_TYPE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
                         </select>
                       </div>
+
+                      {/* An affiliation board is a school-board concept. Offering CBSE/ICSE to a
+                          coaching centre or a corporate L&D team is not a neutral default — it is
+                          a wrong one, and it used to be stored on every tenant regardless. */}
+                      {institution.hasAffiliationBoard && (
+                        <div>
+                          <Label htmlFor="affiliation-board" className="text-xs font-bold text-slate-700 mb-1.5 block">
+                            Affiliation Board
+                          </Label>
+                          <select
+                            id="affiliation-board"
+                            value={formData.board}
+                            onChange={(e) => setFormData({ ...formData, board: e.target.value })}
+                            className="w-full h-11 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-3 text-xs font-medium focus:border-indigo-600 focus:bg-white outline-none"
+                          >
+                            <option value="CBSE">CBSE (Central Board)</option>
+                            <option value="ICSE">ICSE / ISC</option>
+                            <option value="IB">IB World School</option>
+                            <option value="State Board">State Board</option>
+                            <option value="Cambridge">Cambridge / IGCSE</option>
+                            <option value="Autonomous">Autonomous College</option>
+                          </select>
+                        </div>
+                      )}
 
                       <div>
                         <div className="flex justify-between items-center mb-1.5">
@@ -330,7 +368,7 @@ export const AdminSchoolOnboarding: React.FC = () => {
                           <span className="text-[11px] md:text-[10px] text-slate-400 font-medium">Auto-generated</span>
                         </div>
                         <Input
-                          value={formData.centerCode || 'Pending School Name'}
+                          value={formData.centerCode || `Pending ${institution.label} Name`}
                           readOnly
                           className="h-11 bg-slate-100 border-slate-200 text-slate-700 placeholder:text-slate-400 rounded-xl text-xs font-mono font-bold uppercase cursor-not-allowed select-none"
                         />
@@ -452,7 +490,9 @@ export const AdminSchoolOnboarding: React.FC = () => {
                       <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[11px] md:text-[10px] font-black">
                         3
                       </span>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">Enrolled Student Seat Quota</h3>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                        Enrolled {institution.memberLabel} Seat Quota
+                      </h3>
                     </div>
                     <span className="text-xs font-mono font-bold text-indigo-600">
                       {Number(formData.totalStudents || 0).toLocaleString()} Seats
@@ -499,7 +539,7 @@ export const AdminSchoolOnboarding: React.FC = () => {
                     className="w-full h-12 bg-indigo-600 hover:bg-slate-900 text-white rounded-2xl font-extrabold text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 transition-all cursor-pointer"
                   >
                     {isSubmitting ? (
-                      <>Provisioning School Node...</>
+                      <>Provisioning {institution.label} Node...</>
                     ) : (
                       <>
                         <Sparkles size={18} /> Provision & Register Institution

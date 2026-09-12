@@ -27,7 +27,10 @@ const attempt: Attempt = {
   status: 'in-progress',
   answers: [],
   score: 0,
-  startedAt: new Date().toISOString()
+  // `startTime`, not `startedAt` — that is the field types.ts declares and the one the
+  // server actually writes. The fixture drifted, so every render in this file had a
+  // NaN countdown and no test noticed.
+  startTime: new Date().toISOString()
 } as unknown as Attempt;
 
 const exam: Exam = {
@@ -263,6 +266,47 @@ describe('the 30-second autosave tick', () => {
       // the behaviour rather than either mechanism.
       await vi.advanceTimersByTimeAsync(90_000);
       expect(updateDocMock).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('accessibility of the exam screen', () => {
+  // The countdown is the single most important piece of state on this screen, and it was
+  // conveyed only as "12:30" inside a div — no role, and read aloud as a clock time rather
+  // than a duration.
+  it('exposes the countdown as a timer with a spoken duration, not a clock time', async () => {
+    await renderExamAndEnter();
+
+    const timer = await screen.findByRole('timer');
+
+    // 60-minute fixture, so the label is minutes + seconds remaining, spelled out.
+    expect(timer).toHaveAttribute('aria-label', expect.stringMatching(/minutes? \d+ seconds? remaining/));
+    expect(timer.getAttribute('aria-label')).not.toMatch(/^\d+:\d+$/);
+  });
+
+  // Everything this screen tells the student about the safety of their answers — autosave,
+  // time running out, the connection dropping — was visual or toast-only.
+  it('renders a polite live region for autosave and connection status', async () => {
+    await renderExamAndEnter();
+
+    const status = await screen.findByRole('status');
+
+    expect(status).toHaveAttribute('aria-live', 'polite');
+    // Present from mount, not injected when it first has something to say — a live region
+    // added at announce-time is frequently missed by assistive tech.
+    expect(status).toBeInTheDocument();
+  });
+
+  it('announces the result of an autosave tick', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await renderExamAndEnter();
+
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/answers saved/i));
     } finally {
       vi.useRealTimers();
     }

@@ -78,6 +78,12 @@ const ExamInterfaceCore: React.FC = () => {
   const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState(false);
   const [isPeriodicTableOpen, setIsPeriodicTableOpen] = useState(false);
   const [hasWarnedUnder5Min, setHasWarnedUnder5Min] = useState(false);
+  // Text pushed to the visually-hidden live region at the bottom of the exam screen. Every
+  // piece of feedback this screen gives — time milestones, autosave, going offline — is
+  // otherwise conveyed only visually or through a toast, which leaves a screen-reader user
+  // with no idea whether their answers are safe.
+  const [screenReaderStatus, setScreenReaderStatus] = useState('');
+  const announcedMilestonesRef = useRef<Set<number>>(new Set());
 
   const [timePerQuestion, setTimePerQuestion] = useState<Record<number, number>>({});
   const [violationsCount, setViolationsCount] = useState(0);
@@ -374,8 +380,10 @@ const ExamInterfaceCore: React.FC = () => {
         }
         await updateDoc(doc(db, 'attempts', attemptId), payload);
         hasMarkedInProgressRef.current = true;
+        setScreenReaderStatus(`Answers saved at ${new Date().toLocaleTimeString()}.`);
       } catch (err) {
         console.error('Implicit stats tick update missed:', err);
+        setScreenReaderStatus('Could not save answers just now. Your answers are still on this device and will be retried.');
       }
     }, 30000);
 
@@ -453,6 +461,9 @@ const ExamInterfaceCore: React.FC = () => {
         setIsSubmitConfirmOpen(false);
         setOfflineAnswersSnapshot([...answers]);
         setShowOfflineWall(true);
+        setScreenReaderStatus(
+          'Connection lost. Your answers are saved on this device. Do not close this tab — the exam will resubmit automatically.'
+        );
         return;
       }
 
@@ -961,6 +972,21 @@ const ExamInterfaceCore: React.FC = () => {
     return () => clearInterval(timer);
   }, [exam, attempt, loading, handleSubmit, currentIndex, isPaused, extraTime]);
 
+  // Spoken time milestones. Separate from the countdown itself, which must not be a live
+  // region — announcing every second would make the questions unreadable. Each threshold
+  // fires once; the ref stops a re-render at the same second repeating it.
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+    for (const minutes of [30, 15, 5, 1]) {
+      const threshold = minutes * 60;
+      if (timeLeft <= threshold && !announcedMilestonesRef.current.has(minutes)) {
+        announcedMilestonesRef.current.add(minutes);
+        setScreenReaderStatus(`${minutes} minute${minutes === 1 ? '' : 's'} remaining in this exam.`);
+        break;
+      }
+    }
+  }, [timeLeft]);
+
   // Trigger alert when remaining time falls below 5 minutes
   useEffect(() => {
     if (timeLeft > 0 && timeLeft <= 300 && !hasWarnedUnder5Min) {
@@ -1042,6 +1068,19 @@ const ExamInterfaceCore: React.FC = () => {
     const minutes = Math.floor(seconds / 60);
     const remainderSeconds = seconds % 60;
     return `${minutes}:${remainderSeconds < 10 ? '0' : ''}${remainderSeconds}`;
+  };
+
+  // "12:30" is read aloud as "twelve thirty" — a clock time, not a duration. Screen-reader
+  // users get this spelled out instead, on demand via the timer's own label.
+  const spokenTime = (seconds: number) => {
+    // A malformed attempt.startTime makes every downstream calculation NaN. The visible
+    // timer degrades to "NaN:NaN", which at least looks broken; an aria-label reading
+    // "NaN minutes NaN seconds remaining" out loud is worse than saying nothing useful.
+    if (!Number.isFinite(seconds)) return 'Time remaining unavailable';
+    const minutes = Math.floor(seconds / 60);
+    const remainderSeconds = seconds % 60;
+    if (minutes <= 0) return `${remainderSeconds} second${remainderSeconds === 1 ? '' : 's'} remaining`;
+    return `${minutes} minute${minutes === 1 ? '' : 's'} ${remainderSeconds} second${remainderSeconds === 1 ? '' : 's'} remaining`;
   };
 
   const getStatusCounts = () => {
@@ -1356,6 +1395,14 @@ const ExamInterfaceCore: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0f111a] text-slate-200 font-sans selection:bg-indigo-500/30 flex flex-col absolute inset-0 overflow-hidden">
+      {/* Single polite live region for the whole exam screen: time milestones, autosave
+          results, and loss of connection. `polite` rather than `assertive` on purpose — it
+          waits for a natural pause instead of cutting across a question being read aloud.
+          Rendered always (not conditionally) so assistive tech observes it from mount;
+          a region inserted at the moment it has something to say is often missed. */}
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {screenReaderStatus}
+      </div>
       {showOfflineWall && attempt && exam && (
         <OfflineSubmissionSafeWall
           answers={offlineAnswersSnapshot}
@@ -1455,9 +1502,16 @@ const ExamInterfaceCore: React.FC = () => {
             <HelpCircle size={14} className="text-amber-400" />
             <span className="hidden md:inline">Instructions</span>
           </Button>
-          <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-1.5 rounded-lg text-slate-200 font-mono font-bold text-sm shadow-inner shadow-black/20">
-            <Clock size={14} className="text-slate-500" />
-            {formatTime(timeLeft)}
+          {/* role="timer" lets assistive tech expose this as the countdown it is. Deliberately
+              NOT aria-live: a region that fires every second would talk over the questions.
+              Milestone announcements go through the polite status region below instead. */}
+          <div
+            role="timer"
+            aria-label={spokenTime(timeLeft)}
+            className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-1.5 rounded-lg text-slate-200 font-mono font-bold text-sm shadow-inner shadow-black/20"
+          >
+            <Clock size={14} className="text-slate-500" aria-hidden="true" />
+            <span aria-hidden="true">{formatTime(timeLeft)}</span>
           </div>
         </div>
       </header>

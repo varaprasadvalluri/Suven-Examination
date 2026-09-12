@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from '../lib/AuthContext';
 import { Toaster } from '../components/ui/sonner';
 import { Layout } from './Layout';
+import { RouteFocusManager } from './RouteFocusManager';
 import { RoleSelection } from '../features/auth/components/RoleSelection';
 import { ExamInterface } from '../features/exam-session/components/ExamInterface';
 import { LoginPage } from '../features/auth/components/LoginPage';
@@ -30,19 +31,31 @@ const AdminCreateExam = lazy(() => import('../features/staff/components/AdminCre
 const AdminOverview = lazy(() => import('../features/admin/components/AdminOverview').then((m) => ({ default: m.AdminOverview })));
 const ExamQuestions = lazy(() => import('../features/staff/components/ExamQuestions').then((m) => ({ default: m.ExamQuestions })));
 const AdminResults = lazy(() => import('../features/staff/components/AdminResults').then((m) => ({ default: m.AdminResults })));
-const AdminSchoolManagement = lazy(() => import('../features/admin/components/AdminSchoolManagement').then((m) => ({ default: m.AdminSchoolManagement })));
-const AdminSchoolOnboarding = lazy(() => import('../features/admin/components/AdminSchoolOnboarding').then((m) => ({ default: m.AdminSchoolOnboarding })));
+const AdminSchoolManagement = lazy(() =>
+  import('../features/admin/components/AdminSchoolManagement').then((m) => ({ default: m.AdminSchoolManagement }))
+);
+const AdminSchoolOnboarding = lazy(() =>
+  import('../features/admin/components/AdminSchoolOnboarding').then((m) => ({ default: m.AdminSchoolOnboarding }))
+);
 const SchoolCandidateOnboarding = lazy(() =>
   import('../features/staff/components/SchoolCandidateOnboarding').then((m) => ({ default: m.SchoolCandidateOnboarding }))
 );
-const LiveProctoringWall = lazy(() => import('../features/staff/components/LiveProctoringWall').then((m) => ({ default: m.LiveProctoringWall })));
+const LiveProctoringWall = lazy(() =>
+  import('../features/staff/components/LiveProctoringWall').then((m) => ({ default: m.LiveProctoringWall }))
+);
 const SyllabusTracker = lazy(() => import('../features/staff/components/SyllabusTracker').then((m) => ({ default: m.SyllabusTracker })));
 const RankingEngine = lazy(() => import('../features/staff/components/RankingEngine').then((m) => ({ default: m.RankingEngine })));
-const StudentExamHistory = lazy(() => import('../features/staff/components/StudentExamHistory').then((m) => ({ default: m.StudentExamHistory })));
+const StudentExamHistory = lazy(() =>
+  import('../features/staff/components/StudentExamHistory').then((m) => ({ default: m.StudentExamHistory }))
+);
 const AdminAnalytics = lazy(() => import('../features/admin/components/AdminAnalytics').then((m) => ({ default: m.AdminAnalytics })));
-const ScalePerformanceHub = lazy(() => import('../features/ops/components/ScalePerformanceHub').then((m) => ({ default: m.ScalePerformanceHub })));
+const ScalePerformanceHub = lazy(() =>
+  import('../features/ops/components/ScalePerformanceHub').then((m) => ({ default: m.ScalePerformanceHub }))
+);
 const ApiDocs = lazy(() => import('../features/ops/components/ApiDocs').then((m) => ({ default: m.ApiDocs })));
-const AdminCloudBilling = lazy(() => import('../features/admin/components/AdminCloudBilling').then((m) => ({ default: m.AdminCloudBilling })));
+const AdminCloudBilling = lazy(() =>
+  import('../features/admin/components/AdminCloudBilling').then((m) => ({ default: m.AdminCloudBilling }))
+);
 
 const RouteLoadingFallback: React.FC = () => (
   <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4">
@@ -105,6 +118,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; roles?: string[] }> 
 export default function App() {
   return (
     <Router>
+      <RouteFocusManager />
       <AuthProvider>
         <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>

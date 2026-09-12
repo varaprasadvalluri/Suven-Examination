@@ -31,6 +31,8 @@ import { Plus, Building2, Search, X, LayoutGrid, List as ListIcon, ShieldCheck, 
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { DataLoader } from '../../../shared/components/DataLoader';
+import { PaginationBar } from '../../../shared/components/PaginationBar';
+import { institutionProfile } from '../../../shared/lib/institutionType';
 
 const TagInput: React.FC<{
   tags: string[];
@@ -465,7 +467,7 @@ export const AdminSchoolManagement: React.FC = () => {
             />
             <DialogContent className="sm:max-w-[400px] rounded-3xl border border-slate-200 shadow-2xl bg-white p-6">
               <DialogHeader>
-                <DialogTitle className="text-xl font-black text-slate-900">Pre-Register School Admin</DialogTitle>
+                <DialogTitle className="text-xl font-black text-slate-900">Pre-Register Institution Admin</DialogTitle>
                 <DialogDescription className="text-slate-500 text-xs font-bold">
                   Enter the email address of the school administrator to whitelist them for registration.
                 </DialogDescription>
@@ -674,6 +676,11 @@ export const AdminSchoolManagement: React.FC = () => {
                       </CardTitle>
                       <CardDescription className="flex items-center gap-1.5 text-slate-400 font-bold text-[11px] md:text-[10px] uppercase tracking-wider mt-2">
                         <MapPin size={12} className="text-rose-500" /> {school.region || 'Central Zone'}
+                        {/* Absent on every record predating institutionType; institutionProfile
+                            resolves that to School rather than rendering a blank chip. */}
+                        <span className="ml-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 tracking-normal normal-case">
+                          {institutionProfile((school as any).institutionType).label}
+                        </span>
                       </CardDescription>
                     </CardHeader>
 
@@ -743,53 +750,16 @@ export const AdminSchoolManagement: React.FC = () => {
               </motion.div>
 
               {/* Pagination Controls below Grid */}
-              {totalSchoolsCount > 0 && (
-                <div className="p-6 border border-slate-200 rounded-[24px] flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-400">Schools per page:</span>
-                    <select
-                      value={pageSize}
-                      onChange={(e) => {
-                        setPageSize(parseInt(e.target.value));
-                        setPage(1);
-                      }}
-                      className="p-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none cursor-pointer"
-                    >
-                      {[3, 5, 10, 20].map((size) => (
-                        <option key={size} value={size}>
-                          {size}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-xs font-medium text-slate-400 ml-4 font-mono">
-                      Showing {(page - 1) * pageSize + 1} - {Math.min(totalSchoolsCount, page * pageSize)} of {totalSchoolsCount} nodes
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1 || loadingSchools}
-                      className="h-9 px-3 rounded-lg border-slate-200 font-bold text-xs cursor-pointer"
-                    >
-                      Previous
-                    </Button>
-                    <div className="h-9 w-9 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-center text-xs font-black text-indigo-700 font-mono">
-                      {page}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => p + 1)}
-                      disabled={page * pageSize >= totalSchoolsCount || loadingSchools}
-                      className="h-9 px-3 rounded-lg border-slate-200 font-bold text-xs cursor-pointer"
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <PaginationBar
+                total={totalSchoolsCount}
+                page={page}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+                sizeLabel="Schools per page:"
+                itemNoun="nodes"
+                busy={loadingSchools}
+              />
             </div>
           ) : (
             <div className="space-y-6">
@@ -924,54 +894,16 @@ export const AdminSchoolManagement: React.FC = () => {
               </motion.div>
 
               {/* Pagination Controls below List Data Monitor */}
-              {totalSchoolsCount > 0 && (
-                <div className="p-6 border border-slate-200 rounded-[24px] flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-400">Schools per page:</span>
-                    <select
-                      value={pageSize}
-                      onChange={(e) => {
-                        setPageSize(parseInt(e.target.value));
-                        setPage(1);
-                      }}
-                      className="p-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none cursor-pointer"
-                    >
-                      {[3, 5, 10, 20].map((size) => (
-                        <option key={size} value={size}>
-                          {size}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-xs font-medium text-slate-400 ml-4 font-mono">
-                      Showing {(page - 1) * pageSize + 1} - {Math.min(totalSchoolsCount, page * pageSize)} of {totalSchoolsCount} Monitor
-                      Nodes
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1 || loadingSchools}
-                      className="h-9 px-3 rounded-lg border-slate-200 font-bold text-xs cursor-pointer"
-                    >
-                      Previous
-                    </Button>
-                    <div className="h-9 w-9 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-center text-xs font-black text-indigo-700 font-mono">
-                      {page}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => p + 1)}
-                      disabled={page * pageSize >= totalSchoolsCount || loadingSchools}
-                      className="h-9 px-3 rounded-lg border-slate-200 font-bold text-xs cursor-pointer"
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <PaginationBar
+                total={totalSchoolsCount}
+                page={page}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+                sizeLabel="Schools per page:"
+                itemNoun="nodes"
+                busy={loadingSchools}
+              />
             </div>
           )}
         </AnimatePresence>

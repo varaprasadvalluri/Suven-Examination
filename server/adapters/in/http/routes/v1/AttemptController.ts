@@ -361,6 +361,27 @@ router.post(
         const attempt = attemptByStudent.get(studentId);
         const existingInvite = inviteByStudent.get(studentId);
 
+        // Issuing an invitation is identical whether this is a first trigger or a re-trigger
+        // after a finished attempt; it lived twice, and the two copies had to be kept in step
+        // by hand. Closes over the per-student values so the call sites stay a single line.
+        const issueInvitation = async () => {
+          const token = randomUUID();
+          const payload = {
+            id: token,
+            studentId,
+            studentName: student.name,
+            studentEmail: student.email || '',
+            examId,
+            examTitle,
+            schoolId,
+            status: 'sent',
+            createdAt: new Date().toISOString()
+          };
+          const inviteDecision = await authorizeWrite(req.auth, 'add', 'invitations', undefined, payload);
+          if (inviteDecision.ok === false) throw new Error(inviteDecision.error);
+          await invitationDao.create(token, inviteDecision.data);
+        };
+
         // isAttemptFinished, not === 'completed': grading is asynchronous, so a just-submitted
         // attempt sits in 'submitted' before it reaches 'completed'. Matching only 'completed'
         // meant a re-trigger during the grading window fell through both branches and issued a
@@ -382,21 +403,7 @@ router.post(
           if (existingInvite) {
             await invitationDao.setStatus(existingInvite.id, 'sent');
           } else {
-            const token = randomUUID();
-            const payload = {
-              id: token,
-              studentId,
-              studentName: student.name,
-              studentEmail: student.email || '',
-              examId,
-              examTitle,
-              schoolId,
-              status: 'sent',
-              createdAt: new Date().toISOString()
-            };
-            const inviteDecision = await authorizeWrite(req.auth, 'add', 'invitations', undefined, payload);
-            if (inviteDecision.ok === false) throw new Error(inviteDecision.error);
-            await invitationDao.create(token, inviteDecision.data);
+            await issueInvitation();
           }
           reTriggered++;
           return;
@@ -407,21 +414,7 @@ router.post(
           return;
         }
 
-        const token = randomUUID();
-        const payload = {
-          id: token,
-          studentId,
-          studentName: student.name,
-          studentEmail: student.email || '',
-          examId,
-          examTitle,
-          schoolId,
-          status: 'sent',
-          createdAt: new Date().toISOString()
-        };
-        const inviteDecision = await authorizeWrite(req.auth, 'add', 'invitations', undefined, payload);
-        if (inviteDecision.ok === false) throw new Error(inviteDecision.error);
-        await invitationDao.create(token, inviteDecision.data);
+        await issueInvitation();
         triggered++;
       })
     );

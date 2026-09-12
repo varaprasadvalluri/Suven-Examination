@@ -50,13 +50,13 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../../../components/ui/dialog';
 import { Badge } from '../../../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { useAcademicLevels } from '../../../shared/hooks/useNamedList';
 import { ManageNamedListDialog } from '../../../shared/components/ManageNamedListDialog';
 import { SearchableDropdown } from '../../../shared/components/SearchableDropdown';
+import { exportSheet, exportSheets, readFirstSheetRows } from '../../../shared/lib/spreadsheet';
 
 export const SchoolStudentOnboarding: React.FC = () => {
   const { profile } = useAuth();
@@ -505,13 +505,9 @@ export const SchoolStudentOnboarding: React.FC = () => {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
-        const binaryString = evt.target?.result;
-        const workbook = XLSX.read(binaryString, { type: 'binary' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const parsedStudentRows = XLSX.utils.sheet_to_json(worksheet);
+        const parsedStudentRows = await readFirstSheetRows(evt.target?.result);
 
         setPreviewData(parsedStudentRows);
         performValidationPreflight(parsedStudentRows);
@@ -523,14 +519,31 @@ export const SchoolStudentOnboarding: React.FC = () => {
     reader.readAsBinaryString(file);
   };
 
-  const downloadTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([
+  // One invitation document, written the same way whether it is issued directly or as the
+  // fallback branch of a re-trigger. The field set is the contract the exam-entry route reads
+  // back, so the two copies of it had to agree exactly; now there is only one.
+  const writeInvitation = async (studentId: string, student: any, exam: any): Promise<string> => {
+    // Cryptographically secure random 128-bit token.
+    const secureToken = crypto.randomUUID();
+    await setDoc(doc(db, 'invitations', secureToken), {
+      id: secureToken,
+      studentId: studentId,
+      studentName: student.name,
+      studentEmail: student.email || '',
+      examId: exam.id,
+      examTitle: exam.title,
+      schoolId: profile?.schoolId || null,
+      status: 'sent',
+      createdAt: new Date().toISOString()
+    });
+    return secureToken;
+  };
+
+  const downloadTemplate = async () => {
+    await exportSheet('Student_Onboarding_Template', 'Students Template', [
       { name: 'John Doe', email: 'john@school.com', class: '10th Grade', section: 'A', rollNumber: '101', dob: '2005-08-15' },
       { name: 'Jane Smith', email: 'jane@school.com', class: '10th Grade', section: 'B', rollNumber: '102', dob: '2006-02-28' }
     ]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Students Template');
-    XLSX.writeFile(wb, 'Student_Onboarding_Template.xlsx');
   };
 
   const processImport = async () => {
@@ -597,20 +610,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
     }
 
     try {
-      const secureToken = crypto.randomUUID(); // Crytographically secure random 128-bit UI token
-      const inviteRef = doc(db, 'invitations', secureToken);
-
-      await setDoc(inviteRef, {
-        id: secureToken,
-        studentId: studentId,
-        studentName: student.name,
-        studentEmail: student.email || '',
-        examId: exam.id,
-        examTitle: exam.title,
-        schoolId: profile?.schoolId || null,
-        status: 'sent',
-        createdAt: new Date().toISOString()
-      });
+      const secureToken = await writeInvitation(studentId, student, exam);
 
       const inviteUrl = `${window.location.origin}/login?invite=${secureToken}`;
       setActiveInvite({
@@ -654,20 +654,8 @@ export const SchoolStudentOnboarding: React.FC = () => {
           status: 'sent'
         });
       } else {
-        const secureToken = crypto.randomUUID();
+        const secureToken = await writeInvitation(studentId, student, exam);
         activeInviteId = secureToken;
-        const inviteRef = doc(db, 'invitations', secureToken);
-        await setDoc(inviteRef, {
-          id: secureToken,
-          studentId: studentId,
-          studentName: student.name,
-          studentEmail: student.email || '',
-          examId: exam.id,
-          examTitle: exam.title,
-          schoolId: profile?.schoolId || null,
-          status: 'sent',
-          createdAt: new Date().toISOString()
-        });
       }
 
       const inviteUrl = `${window.location.origin}/login?invite=${activeInviteId}`;
@@ -817,7 +805,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
   };
 
   // Export current exam links list with students as Excel spreadsheet
-  const handleExportBatchLinks = () => {
+  const handleExportBatchLinks = async () => {
     if (!selectedExamId || selectedExamId === 'none') return;
     const exam = exams.find((e) => e.id === selectedExamId);
     if (!exam) return;
@@ -844,27 +832,15 @@ export const SchoolStudentOnboarding: React.FC = () => {
       };
     });
 
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-
-    const columnWidths = [
-      { wch: 25 }, // Name
-      { wch: 30 }, // Email
-      { wch: 15 }, // Roll/Register ID
-      { wch: 20 }, // Date of Birth (DOB)
-      { wch: 15 }, // Class
-      { wch: 10 }, // Section
-      { wch: 30 }, // Assessment
-      { wch: 40 }, // Token
-      { wch: 80 }, // URL
-      { wch: 15 } // Status
-    ];
-    worksheet['!cols'] = columnWidths;
-
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Access Tokens');
-
     const sanitizedTitle = exam.title.replace(/[^a-zA-Z0-9]/g, '_');
-    XLSX.writeFile(workbook, `Assessment_Tokens_${sanitizedTitle}.xlsx`);
+    await exportSheets(`Assessment_Tokens_${sanitizedTitle}`, [
+      {
+        name: 'Access Tokens',
+        rows: dataToExport,
+        // Name, Email, Roll, DOB, Class, Section, Assessment, Token, URL, Status
+        columnWidths: [25, 30, 15, 20, 15, 10, 30, 40, 80, 15]
+      }
+    ]);
     toast.success('Excel sheet containing secure entry codes successfully downloaded!');
   };
 

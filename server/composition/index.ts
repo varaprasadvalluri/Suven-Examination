@@ -60,13 +60,7 @@ export const gradeAttemptService = new GradeAttemptService(attempts, scoreVerifi
 export const gradingDispatcher = new CloudTasksGradingDispatcher(gradeAttemptService);
 
 // -- Submission ------------------------------------------------------------------------
-export const attemptSubmissionService = new AttemptSubmissionService(
-  attempts,
-  documents,
-  gradingDispatcher,
-  authorizationService,
-  clock
-);
+export const attemptSubmissionService = new AttemptSubmissionService(attempts, documents, gradingDispatcher, authorizationService, clock);
 
 // -- Media -----------------------------------------------------------------------------
 // Both stores are live at once: assets predating the Firebase Storage migration still sit in

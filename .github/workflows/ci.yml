@@ -49,6 +49,13 @@ jobs:
       - name: ESLint
         run: npm run eslint
 
+      # An import cycle typechecks, builds and passes every test, then renders an undefined
+      # component at runtime depending on which module the bundler evaluates first. The
+      # hexagonal/feature refactor introduced exactly one of these (auth <-> exam-session via
+      # barrel files) and nothing else in this pipeline noticed.
+      - name: Circular dependencies
+        run: npm run lint:cycles
+
       - name: Format check
         run: npm run format:check
 

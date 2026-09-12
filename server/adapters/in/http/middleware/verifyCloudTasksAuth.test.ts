@@ -21,7 +21,6 @@ vi.mock('@google-cloud/tasks', () => ({
   CloudTasksClient: vi.fn().mockImplementation(() => ({ queuePath: queuePathMock, createTask: createTaskMock }))
 }));
 
-
 const CONFIG = {
   firebaseConfig: { projectId: 'proj-1', firestoreDatabaseId: '(default)', apiKey: 'k', storageBucket: '' },
   CLOUD_TASKS_LOCATION: 'us-central1',

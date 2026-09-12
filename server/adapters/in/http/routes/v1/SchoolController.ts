@@ -16,6 +16,7 @@ import {
 import { enqueueWrite } from '../../../../out/firestore/writeQueue';
 import { logger } from '../../../../../lib/logger';
 import { NotFoundError } from '../../../../../lib/errors';
+import { cascadeDeleteByScope } from '../../../../out/firestore/cascadeDelete';
 
 const router = express.Router();
 
@@ -100,7 +101,6 @@ router.get(
 // while deleting is naturally correct here instead: each pass's matches shrink as prior
 // matches get deleted, so the next bounded fetch advances on its own.
 const SCHOOL_DEPENDENT_COLLECTIONS = ['users', 'invitations', 'attempts', 'error_books', 'secure_exam_links'] as const;
-const DELETE_PAGE_SIZE = 500;
 
 /**
  * @openapi
@@ -146,30 +146,7 @@ router.delete(
     const results: Record<string, { deleted: number; failed: number }> = {};
 
     for (const collectionName of SCHOOL_DEPENDENT_COLLECTIONS) {
-      let deleted = 0;
-      let failed = 0;
-
-      // Loop a bounded query until it comes back empty — deletions shrink the match set
-      // each pass, so this never re-reads more than DELETE_PAGE_SIZE docs at a time
-      // regardless of how large the school is.
-      while (true) {
-        const snap = await clientGetDocs(
-          clientQuery(clientCollection(clientDb, collectionName), clientWhere('schoolId', '==', schoolId), clientLimit(DELETE_PAGE_SIZE))
-        );
-        if (snap.docs.length === 0) break;
-
-        const settled = await Promise.allSettled(snap.docs.map((d: any) => enqueueWrite({ type: 'delete', collectionName, docId: d.id })));
-        for (const outcome of settled) {
-          if (outcome.status === 'fulfilled') deleted++;
-          else failed++;
-        }
-
-        // A failed op's doc wasn't actually deleted, so it would match the same query
-        // again next pass and loop forever — stop this collection's loop on any failure
-        // rather than spin; the counts already collected are accurate and reported.
-        if (failed > 0) break;
-        if (snap.docs.length < DELETE_PAGE_SIZE) break;
-      }
+      const { deleted, failed } = await cascadeDeleteByScope(collectionName, 'schoolId', schoolId);
 
       results[collectionName] = { deleted, failed };
     }

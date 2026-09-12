@@ -24,6 +24,7 @@ import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { useAuth } from '../../../lib/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { percentage as percentagePct } from '../../../shared/lib/format';
 
 export const ResultDetails: React.FC = () => {
   const { attemptId } = useParams<{ attemptId: string }>();
@@ -418,7 +419,7 @@ export const ResultDetails: React.FC = () => {
     );
   }
 
-  const percentage = Math.round((attempt.score / exam.totalMarks) * 100);
+  const percentage = percentagePct(attempt.score, exam.totalMarks);
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
