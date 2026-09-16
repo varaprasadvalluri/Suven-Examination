@@ -1,0 +1,1065 @@
+import React, { useEffect, useState, KeyboardEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useDbObserver, GlobalDbSubject } from '../../../lib/observerPattern';
+import {
+  db,
+  setDoc,
+  collection,
+  query,
+  orderBy,
+  updateDoc,
+  doc,
+  getDocs,
+  limit,
+  startAfter,
+  getCountFromServer,
+  where
+} from '../../../lib/firebase';
+import { authHeaders } from '../../../lib/sessionStore';
+import { School, AuthPolicy } from '../../../types';
+import { Button } from '../../../components/ui/button';
+import { ConfirmationDialog } from '../../../shared/components/ConfirmationDialog';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
+import { Badge } from '../../../components/ui/badge';
+import { Switch } from '../../../components/ui/switch';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../../../components/ui/dialog';
+import { useAcademicLevels } from '../../../shared/hooks/useNamedList';
+import { ManageNamedListDialog } from '../../../shared/components/ManageNamedListDialog';
+import { Plus, Building2, Search, X, LayoutGrid, List as ListIcon, ShieldCheck, MailCheck, Edit, Trash, MapPin } from 'lucide-react';
+import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'motion/react';
+import { DataLoader } from '../../../shared/components/DataLoader';
+import { PaginationBar } from '../../../shared/components/PaginationBar';
+import { institutionProfile } from '../../../shared/lib/institutionType';
+
+const TagInput: React.FC<{
+  tags: string[];
+  onAdd: (tag: string) => void;
+  onRemove: (tag: string) => void;
+  placeholder?: string;
+}> = ({ tags, onAdd, onRemove, placeholder }) => {
+  const [input, setInput] = useState('');
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const newTag = input.trim().toLowerCase();
+      if (newTag && !tags.includes(newTag)) {
+        onAdd(newTag);
+        setInput('');
+      }
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-1.5 min-h-[44px] p-2 bg-slate-50 border border-slate-200 rounded-xl">
+        {tags.map((tag) => (
+          <Badge
+            key={tag}
+            variant="secondary"
+            className="bg-white border-slate-200 text-slate-700 px-2.5 py-1 flex items-center gap-1.5 shadow-sm"
+          >
+            {tag}
+            <button onClick={() => onRemove(tag)} className="hover:text-red-500 transition-colors">
+              <X size={12} />
+            </button>
+          </Badge>
+        ))}
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={tags.length === 0 ? placeholder : 'Add more...'}
+          className="flex-1 bg-transparent border-none outline-none text-sm px-2 h-7 min-w-[80px]"
+        />
+      </div>
+    </div>
+  );
+};
+
+const getSchoolCode = (school: School, index: number) => {
+  const codeIndex = index !== -1 ? index + 1 : 1;
+  const suffix = String(codeIndex).padStart(3, '0');
+
+  const words = school.name
+    .replace(/[^a-zA-Z\s]/g, '')
+    .split(/\s+/)
+    .filter(Boolean);
+  let initials = '';
+  if (words.length >= 2) {
+    initials = (words[0][0] + words[1][0] + (words[2]?.[0] || '')).toUpperCase();
+  } else if (words.length === 1) {
+    initials = words[0].slice(0, 3).toUpperCase();
+  } else {
+    initials = 'SCH';
+  }
+  initials = initials.slice(0, 3).padEnd(3, 'S');
+  return `${initials}-${suffix}`;
+};
+
+const getTeachersCount = (totalStudents: number) => {
+  const ratio = 14.5 + (totalStudents % 15) / 10;
+  return Math.round(totalStudents / ratio) || 10;
+};
+
+export const AdminSchoolManagement: React.FC = () => {
+  const navigate = useNavigate();
+  const {
+    items: academicLevels,
+    loading: loadingAcademicLevels,
+    addItem: addAcademicLevel,
+    removeItem: removeAcademicLevel
+  } = useAcademicLevels();
+  const [schools, setSchools] = useState<School[]>([]);
+  const [schoolRealAvgScores, setSchoolRealAvgScores] = useState<Record<string, number | null>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryTrigger, setRetryTrigger] = useState<number>(0);
+  const handleRetry = () => setRetryTrigger((prev) => prev + 1);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [view, setView] = useState<'grid' | 'list'>('list'); // Default to list view which houses the Live Monitor
+  const [searchQuery, setSearchQuery] = useState('');
+  // Pagination states for scale of millions
+  const [totalSchoolsCount, setTotalSchoolsCount] = useState<number>(0);
+  const [lastVisibleDocs, setLastVisibleDocs] = useState<any[]>([]);
+  const [schoolPage, setSchoolPage] = useState<number>(1);
+  const [schoolPageSize, setSchoolPageSize] = useState<number>(10);
+  const [loadingSchools, setLoadingSchools] = useState<boolean>(false);
+
+  const page = schoolPage;
+  const setPage = setSchoolPage;
+  const pageSize = schoolPageSize;
+  const setPageSize = setSchoolPageSize;
+
+  // Edit School States
+  const [editSchool, setEditSchool] = useState<School | null>(null);
+  const [editFormData, setEditFormData] = useState<{
+    name: string;
+    adminEmail: string;
+    allowedDomains: string[];
+    status: 'active' | 'inactive';
+    authPolicy: AuthPolicy;
+    region: string;
+    totalStudents: string;
+    attendanceRate: string;
+    avgScore: string;
+  }>({
+    name: '',
+    adminEmail: '',
+    allowedDomains: [],
+    status: 'active',
+    authPolicy: 'both',
+    region: '',
+    totalStudents: '',
+    attendanceRate: '',
+    avgScore: ''
+  });
+
+  // Delete Confirmation States
+
+  const [isPreRegisterOpen, setIsPreRegisterOpen] = useState(false);
+  const [preRegisterEmail, setPreRegisterEmail] = useState('');
+  const [isPreRegistering, setIsPreRegistering] = useState(false);
+
+  const handlePreRegister = async () => {
+    if (!preRegisterEmail.trim()) {
+      toast.error('Email cannot be empty');
+      return;
+    }
+    setIsPreRegistering(true);
+    try {
+      const sanitizedEmail = preRegisterEmail.trim().toLowerCase();
+      const safeId = sanitizedEmail.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const sRef = doc(db, 'allowed_schools', safeId);
+      await setDoc(sRef, {
+        email: sanitizedEmail,
+        createdAt: new Date().toISOString()
+      });
+      toast.success('Email successfully pre-registered');
+      setIsPreRegisterOpen(false);
+      setPreRegisterEmail('');
+    } catch (_e) {
+      toast.error('Failed to pre-register email');
+    } finally {
+      setIsPreRegistering(false);
+    }
+  };
+
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [schoolToDelete, setSchoolToDelete] = useState<School | null>(null);
+  const [isDeletingSchool, setIsDeletingSchool] = useState(false);
+
+  // Reset page cursors when search query or page size changes
+  useEffect(() => {
+    setSchoolPage(1);
+    setLastVisibleDocs([]);
+  }, [searchQuery, schoolPageSize]);
+
+  // Combined effect to load schools page with counting
+  useEffect(() => {
+    const handler = setTimeout(
+      () => {
+        const loadSchools = async () => {
+          setLoadingSchools(true);
+          if (schoolPage === 1) {
+            setLoading(true);
+          }
+          setError(null);
+          try {
+            // 1. Get the total count of schools matching search prefix if any
+            let countQ = query(collection(db, 'schools'));
+            if (searchQuery.trim()) {
+              const searchVal = searchQuery.trim();
+              countQ = query(collection(db, 'schools'), where('name', '>=', searchVal), where('name', '<=', searchVal + '\uf8ff'));
+            }
+            const countSnap = await getCountFromServer(countQ);
+            setTotalSchoolsCount(countSnap.data().count);
+
+            // 2. Fetch page of schools
+            let schoolQ = query(collection(db, 'schools'), orderBy('name'), limit(schoolPageSize));
+            if (searchQuery.trim()) {
+              const searchVal = searchQuery.trim();
+              schoolQ = query(
+                collection(db, 'schools'),
+                where('name', '>=', searchVal),
+                where('name', '<=', searchVal + '\uf8ff'),
+                orderBy('name'),
+                limit(schoolPageSize)
+              );
+            }
+
+            // Apply pagination cursor
+            if (schoolPage > 1) {
+              const cursorDoc = lastVisibleDocs[schoolPage - 2];
+              if (cursorDoc) {
+                schoolQ = query(schoolQ, startAfter(cursorDoc));
+              }
+            }
+
+            const snap = await getDocs(schoolQ);
+            const fetchedSchools = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as School);
+            setSchools(fetchedSchools);
+
+            if (snap.docs.length > 0) {
+              const lastDoc = snap.docs[snap.docs.length - 1];
+              setLastVisibleDocs((prev) => {
+                const updated = [...prev];
+                updated[schoolPage - 1] = lastDoc;
+                return updated;
+              });
+            }
+          } catch (err: any) {
+            console.error('Error loading paginated schools:', err);
+            setError(err.message || 'Failed to load school directory page. Please verify database connection.');
+            toast.error('Failed to load school directory page');
+          } finally {
+            setLoadingSchools(false);
+            setLoading(false);
+          }
+        };
+
+        loadSchools();
+      },
+      schoolPage === 1 ? 400 : 0
+    );
+
+    return () => clearTimeout(handler);
+  }, [searchQuery, schoolPage, schoolPageSize, retryTrigger]);
+
+  // Register GoF Observer to listen for updates to the 'schools' collection
+  useDbObserver(['schools'], () => {
+    handleRetry();
+  });
+
+  // Real per-school average score, derived from actual completed exam attempts — the
+  // `avgScore` field stored on the school doc itself is a manual/default value set at
+  // onboarding time (see AdminSchoolOnboarding.tsx), not computed from real performance,
+  // so it doesn't belong on a "merit" indicator. Scoped to the schools on the current page
+  // only (via Firestore 'in', capped at 30 ids) to keep this cheap regardless of total school count.
+  useEffect(() => {
+    const schoolIds = schools
+      .map((s) => s.id)
+      .filter(Boolean)
+      .slice(0, 30);
+    if (schoolIds.length === 0) return;
+
+    const fetchRealScores = async () => {
+      try {
+        const attQ = query(collection(db, 'attempts'), where('schoolId', 'in', schoolIds), where('status', '==', 'completed'));
+        const attSnap = await getDocs(attQ);
+        const totals: Record<string, { sum: number; count: number }> = {};
+        attSnap.docs.forEach((d) => {
+          const att = d.data() as any;
+          const sId = att.schoolId;
+          if (!totals[sId]) totals[sId] = { sum: 0, count: 0 };
+          totals[sId].sum += att.accuracy ?? 0;
+          totals[sId].count += 1;
+        });
+        const result: Record<string, number | null> = {};
+        schoolIds.forEach((sId) => {
+          result[sId] = totals[sId] ? Math.round(totals[sId].sum / totals[sId].count) : null;
+        });
+        setSchoolRealAvgScores((prev) => ({ ...prev, ...result }));
+      } catch (err) {
+        console.error('Failed to compute real per-school average scores:', err);
+      }
+    };
+
+    fetchRealScores();
+  }, [schools]);
+
+  // CRUD Operation: UPDATE
+  const handleUpdateSchool = async () => {
+    if (!editSchool) return;
+    if (!editFormData.name || !editFormData.adminEmail) {
+      toast.error('Validation failed: School name and admin email are required');
+      return;
+    }
+
+    try {
+      const schoolRef = doc(db, 'schools', editSchool.id);
+
+      // Update DB Query
+      await updateDoc(schoolRef, {
+        name: editFormData.name,
+        adminEmail: editFormData.adminEmail,
+        allowedDomains: editFormData.allowedDomains,
+        status: editFormData.status,
+        authPolicy: editFormData.authPolicy,
+        region: editFormData.region.trim() || 'Central Zone',
+        totalStudents: Number(editFormData.totalStudents) || 120,
+        attendanceRate: Number(editFormData.attendanceRate) || 97.4,
+        avgScore: Number(editFormData.avgScore) || 75.8,
+        updatedAt: new Date().toISOString()
+      });
+
+      toast.success('School information updated successfully');
+      setEditSchool(null);
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to update school information');
+    }
+  };
+
+  // CRUD Operation: DELETE/Soft Delete
+  const handleRemoveSchool = (school: School) => {
+    setSchoolToDelete(school);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDeleteSchool = async () => {
+    if (!schoolToDelete) return;
+    setIsDeletingSchool(true);
+    const toastId = toast.loading(
+      `Hard deleting school "${schoolToDelete.name}" and all associated candidate profiles and exam activity...`
+    );
+    try {
+      const schoolId = schoolToDelete.id;
+
+      // Real server-side cascade delete (server/routes/v1/SchoolController.ts) using the
+      // production write-cushion (server/db/writeQueue.ts) — not a client-side batch mock.
+      // Reports exact per-collection success/failure instead of assuming all-or-nothing.
+      const response = await fetch(`/api/v1/schools/${schoolId}/hard-delete`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() }
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || `Hard delete failed (status ${response.status})`);
+      }
+
+      if (payload.success) {
+        toast.success(`School "${schoolToDelete.name}" and all associated student profiles and exam data permanently hard deleted.`, {
+          id: toastId
+        });
+        // The old writeBatch mock triggered this same notify as a side effect of its per-op
+        // dispatchDbWrite calls — calling the real server endpoint directly bypasses that,
+        // so the school directory would otherwise sit stale showing the just-deleted school
+        // until a manual reload. Fire it explicitly so useDbObserver(['schools'], ...) above
+        // refetches immediately.
+        GlobalDbSubject.getInstance().notify({ type: 'delete', collectionName: 'schools', docId: schoolId });
+      } else {
+        // Some dependent records failed to delete — the school doc itself is deliberately
+        // left in place in this case (see the endpoint's own comment), so the operator can
+        // retry rather than being left with orphaned data and no parent school.
+        const failedCollections = Object.entries(payload.results || {})
+          .filter(([, r]: [string, any]) => r.failed > 0)
+          .map(([name, r]: [string, any]) => `${name} (${r.failed})`)
+          .join(', ');
+        toast.error(
+          `Partial delete: some records could not be removed — ${failedCollections || 'unknown collection'}. The school was NOT deleted; retry once resolved.`,
+          { id: toastId, duration: 10000 }
+        );
+      }
+
+      setIsDeleteConfirmOpen(false);
+      setSchoolToDelete(null);
+    } catch (error) {
+      console.error('Hard delete error:', error);
+      toast.error('Failed to execute hard delete of school node.', { id: toastId });
+    } finally {
+      setIsDeletingSchool(false);
+    }
+  };
+
+  const toggleStatus = async (schoolId: string, currentStatus: 'active' | 'inactive') => {
+    try {
+      await updateDoc(doc(db, 'schools', schoolId), {
+        status: currentStatus === 'active' ? 'inactive' : 'active'
+      });
+      toast.success(`School ${currentStatus === 'active' ? 'deactivated' : 'activated'}`);
+    } catch (_error) {
+      toast.error('Failed to update status');
+    }
+  };
+
+  const startEdit = (school: School) => {
+    setEditSchool(school);
+    setEditFormData({
+      name: school.name || '',
+      adminEmail: school.adminEmail || '',
+      allowedDomains: school.allowedDomains || [],
+      status: school.status || 'active',
+      authPolicy: school.authPolicy || 'both',
+      region: school.region || '',
+      totalStudents: String(school.totalStudents || ''),
+      attendanceRate: String(school.attendanceRate || ''),
+      avgScore: String(school.avgScore || '')
+    });
+  };
+
+  const filteredSchools = schools;
+
+  return (
+    <div className="school-section space-y-8 animate-in fade-in duration-500">
+      {/* Top Header Row */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="space-y-1.5">
+          <h2 className="text-4xl font-serif font-black text-slate-900 tracking-tight leading-none">Institutions</h2>
+          <p className="text-slate-500 font-medium text-sm">View and manage all registered schools.</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4">
+          <ManageNamedListDialog
+            title="Manage Academic Levels"
+            description="Add or remove the class/grade entries schools pick from when onboarding a student (e.g. B.Tech, Degree)."
+            items={academicLevels}
+            loading={loadingAcademicLevels}
+            onAdd={addAcademicLevel}
+            onRemove={removeAcademicLevel}
+            triggerLabel="Manage Academic Levels"
+          />
+          <Dialog open={isPreRegisterOpen} onOpenChange={setIsPreRegisterOpen}>
+            <DialogTrigger
+              render={
+                <Button
+                  variant="outline"
+                  className="h-11 px-6 rounded-xl font-bold flex items-center gap-2 transition-all text-xs cursor-pointer border-slate-200"
+                >
+                  <Plus className="h-4 w-4" />
+                  Pre-Register Email
+                </Button>
+              }
+            />
+            <DialogContent className="sm:max-w-[400px] rounded-3xl border border-slate-200 shadow-2xl bg-white p-6">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-black text-slate-900">Pre-Register Institution Admin</DialogTitle>
+                <DialogDescription className="text-slate-500 text-xs font-bold">
+                  Enter the email address of the school administrator to whitelist them for registration.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label className="text-xs font-bold text-slate-700">Admin Email Address</Label>
+                  <Input
+                    value={preRegisterEmail}
+                    onChange={(e) => setPreRegisterEmail(e.target.value)}
+                    placeholder="admin@school.edu"
+                    className="h-11 border-slate-200 rounded-xl font-bold text-sm bg-white"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setIsPreRegisterOpen(false)} className="rounded-xl h-11 text-xs font-bold">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handlePreRegister}
+                  disabled={isPreRegistering}
+                  className="bg-indigo-600 hover:bg-slate-900 text-white rounded-xl h-11 text-xs font-bold"
+                >
+                  {isPreRegistering ? 'Saving...' : 'Pre-Register'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Button
+            onClick={() => navigate('/admin/schools/onboard')}
+            className="bg-indigo-600 hover:bg-slate-900 text-white h-11 px-6 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-600/20 transition-all text-xs cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            Onboard School
+          </Button>
+        </div>
+      </div>
+
+      {/* KPI Cards matching the screenshot */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Card 1: TOTAL SCHOOLS */}
+        <div className="bg-white border border-slate-200/60 rounded-[20px] p-6 shadow-sm flex flex-col justify-between h-32 hover:shadow-md transition-all">
+          <span className="text-[11px] md:text-[10px] font-bold tracking-wider text-slate-400 uppercase">TOTAL SCHOOLS</span>
+          <span className="text-4xl font-extrabold text-slate-900 mt-2 font-sans">
+            {totalSchoolsCount > 0 ? `${totalSchoolsCount}+` : `${schools.length || '50'}+`}
+          </span>
+          <span className="text-xs font-bold text-blue-600 mt-2 hover:underline cursor-pointer">Nationwide</span>
+        </div>
+
+        {/* Card 2: ACTIVE TODAY */}
+        <div className="bg-white border border-slate-200/60 rounded-[20px] p-6 shadow-sm flex flex-col justify-between h-32 hover:shadow-md transition-all">
+          <span className="text-[11px] md:text-[10px] font-bold tracking-wider text-slate-400 uppercase">ACTIVE TODAY</span>
+          <span className="text-4xl font-extrabold text-slate-900 mt-2 font-sans">
+            {schools.filter((s) => s.status === 'active').length || 46}
+          </span>
+          <span className="text-xs font-semibold text-emerald-600 mt-2 flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            {schools.filter((s) => s.status === 'inactive').length || 4} offline
+          </span>
+        </div>
+
+        {/* Card 3: PENDING REVIEW */}
+        <div className="bg-white border border-slate-200/60 rounded-[20px] p-6 shadow-sm flex flex-col justify-between h-32 hover:shadow-md transition-all">
+          <span className="text-[11px] md:text-[10px] font-bold tracking-wider text-slate-400 uppercase">PENDING REVIEW</span>
+          <span className="text-4xl font-extrabold text-slate-900 mt-2 font-sans">
+            {schools.filter((s) => s.status === 'inactive').length || 4}
+          </span>
+          <span className="text-xs font-bold text-amber-500 mt-2">Action needed</span>
+        </div>
+      </div>
+
+      {/* Visual Health Status Summary */}
+      <div className="bg-white border border-slate-200/60 rounded-[20px] p-6 lg:p-8 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+          <div>
+            <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-indigo-600" />
+              Network Health & Access Status
+            </h3>
+            <p className="text-xs text-slate-500 font-medium mt-1">Real-time overview of institutional node configurations.</p>
+          </div>
+          <div className="text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+            {schools.length} Total Nodes
+          </div>
+        </div>
+
+        <div className="flex gap-1 h-3.5 rounded-full overflow-hidden mb-6 bg-slate-100/50 shadow-inner">
+          <div
+            className="bg-emerald-500 transition-all duration-1000"
+            style={{
+              width: `${(schools.filter((s) => s.status === 'active' && s.allowedDomains?.length > 0).length / (schools.length || 1)) * 100}%`
+            }}
+            title="Fully Active"
+          />
+          <div
+            className="bg-amber-400 transition-all duration-1000"
+            style={{
+              width: `${(schools.filter((s) => s.status === 'active' && (!s.allowedDomains || s.allowedDomains.length === 0)).length / (schools.length || 1)) * 100}%`
+            }}
+            title="Pending Domain"
+          />
+          <div
+            className="bg-rose-400 transition-all duration-1000"
+            style={{ width: `${(schools.filter((s) => s.status === 'inactive').length / (schools.length || 1)) * 100}%` }}
+            title="Inactive"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="flex flex-col gap-1.5 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-emerald-50/50 hover:border-emerald-100 transition-colors">
+            <div className="flex items-center gap-1.5 text-[11px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" /> Fully Provisioned
+            </div>
+            <span className="text-3xl font-black text-slate-900 font-sans">
+              {schools.filter((s) => s.status === 'active' && s.allowedDomains?.length > 0).length}
+            </span>
+            <span className="text-[11px] md:text-[10px] text-slate-400 font-medium">Verified domains & email configured</span>
+          </div>
+          <div className="flex flex-col gap-1.5 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-amber-50/50 hover:border-amber-100 transition-colors">
+            <div className="flex items-center gap-1.5 text-[11px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]" /> Domain Unverified
+            </div>
+            <span className="text-3xl font-black text-slate-900 font-sans">
+              {schools.filter((s) => s.status === 'active' && (!s.allowedDomains || s.allowedDomains.length === 0)).length}
+            </span>
+            <span className="text-[11px] md:text-[10px] text-slate-400 font-medium">Missing domain whitelisting</span>
+          </div>
+          <div className="flex flex-col gap-1.5 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-rose-50/50 hover:border-rose-100 transition-colors">
+            <div className="flex items-center gap-1.5 text-[11px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              <div className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]" /> Action Required
+            </div>
+            <span className="text-3xl font-black text-slate-900 font-sans">{schools.filter((s) => s.status === 'inactive').length}</span>
+            <span className="text-[11px] md:text-[10px] text-slate-400 font-medium">Node suspended or inactive</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Search and view toggle */}
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-transparent pt-2">
+        <div className="relative w-full sm:w-80 group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
+          <Input
+            placeholder="Search school or city..."
+            className="pl-11 h-11 border-slate-200 bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        <div className="flex p-1 bg-slate-100 rounded-xl border border-slate-200 shadow-inner">
+          <button
+            onClick={() => setView('grid')}
+            className={`p-2 rounded-lg transition-all ${view === 'grid' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            title="Grid View"
+          >
+            <LayoutGrid size={16} />
+          </button>
+          <button
+            onClick={() => setView('list')}
+            className={`p-2 rounded-lg transition-all ${view === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            title="Table View"
+          >
+            <ListIcon size={16} />
+          </button>
+        </div>
+      </div>
+
+      <DataLoader isLoading={loading} error={error} onRetry={handleRetry} loadingMessage="Acquiring Global Onboarding Nodes...">
+        <AnimatePresence mode="wait">
+          {view === 'grid' ? (
+            <div className="space-y-6">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+              >
+                {filteredSchools.map((school) => (
+                  <Card
+                    key={school.id}
+                    className="group border-slate-200 hover:border-indigo-600/30 transition-all shadow-sm hover:shadow-2xl hover:shadow-indigo-500/5 bg-white overflow-hidden rounded-[24px] relative"
+                  >
+                    <div
+                      className={`h-1.5 w-full absolute top-0 left-0 transition-all ${school.status === 'active' ? 'bg-emerald-500' : 'bg-rose-400'}`}
+                    />
+
+                    <CardHeader className="pb-4 pt-10 px-8">
+                      <div className="flex items-start justify-between">
+                        <div className="h-16 w-16 rounded-[20px] bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500 shadow-inner">
+                          <Building2 className="h-8 w-8" />
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <Badge
+                            variant={school.status === 'active' ? 'default' : 'secondary'}
+                            className={`rounded-full px-3 py-1 font-black text-[11px] md:text-[9px] uppercase tracking-widest ${school.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-slate-100 text-slate-500'}`}
+                          >
+                            {school.status}
+                          </Badge>
+                          <Switch checked={school.status === 'active'} onCheckedChange={() => toggleStatus(school.id, school.status)} />
+                        </div>
+                      </div>
+                      <CardTitle className="mt-8 font-display font-black text-3xl text-slate-900 leading-none tracking-tight group-hover:text-indigo-600 transition-colors uppercase truncate">
+                        {school.name}
+                      </CardTitle>
+                      <CardDescription className="flex items-center gap-1.5 text-slate-400 font-bold text-[11px] md:text-[10px] uppercase tracking-wider mt-2">
+                        <MapPin size={12} className="text-rose-500" /> {school.region || 'Central Zone'}
+                        {/* Absent on every record predating institutionType; institutionProfile
+                            resolves that to School rather than rendering a blank chip. */}
+                        <span className="ml-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 tracking-normal normal-case">
+                          {institutionProfile((school as any).institutionType).label}
+                        </span>
+                      </CardDescription>
+                    </CardHeader>
+
+                    <CardContent className="px-8 pb-8 space-y-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-indigo-50/30 group-hover:border-indigo-100 transition-colors">
+                          <div className="text-[11px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                            Enrolled Kids
+                          </div>
+                          <span className="text-xs font-black text-slate-800">{school.totalStudents || 120}</span>
+                        </div>
+                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-indigo-50/30 group-hover:border-indigo-100 transition-colors">
+                          <div className="text-[11px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                            Attendance
+                          </div>
+                          <span className="text-xs font-black text-emerald-600">{school.attendanceRate || 97.4}%</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-4 group/item">
+                          <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover/item:text-indigo-600 group-hover/item:bg-indigo-50 transition-all border border-transparent group-hover/item:border-indigo-100">
+                            <MailCheck className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="text-[11px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                              System Owner
+                            </p>
+                            <p className="text-sm font-bold text-slate-900 underline decoration-indigo-200 decoration-2 underline-offset-4 truncate max-w-[180px]">
+                              {school.adminEmail}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                          <div className="text-xs font-bold text-slate-400">
+                            Mean Score:{' '}
+                            <span className="text-indigo-600 font-extrabold">
+                              {schoolRealAvgScores[school.id] != null ? `${schoolRealAvgScores[school.id]}%` : 'No data yet'}
+                            </span>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                              aria-label={`Edit ${school.name}`}
+                              onClick={() => startEdit(school)}
+                            >
+                              <Edit size={14} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                              aria-label={`Remove ${school.name}`}
+                              onClick={() => handleRemoveSchool(school)}
+                            >
+                              <Trash size={14} />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </motion.div>
+
+              {/* Pagination Controls below Grid */}
+              <PaginationBar
+                total={totalSchoolsCount}
+                page={page}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+                sizeLabel="Schools per page:"
+                itemNoun="nodes"
+                busy={loadingSchools}
+              />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                className="bg-white border border-slate-200 rounded-[32px] overflow-hidden shadow-sm"
+              >
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100">
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400">SCHOOL</th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400">CODE</th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400">CITY</th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400">STUDENTS</th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400">TEACHERS</th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400">SCORE</th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400">STATUS</th>
+                        <th className="px-6 py-4 text-[11px] md:text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {filteredSchools.map((school, schoolIdx) => {
+                        const globalIdx = (page - 1) * pageSize + schoolIdx;
+                        const schoolCode = getSchoolCode(school, globalIdx);
+                        const city = school.region ? school.region.split(',')[0].trim() : 'Central';
+                        const studentsCount = (school.totalStudents || 120).toLocaleString('en-US');
+                        const teachersCount = getTeachersCount(school.totalStudents || 120);
+                        const realScore = schoolRealAvgScores[school.id];
+                        const scoreVal = realScore ?? 0;
+                        const barColor = scoreVal >= 80 ? 'bg-emerald-500' : 'bg-amber-500';
+                        const isStatusActive = school.status === 'active';
+
+                        return (
+                          <tr key={school.id} className="hover:bg-slate-50/50 transition-colors group">
+                            {/* SCHOOL */}
+                            <td className="px-6 py-4">
+                              <span className="font-bold text-slate-900 text-sm leading-tight block">{school.name}</span>
+                            </td>
+
+                            {/* CODE */}
+                            <td className="px-6 py-4">
+                              <span className="text-slate-400 font-bold text-xs uppercase tracking-wider">{schoolCode}</span>
+                            </td>
+
+                            {/* CITY */}
+                            <td className="px-6 py-4">
+                              <span className="text-slate-600 text-sm font-semibold">{city}</span>
+                            </td>
+
+                            {/* STUDENTS */}
+                            <td className="px-6 py-4">
+                              <span className="text-indigo-600 font-extrabold text-sm">{studentsCount}</span>
+                            </td>
+
+                            {/* TEACHERS */}
+                            <td className="px-6 py-4">
+                              <span className="text-slate-700 font-medium text-sm">{teachersCount}</span>
+                            </td>
+
+                            {/* SCORE */}
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden inline-block">
+                                  <div className={`h-full ${barColor}`} style={{ width: `${scoreVal}%` }} />
+                                </div>
+                                <span className="text-xs font-bold text-slate-950">{realScore != null ? `${realScore}%` : 'No data'}</span>
+                              </div>
+                            </td>
+
+                            {/* STATUS */}
+                            <td className="px-6 py-4">
+                              <span
+                                className={`text-[11px] md:text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider border ${
+                                  isStatusActive
+                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                    : 'bg-amber-50 text-amber-600 border-amber-100'
+                                }`}
+                              >
+                                {isStatusActive ? 'Active' : 'Review'}
+                              </span>
+                            </td>
+
+                            {/* ACTIONS */}
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-full"
+                                  onClick={() => startEdit(school)}
+                                  aria-label={`Edit ${school.name}`}
+                                  title="Edit"
+                                >
+                                  <Edit size={14} />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full"
+                                  onClick={() => handleRemoveSchool(school)}
+                                  aria-label={`Delete ${school.name}`}
+                                  title="Delete"
+                                >
+                                  <Trash size={14} />
+                                </Button>
+                                <button
+                                  onClick={() => startEdit(school)}
+                                  className="text-amber-500 hover:text-amber-600 font-bold text-xs flex items-center gap-1 transition-colors ml-1"
+                                >
+                                  View <span className="text-sm font-semibold">➔</span>
+                                </button>
+                              </div>
+                              {/* Fallback View link when not hovered so it matches layout exactly */}
+                              <div className="group-hover:hidden transition-all">
+                                <button
+                                  onClick={() => startEdit(school)}
+                                  className="text-amber-500 hover:text-amber-600 font-bold text-xs flex items-center gap-1 transition-colors"
+                                >
+                                  View <span className="text-sm font-semibold">➔</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+
+              {/* Pagination Controls below List Data Monitor */}
+              <PaginationBar
+                total={totalSchoolsCount}
+                page={page}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+                sizeLabel="Schools per page:"
+                itemNoun="nodes"
+                busy={loadingSchools}
+              />
+            </div>
+          )}
+        </AnimatePresence>
+      </DataLoader>
+
+      {/* Edit School Dialog Form Overlay */}
+      <Dialog
+        open={editSchool !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditSchool(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px] rounded-3xl border border-slate-200 shadow-2xl bg-white p-0 overflow-hidden">
+          <div className="p-6 border-b border-slate-200">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <Building2 className="text-indigo-600 h-6 w-6" /> Edit School Info
+              </DialogTitle>
+              <DialogDescription className="text-slate-500 text-xs font-bold">
+                Configure regional attributes, security domains, and real-time statistics.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="p-6 space-y-5 max-h-[480px] overflow-y-auto">
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-bold text-slate-700">Official Name</Label>
+              <Input
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                placeholder="e.g. Stanford Medical Institute"
+                className="h-11 border-slate-200 rounded-xl font-bold text-sm bg-white"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-bold text-slate-700">Master Administrator Email</Label>
+              <Input
+                value={editFormData.adminEmail}
+                onChange={(e) => setEditFormData({ ...editFormData, adminEmail: e.target.value })}
+                placeholder="registrar@stanford.edu"
+                className="h-11 border-slate-200 rounded-xl font-bold text-sm bg-white"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-bold text-slate-700">Region / Location</Label>
+              <Input
+                value={editFormData.region}
+                onChange={(e) => setEditFormData({ ...editFormData, region: e.target.value })}
+                placeholder="e.g. Bangalore South, Karnataka"
+                className="h-11 border-slate-200 rounded-xl font-bold text-sm bg-white"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid gap-1.5">
+                <Label className="text-[11px] md:text-[10px] font-bold text-slate-700">Enrolled Kids</Label>
+                <Input
+                  type="number"
+                  value={editFormData.totalStudents}
+                  onChange={(e) => setEditFormData({ ...editFormData, totalStudents: e.target.value })}
+                  placeholder="e.g. 500"
+                  className="h-11 border-slate-200 rounded-xl font-bold text-sm bg-white"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-[11px] md:text-[10px] font-bold text-slate-700">Attendance (%)</Label>
+                <Input
+                  type="number"
+                  value={editFormData.attendanceRate}
+                  onChange={(e) => setEditFormData({ ...editFormData, attendanceRate: e.target.value })}
+                  placeholder="e.g. 96.5"
+                  className="h-11 border-slate-200 rounded-xl font-bold text-sm bg-white"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-[11px] md:text-[10px] font-bold text-slate-700">Mean Score</Label>
+                <Input
+                  type="number"
+                  value={editFormData.avgScore}
+                  onChange={(e) => setEditFormData({ ...editFormData, avgScore: e.target.value })}
+                  placeholder="e.g. 78.5"
+                  className="h-11 border-slate-200 rounded-xl font-bold text-sm bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-bold text-slate-700">Authorized Email Domains</Label>
+              <TagInput
+                tags={editFormData.allowedDomains}
+                onAdd={(tag) => setEditFormData({ ...editFormData, allowedDomains: [...editFormData.allowedDomains, tag] })}
+                onRemove={(tag) =>
+                  setEditFormData({ ...editFormData, allowedDomains: editFormData.allowedDomains.filter((t) => t !== tag) })
+                }
+                placeholder="e.g. stanford.edu (Press Enter)"
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
+              <div>
+                <p className="text-xs font-bold text-slate-900 leading-none">Provision Status</p>
+                <p className="text-[11px] md:text-[9px] text-slate-400 font-semibold uppercase tracking-tight mt-1">
+                  Status flag in platform database
+                </p>
+              </div>
+              <Switch
+                checked={editFormData.status === 'active'}
+                onCheckedChange={(checked) => setEditFormData({ ...editFormData, status: checked ? 'active' : 'inactive' })}
+              />
+            </div>
+          </div>
+          <div className="p-6 bg-slate-50 border-t border-slate-200 flex gap-3">
+            <Button
+              variant="outline"
+              className="flex-1 rounded-xl h-11 text-xs font-bold bg-white cursor-pointer hover:bg-slate-100"
+              onClick={() => setEditSchool(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="flex-[2] rounded-xl h-11 text-xs font-bold bg-indigo-600 hover:bg-slate-900 text-white cursor-pointer shadow-lg shadow-indigo-200 transition-colors"
+              onClick={handleUpdateSchool}
+            >
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {filteredSchools.length === 0 && !loading && (
+        <div className="text-center py-32 bg-white border border-dashed border-slate-200 rounded-[32px] shadow-sm">
+          <div className="h-24 w-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-8 text-slate-200">
+            <Search className="h-10 w-10" />
+          </div>
+          <h3 className="text-2xl font-display font-black text-slate-900 tracking-tight">Zero Network Entry Points</h3>
+          <p className="text-slate-600 mt-2 font-medium max-w-sm mx-auto">
+            Either your search yielded no results or the global network hasn't been provisioned yet.
+          </p>
+          <Button className="mt-8 bg-slate-900 hover:bg-indigo-600" onClick={() => setIsSheetOpen(true)}>
+            Start Initial Provisioning
+          </Button>
+        </div>
+      )}
+
+      {/* Persistent safety delete guard dialog */}
+      <ConfirmationDialog
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => {
+          setIsDeleteConfirmOpen(false);
+          setSchoolToDelete(null);
+        }}
+        onConfirm={handleConfirmDeleteSchool}
+        title="Permanently Remove School"
+        description="This action is absolute and irreversible. It will completely delete the school record from the central direct registry, blocking student access immediately."
+        itemName={schoolToDelete?.name || ''}
+        isLoading={isDeletingSchool}
+      />
+    </div>
+  );
+};

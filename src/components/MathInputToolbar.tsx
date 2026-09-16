@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { MathRenderer } from './MathRenderer';
-import { ToggleLeft, HelpCircle, Sparkles, BookOpen, Layers } from 'lucide-react';
+import { MathRenderer } from '../shared/components/MathRenderer';
+import { HelpCircle, Sparkles } from 'lucide-react';
 
 interface MathInputToolbarProps {
   value: string;
@@ -12,9 +12,9 @@ interface MathInputToolbarProps {
 }
 
 interface MathSymbol {
-  label: string;      // What's displayed on the button (rendered using KaTeX or clean text)
-  latex: string;      // What gets inserted
-  tooltip: string;    // Action description
+  label: string; // What's displayed on the button (rendered using KaTeX or clean text)
+  latex: string; // What gets inserted
+  tooltip: string; // Action description
 }
 
 interface Category {
@@ -26,7 +26,7 @@ interface Category {
 export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
   value,
   onChange,
-  placeholder = "Type your solution in LaTeX or use the toolbar...",
+  placeholder = 'Type your solution in LaTeX or use the toolbar...',
   inputId,
   className = '',
   isTextArea = true
@@ -52,7 +52,7 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
         { label: '<', latex: ' < ', tooltip: 'Less Than' },
         { label: '>', latex: ' > ', tooltip: 'Greater Than' },
         { label: '\\le', latex: ' \\le ', tooltip: 'Less Or Equal' },
-        { label: '\\ge', latex: ' \\ge ', tooltip: 'Greater Or Equal' },
+        { label: '\\ge', latex: ' \\ge ', tooltip: 'Greater Or Equal' }
       ]
     },
     {
@@ -69,7 +69,7 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
         { label: '\\log_{b}(x)', latex: '\\log_{b}(x)', tooltip: 'Logarithm' },
         { label: '\\ln(x)', latex: '\\ln(x)', tooltip: 'Natural Log' },
         { label: '\\pi', latex: '\\pi', tooltip: 'Pi' },
-        { label: '\\theta', latex: '\\theta', tooltip: 'Theta' },
+        { label: '\\theta', latex: '\\theta', tooltip: 'Theta' }
       ]
     },
     {
@@ -84,7 +84,7 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
         { label: '\\frac{\\partial y}{\\partial x}', latex: '\\frac{\\partial y}{\\partial x}', tooltip: 'Partial Derivative' },
         { label: '\\lim_{x \\to x_0}', latex: '\\lim_{x \\to 0} ', tooltip: 'Limit' },
         { label: '\\Delta', latex: '\\Delta', tooltip: 'Delta Difference' },
-        { label: '\\nabla', latex: '\\nabla', tooltip: 'Nabla Gradient' },
+        { label: '\\nabla', latex: '\\nabla', tooltip: 'Nabla Gradient' }
       ]
     },
     {
@@ -101,7 +101,7 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
         { label: '\\sigma', latex: '\\sigma', tooltip: 'Sigma' },
         { label: '\\omega', latex: '\\omega', tooltip: 'Omega' },
         { label: '\\phi', latex: '\\phi', tooltip: 'Phi' },
-        { label: '\\psi', latex: '\\psi', tooltip: 'Psi' },
+        { label: '\\psi', latex: '\\psi', tooltip: 'Psi' }
       ]
     },
     {
@@ -115,7 +115,7 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
         { label: '\\notin', latex: ' \\notin ', tooltip: 'Not Element Of' },
         { label: '\\subset', latex: ' \\subset ', tooltip: 'Subset Of' },
         { label: '\\forall', latex: ' \\forall ', tooltip: 'For All' },
-        { label: '\\exists', latex: ' \\exists ', tooltip: 'There Exists' },
+        { label: '\\exists', latex: ' \\exists ', tooltip: 'There Exists' }
       ]
     }
   ];
@@ -126,13 +126,13 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
       const start = input.selectionStart || 0;
       const end = input.selectionEnd || 0;
       const text = input.value;
-      
+
       const before = text.substring(0, start);
       const after = text.substring(end, text.length);
       const newValue = before + latexCode + after;
-      
+
       onChange(newValue);
-      
+
       // Keep focus on input and update caret position
       setTimeout(() => {
         input.focus();
@@ -147,7 +147,7 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
   // Autocorrect system to easily convert natural inputs to proper LaTeX during typing!
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
     let text = e.target.value;
-    
+
     // Auto-replace shortcuts followed by space
     const autocorrects: Record<string, string> = {
       'alpha ': '\\alpha ',
@@ -177,44 +177,41 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
     onChange(text);
   };
 
-  const activeCategory = categories.find(c => c.id === activeTab) || categories[0];
+  const activeCategory = categories.find((category) => category.id === activeTab) || categories[0];
 
   return (
     <div className={`space-y-4 border border-slate-200/80 rounded-3xl p-5 bg-slate-50/50 shadow-xs ${className}`}>
-      
       {/* Category selector pill tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
         <div className="flex flex-wrap items-center gap-1.5">
-          {categories.map((c) => (
+          {categories.map((category) => (
             <button
-              key={c.id}
-              onClick={() => setActiveTab(c.id)}
-              className={`px-3.5 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                activeTab === c.id 
-                  ? 'bg-indigo-600 text-white shadow-xs' 
+              key={category.id}
+              onClick={() => setActiveTab(category.id)}
+              className={`px-3.5 py-1.5 rounded-full text-[12px] md:text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                activeTab === category.id
+                  ? 'bg-indigo-600 text-white shadow-xs'
                   : 'bg-white text-slate-500 hover:text-slate-800 border border-slate-200'
               }`}
             >
-              {c.name}
+              {category.name}
             </button>
           ))}
         </div>
-        
+
         <button
           onClick={() => setShowHelper(!showHelper)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer ${
-            showHelper 
-              ? 'bg-amber-500 text-white border-amber-500' 
-              : 'bg-white text-slate-400 hover:text-slate-600 border-slate-200'
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] md:text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer ${
+            showHelper ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-400 hover:text-slate-600 border-slate-200'
           }`}
         >
           <HelpCircle className="h-3.5 w-3.5" />
-          {showHelper ? "Hide Guide" : "View Help"}
+          {showHelper ? 'Hide Guide' : 'View Help'}
         </button>
       </div>
 
       {/* Keyboard Grid */}
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-11 gap-2 min-h-[48px] p-2 bg-white rounded-2xl border border-slate-250">
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-11 gap-2 min-h-[48px] p-2 bg-white rounded-2xl border border-slate-300">
         {activeCategory.symbols.map((sym, idx) => (
           <button
             key={idx}
@@ -233,17 +230,27 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
       {/* Helper Panel */}
       {showHelper && (
         <div className="bg-amber-50/70 border border-amber-200 p-4 rounded-2xl text-amber-900 text-xs leading-relaxed space-y-2 animate-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center gap-2 font-black uppercase text-[10px] tracking-wider text-amber-800 mb-1">
+          <div className="flex items-center gap-2 font-black uppercase text-[11px] md:text-[10px] tracking-wider text-amber-800 mb-1">
             <Sparkles className="h-4 w-4" /> LaTeX Conversion Superpowers
           </div>
           <p className="font-medium text-slate-600">
-            You can type standard LaTeX strings, or write natural shorthand math directly in the inputs. The portal will automatically format variables.
+            You can type standard LaTeX strings, or write natural shorthand math directly in the inputs. The portal will automatically
+            format variables.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] font-mono mt-1 text-slate-700 bg-white/70 p-3 rounded-xl border border-amber-100">
-            <div>• <code className="bg-slate-100 px-1 py-0.5 rounded font-bold">\frac&#123;a&#125;&#123;b&#125;</code> &rarr; Fractions</div>
-            <div>• <code className="bg-slate-100 px-1 py-0.5 rounded font-bold">x^2</code> &rarr; Exponents</div>
-            <div>• <code className="bg-slate-100 px-1 py-0.5 rounded font-bold">\sqrt&#123;x&#125;</code> &rarr; Roots</div>
-            <div>• Auto Shortcuts: Type <code className="bg-slate-100 px-1.5 py-0.5 rounded font-bold">pi </code> or <code className="bg-slate-100 px-1.5 py-0.5 rounded font-bold">sqrt </code> with spaces.</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px] md:text-[11px] font-mono mt-1 text-slate-700 bg-white/70 p-3 rounded-xl border border-amber-100">
+            <div>
+              • <code className="bg-slate-100 px-1 py-0.5 rounded font-bold">\frac&#123;a&#125;&#123;b&#125;</code> &rarr; Fractions
+            </div>
+            <div>
+              • <code className="bg-slate-100 px-1 py-0.5 rounded font-bold">x^2</code> &rarr; Exponents
+            </div>
+            <div>
+              • <code className="bg-slate-100 px-1 py-0.5 rounded font-bold">\sqrt&#123;x&#125;</code> &rarr; Roots
+            </div>
+            <div>
+              • Auto Shortcuts: Type <code className="bg-slate-100 px-1.5 py-0.5 rounded font-bold">pi </code> or{' '}
+              <code className="bg-slate-100 px-1.5 py-0.5 rounded font-bold">sqrt </code> with spaces.
+            </div>
           </div>
         </div>
       )}
@@ -274,14 +281,18 @@ export const MathInputToolbar: React.FC<MathInputToolbarProps> = ({
         <div className="p-5 border-2 border-indigo-100 bg-white rounded-2xl shadow-xs transition-all relative">
           <div className="absolute right-3.5 top-3.5 flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-full pointer-events-none">
             <span className="h-1.5 w-1.5 bg-indigo-500 rounded-full animate-heartbeat" />
-            <span className="text-[9px] font-black uppercase text-indigo-700 tracking-wider">Visual Formula Renderer</span>
+            <span className="text-[11px] md:text-[9px] font-black uppercase text-indigo-700 tracking-wider">Visual Formula Renderer</span>
           </div>
-          <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-3">Live Active Preview</p>
+          <p className="text-[11px] md:text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-3">
+            Live Active Preview
+          </p>
           <div className="min-h-[50px] flex items-center justify-center p-3 text-slate-800 bg-slate-50/50 border border-dashed border-slate-100 rounded-xl overflow-x-auto text-lg font-semibold selection:bg-indigo-100">
             {value.trim() ? (
               <MathRenderer math={value} block={true} />
             ) : (
-              <span className="text-xs text-slate-400 italic">Formatting preview outputs will materialise here interactively in real time.</span>
+              <span className="text-xs text-slate-400 italic">
+                Formatting preview outputs will materialise here interactively in real time.
+              </span>
             )}
           </div>
         </div>

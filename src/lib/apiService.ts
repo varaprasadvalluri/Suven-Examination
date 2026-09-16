@@ -69,28 +69,39 @@ export function serverTimestamp() {
 
 // Centralized safe fetch helper to prevent JSON parsing crashes on HTML responses and handle offline states gracefully
 async function safeFetchJson(url: string, options: RequestInit = {}, _isRetry = false): Promise<any> {
+  // Per-call trace id — echoes the server's requestContext.ts (see server/lib/requestContext.ts),
+  // so a failed call here and its matching backend log line share one id, the same way a Sleuth
+  // traceId lets you find one request's log lines across a Spring Boot service.
+  const traceId = crypto.randomUUID();
   try {
-    const res = await fetch(url, {
+    const response = await fetch(url, {
       ...options,
-      headers: { ...authHeaders(), ...(options.headers || {}) }
+      headers: { ...authHeaders(), 'X-Request-Id': traceId, ...(options.headers || {}) }
     });
+    const responseTraceId = response.headers.get('X-Request-Id') || traceId;
 
-    const contentType = res.headers.get('content-type');
+    const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
-      throw new Error(`Server returned non-JSON response (status ${res.status}, content-type: ${contentType || 'none'}).`);
+      const err = new Error(
+        `Server returned non-JSON response (status ${response.status}, content-type: ${contentType || 'none'}).`
+      ) as Error & { traceId?: string };
+      err.traceId = responseTraceId;
+      throw err;
     }
 
-    const payload = await res.json();
+    const payload = await response.json();
 
-    if (!res.ok) {
+    if (!response.ok) {
       // A 401 with a token actually present in storage is almost always transient (e.g. a
       // request landing on a Cloud Run instance mid-rollout to a new revision) rather than a
       // genuinely invalid session — retry once before surfacing it as a failure to the user.
-      if (res.status === 401 && !_isRetry && getSessionToken()) {
-        await new Promise(resolve => setTimeout(resolve, 800));
+      if (response.status === 401 && !_isRetry && getSessionToken()) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
         return safeFetchJson(url, options, true);
       }
-      throw new Error(payload.error || `HTTP error! status: ${res.status}`);
+      const err = new Error(payload.error || `HTTP error! status: ${response.status}`) as Error & { traceId?: string };
+      err.traceId = payload.traceId || responseTraceId;
+      throw err;
     }
 
     return payload;
@@ -116,6 +127,30 @@ function dispatchDbWrite(collectionName?: string, type: CrudType = 'update', doc
 }
 
 // Client-side drop-in mock of Firestore runTransaction
+// Maps one accumulated { type, collectionName, docId, data } operation onto its RESTful
+// route. Shared by runTransaction and writeBatch, which both replay a list of operations —
+// neither is a real atomic transaction here (each op is its own request), which was already
+// true before these URLs changed.
+async function writeOperation(op: { type: string; collectionName: string; docId?: string; data?: any }) {
+  const base = `/api/v1/${encodeURIComponent(op.collectionName)}`;
+  if (op.type === 'add') {
+    return safeFetchJson(base, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: op.data })
+    });
+  }
+  const url = `${base}/${encodeURIComponent(op.docId || '')}`;
+  if (op.type === 'delete') {
+    return safeFetchJson(url, { method: 'DELETE' });
+  }
+  return safeFetchJson(url, {
+    method: op.type === 'set' ? 'PUT' : 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data: op.data })
+  });
+}
+
 export async function runTransaction(dbInstance: any, updateFunction: (transaction: any) => Promise<any>) {
   const operations: any[] = [];
   const transactionProxy = {
@@ -133,20 +168,16 @@ export async function runTransaction(dbInstance: any, updateFunction: (transacti
     }
   };
 
-  const result = await updateFunction(transactionProxy);
+  const transactionResult = await updateFunction(transactionProxy);
 
   // Commit all operations accumulated during the transaction
   for (const op of operations) {
-    await safeFetchJson('/api/db/write', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(op)
-    });
+    await writeOperation(op);
     dispatchDbWrite(op.collectionName, op.type === 'add' ? 'create' : op.type, op.docId);
   }
 
   dispatchDbWrite();
-  return result;
+  return transactionResult;
 }
 
 // Client-side drop-in mock of Firestore writeBatch
@@ -165,11 +196,7 @@ export function writeBatch(dbInstance: any) {
     commit: async () => {
       // Execute each queued operation using standard proxy write API
       for (const op of operations) {
-        await safeFetchJson('/api/db/write', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(op)
-        });
+        await writeOperation(op);
         dispatchDbWrite(op.collectionName, op.type === 'add' ? 'create' : op.type, op.docId);
       }
       dispatchDbWrite();
@@ -222,7 +249,49 @@ function isExactWhere(c: any, field: string, op: string, value?: any) {
   return c && c.type === 'where' && c.field === field && c.op === op && (value === undefined || c.value === value);
 }
 
+const ATTEMPTS_FILTER_FIELDS = new Set(['examId', 'schoolId', 'studentId', 'status']);
+// Must match server/dao/pagination.ts's MAX_PAGE_SIZE — a limit() above this would silently
+// get truncated server-side (normalizePageParams caps it), which is exactly the "near-match
+// routed to the wrong result" case this matcher is deliberately narrow to avoid. A caller
+// asking for more than this (e.g. RankingEngine's 5000-row display cap) falls through to the
+// generic proxy unchanged rather than risk a silent truncation regression.
+const ATTEMPTS_MAX_LIMIT = 200;
+
+// True only if every constraint is either an `==` where on one of the fixed attempts filter
+// fields, a single orderBy, or a single limit within ATTEMPTS_MAX_LIMIT — i.e. exactly the
+// shape GET /api/v1/attempts supports. Anything else (startAfter-based cursor pagination, an
+// unsupported field, a second orderBy, an oversized limit) falls through to the generic
+// proxy unchanged.
+function isAttemptsListShape(constraints: any[]): boolean {
+  let orderByCount = 0;
+  let limitCount = 0;
+  for (const c of constraints) {
+    if (c.type === 'where') {
+      if (c.op !== '==' || !ATTEMPTS_FILTER_FIELDS.has(c.field)) return false;
+    } else if (c.type === 'orderBy') {
+      orderByCount++;
+      if (orderByCount > 1 || !['startTime', 'score', 'endTime'].includes(c.field)) return false;
+    } else if (c.type === 'limit') {
+      limitCount++;
+      if (limitCount > 1 || c.value > ATTEMPTS_MAX_LIMIT) return false;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
 async function tryNamedGetDocs(collectionName: string, constraints: any[]): Promise<any | null> {
+  if (collectionName === 'attempts' && isAttemptsListShape(constraints)) {
+    const params = new URLSearchParams();
+    for (const c of constraints) {
+      if (c.type === 'where') params.set(c.field, c.value);
+      else if (c.type === 'orderBy') params.set('sortBy', c.field);
+      else if (c.type === 'limit') params.set('pageSize', String(c.value));
+    }
+    const payload = await safeFetchJson(`/api/v1/attempts?${params.toString()}`);
+    return wrapDocsResult((payload.data?.items || []).map((item: any) => ({ id: item.id, data: item.data })));
+  }
   if (collectionName === 'schools' && constraints.length === 0) {
     const payload = await safeFetchJson('/api/v1/schools');
     return wrapDocsResult(payload.data || []);
@@ -251,14 +320,7 @@ export async function getDoc(docRef: any) {
   const named = await tryNamedGetDoc(docRef);
   if (named) return named;
 
-  const payload = await safeFetchJson('/api/db/query', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      collectionName: docRef.collectionName,
-      docId: docRef.id
-    })
-  });
+  const payload = await safeFetchJson(`/api/v1/${encodeURIComponent(docRef.collectionName)}/${encodeURIComponent(docRef.id)}`);
 
   return wrapDocResult(docRef.id, payload.data);
 }
@@ -271,13 +333,10 @@ export async function getDocs(queryRef: any) {
   const named = await tryNamedGetDocs(collectionName, constraints);
   if (named) return named;
 
-  const payload = await safeFetchJson('/api/db/query', {
+  const payload = await safeFetchJson(`/api/v1/${encodeURIComponent(collectionName)}/search`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      collectionName,
-      constraints
-    })
+    body: JSON.stringify({ constraints })
   });
 
   return wrapDocsResult(payload.data || []);
@@ -285,14 +344,10 @@ export async function getDocs(queryRef: any) {
 
 // Core standard ADD document write
 export async function addDoc(collectionRef: any, data: any) {
-  const payload = await safeFetchJson('/api/db/write', {
+  const payload = await safeFetchJson(`/api/v1/${encodeURIComponent(collectionRef.collectionName)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      type: 'add',
-      collectionName: collectionRef.collectionName,
-      data
-    })
+    body: JSON.stringify({ data })
   });
 
   dispatchDbWrite(collectionRef.collectionName, 'create', payload.id);
@@ -301,13 +356,10 @@ export async function addDoc(collectionRef: any, data: any) {
 
 // Core standard SET document write
 export async function setDoc(docRef: any, data: any, options?: any) {
-  await safeFetchJson('/api/db/write', {
-    method: 'POST',
+  await safeFetchJson(`/api/v1/${encodeURIComponent(docRef.collectionName)}/${encodeURIComponent(docRef.id)}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      type: 'set',
-      collectionName: docRef.collectionName,
-      docId: docRef.id,
       data,
       options
     })
@@ -319,14 +371,26 @@ export async function setDoc(docRef: any, data: any, options?: any) {
 
 // Core standard UPDATE document write
 export async function updateDoc(docRef: any, data: any) {
-  // Named-route fast path: the final exam-submission write only (attempts + status:'completed').
-  // Every other attempts write (autosave, timePerQuestion ticks, status:'in-progress',
-  // proctoring/violation updates) stays on the generic proxy below, unchanged — those aren't
-  // what server/routes/attempts.ts's submit endpoint implements, and force-fitting them would
-  // risk the dup-submission lock / ownership check firing on writes it was never meant to gate.
+  // Named-route fast path: the final exam-submission write (attempts + status:'completed')
+  // goes through /submit specifically — that's the only path with the dup-submission lock
+  // and server-side score recomputation. Every other attempts write falls to the PATCH
+  // fast path just below instead.
   if (docRef.collectionName === 'attempts' && data && data.status === 'completed') {
     await safeFetchJson(`/api/v1/attempts/${encodeURIComponent(docRef.id)}/submit`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    dispatchDbWrite(docRef.collectionName, 'update', docRef.id);
+    return { success: true };
+  }
+
+  // Every other attempts write (autosave, timePerQuestion ticks, status:'in-progress',
+  // proctoring/violation counts, canReattempt) — PATCH /api/v1/attempts/:id rejects
+  // status:'completed' itself, so the fast path above always wins for that case.
+  if (docRef.collectionName === 'attempts') {
+    await safeFetchJson(`/api/v1/attempts/${encodeURIComponent(docRef.id)}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
@@ -347,15 +411,10 @@ export async function updateDoc(docRef: any, data: any) {
     return { success: true };
   }
 
-  await safeFetchJson('/api/db/write', {
-    method: 'POST',
+  await safeFetchJson(`/api/v1/${encodeURIComponent(docRef.collectionName)}/${encodeURIComponent(docRef.id)}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      type: 'update',
-      collectionName: docRef.collectionName,
-      docId: docRef.id,
-      data
-    })
+    body: JSON.stringify({ data })
   });
 
   dispatchDbWrite(docRef.collectionName, 'update', docRef.id);
@@ -373,14 +432,8 @@ export async function deleteDoc(docRef: any) {
     return { success: true };
   }
 
-  await safeFetchJson('/api/db/write', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      type: 'delete',
-      collectionName: docRef.collectionName,
-      docId: docRef.id
-    })
+  await safeFetchJson(`/api/v1/${encodeURIComponent(docRef.collectionName)}/${encodeURIComponent(docRef.id)}`, {
+    method: 'DELETE'
   });
 
   dispatchDbWrite(docRef.collectionName, 'delete', docRef.id);
@@ -392,11 +445,10 @@ export async function getCountFromServer(queryRef: any) {
   const collectionName = queryRef.collectionName;
   const constraints = queryRef.constraints || [];
 
-  const payload = await safeFetchJson('/api/db/query', {
+  const payload = await safeFetchJson(`/api/v1/${encodeURIComponent(collectionName)}/count`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      collectionName,
       constraints,
       countOnly: true
     })
@@ -409,14 +461,53 @@ export async function getCountFromServer(queryRef: any) {
   };
 }
 
+// Shared mouse/keyboard-idle tracker for opt-in idle-aware polling below. A single set of
+// document listeners serves every subscriber — NOT wired into the default polling behavior,
+// since some subscribers (e.g. the exam-taking screen watching for an admin-triggered pause
+// or extra-time grant) must keep polling even while the student is silently reading a
+// question, not touching the mouse. Only subscribers that opt in via `{ idleAware: true }`
+// skip poll ticks while idle.
+const IDLE_THRESHOLD_MS = 20000;
+let lastActivityAt = Date.now();
+let idleTrackerStarted = false;
+const activityResumeListeners = new Set<() => void>();
+
+function ensureIdleTrackerStarted() {
+  if (idleTrackerStarted || typeof document === 'undefined') return;
+  idleTrackerStarted = true;
+  const markActive = () => {
+    const wasIdle = Date.now() - lastActivityAt > IDLE_THRESHOLD_MS;
+    lastActivityAt = Date.now();
+    if (wasIdle) {
+      activityResumeListeners.forEach((fn) => {
+        try {
+          fn();
+        } catch (err) {
+          console.error('[Idle Tracker] Activity-resume listener error:', err);
+        }
+      });
+    }
+  };
+  ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'wheel'].forEach((evt) =>
+    document.addEventListener(evt, markActive, { passive: true })
+  );
+}
+
+function isUserIdle(): boolean {
+  return Date.now() - lastActivityAt > IDLE_THRESHOLD_MS;
+}
+
 // Core Real-Time subscription simulation (using standard polling interval abstraction)
 export function onSnapshot(
   ref: any,
   callback: (snapshot: any) => void,
-  errorCallback?: (error: any) => void
+  errorCallback?: (error: any) => void,
+  options?: { idleAware?: boolean }
 ) {
   let isUnsubscribed = false;
   let intervalId: any = null;
+  const idleAware = !!options?.idleAware;
+  if (idleAware) ensureIdleTrackerStarted();
 
   const runQuery = async () => {
     try {
@@ -429,15 +520,16 @@ export function onSnapshot(
       }
     } catch (err: any) {
       const msg = (err?.message || String(err)).toLowerCase();
-      const isTransient = msg.includes('failed to fetch') || 
-                          msg.includes('failed to connect') || 
-                          msg.includes('temporarily restarting') || 
-                          msg.includes('non-json response') || 
-                          msg.includes('html fallback') || 
-                          msg.includes('temporary html fallback') || 
-                          msg.includes('networkerror') || 
-                          msg.includes('aborted');
-      
+      const isTransient =
+        msg.includes('failed to fetch') ||
+        msg.includes('failed to connect') ||
+        msg.includes('temporarily restarting') ||
+        msg.includes('non-json response') ||
+        msg.includes('html fallback') ||
+        msg.includes('temporary html fallback') ||
+        msg.includes('networkerror') ||
+        msg.includes('aborted');
+
       if (isTransient) {
         // Log as low-severity warning during temporary server restarts / HMR reloads
         console.warn('[onSnapshot Polling Transient Notice (Self-recovering)]:', err.message || err);
@@ -457,13 +549,48 @@ export function onSnapshot(
   // difference, so this is the single biggest lever on read cost/scale for this app.
   const colName = ref.collectionName;
   let pollInterval = 6000; // Default: 6 seconds
-  if (colName === 'attempts' || colName === 'proctor_logs' || colName === 'report_jobs') {
+  // 'proctoring_logs', not 'proctor_logs' — the latter is not a collection anywhere in this
+  // app (writes go to 'proctoring_logs' in ExamInterface.tsx, and that is the name indexed in
+  // firestore.indexes.json), so this branch never matched and every proctoring subscription
+  // silently fell through to the 6s default instead of the 8s intended here.
+  if (colName === 'attempts' || colName === 'proctoring_logs' || colName === 'report_jobs') {
     pollInterval = 8000; // 8 seconds for active tests, exam answers, live proctoring
   } else if (colName === 'schools' || colName === 'syllabus' || colName === 'login_options') {
     pollInterval = 12000; // Slow: 12 seconds for lists that rarely change
+  } else if (colName === 'exams') {
+    // ExamInterface.tsx subscribes to the EXAM document purely to pick up an exam-wide
+    // isPaused flag, and every active student polls it — at the 6s default that is the single
+    // highest-volume request in the app during an exam window, ~17k requests/sec at 100k
+    // concurrent students, for a document that changes at most once per exam.
+    //
+    // The per-student `attempts` subscription (still 8s) already carries that student's own
+    // isPaused and extraTime, so the only thing slowed here is the exam-wide broadcast, which
+    // now reaches a student within ~12s of being set instead of ~6s. Server-side these reads
+    // are additionally served from the query cache (server/routes/db.ts), so the Firestore
+    // read count is bounded by the cache TTL rather than by this interval either way.
+    pollInterval = 12000;
   }
 
-  intervalId = setInterval(runQuery, pollInterval);
+  const tick = () => {
+    // Idle-aware subscribers skip the fetch while the user hasn't touched mouse/keyboard —
+    // the activity-resume listener below catches up immediately once they do.
+    if (idleAware && isUserIdle()) return;
+    runQuery();
+  };
+
+  const startPolling = () => {
+    if (intervalId) return;
+    intervalId = setInterval(tick, pollInterval);
+  };
+
+  const stopPolling = () => {
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  };
+
+  startPolling();
 
   // Trigger immediate query execution when a local database write event is detected
   const handleDbWrite = () => {
@@ -472,15 +599,41 @@ export function onSnapshot(
     }
   };
 
+  // Backgrounded/minimized tabs don't need to keep polling the API every few seconds —
+  // pause while hidden, and catch up with an immediate refetch the moment the tab is
+  // visible again instead of waiting for the next tick.
+  const handleVisibilityChange = () => {
+    if (document.hidden) {
+      stopPolling();
+    } else if (!isUnsubscribed) {
+      runQuery();
+      startPolling();
+    }
+  };
+
+  const handleActivityResume = () => {
+    if (!isUnsubscribed && !document.hidden) {
+      runQuery();
+    }
+  };
+  if (idleAware) activityResumeListeners.add(handleActivityResume);
+
   if (typeof window !== 'undefined') {
     window.addEventListener('firestore-db-write', handleDbWrite);
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
   }
 
   return () => {
     isUnsubscribed = true;
-    if (intervalId) clearInterval(intervalId);
+    stopPolling();
+    if (idleAware) activityResumeListeners.delete(handleActivityResume);
     if (typeof window !== 'undefined') {
       window.removeEventListener('firestore-db-write', handleDbWrite);
+    }
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     }
   };
 }

@@ -1,0 +1,10 @@
+dist
+Suven-Examination
+node_modules
+package-lock.json
+*.min.js
+
+# Capacitor copies the built web bundle into the native projects; these are build output,
+# not sources, and prettier reformatting minified assets is both pointless and enormous.
+ios/App/App/public
+android/app/src/main/assets/public

@@ -1,0 +1,132 @@
+name: CI
+
+# Two jobs, deliberately asymmetric:
+#
+#   verify  — runs on every pull request and on main. These checks already existed as npm scripts;
+#             nothing here is a new standard, it is the same set a developer would run by
+#             hand, now run automatically so a regression cannot land silently.
+#   deploy  — runs ONLY on a push to main, and only after verify passes. Feature branches
+#             and pull requests are verified but never released.
+#
+# The Playwright suite is deliberately in neither: it drives a live deployment and needs real
+# school credentials, so it lives in e2e.yml and is triggered on demand.
+#
+# `push` is scoped to main rather than '**'. With push on every branch AND pull_request, a PR
+# opened from a branch in this repo triggered the whole suite TWICE — once for the branch push
+# (ref refs/heads/<branch>) and once for the PR (ref refs/pull/<n>/merge). Those are different
+# concurrency groups, so nothing deduplicated them; every PR simply cost double. Branch work is
+# covered by the pull_request trigger, which is also the only one that covers PRs from forks.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      # A newer push to the same branch makes an in-flight verification obsolete — cancel it
+      # rather than paying for both.
+      group: verify-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Split into separate steps rather than one chained command so the run summary names
+      # exactly which gate failed instead of just "npm run everything".
+      - name: Typecheck (client + server)
+        run: npm run lint
+
+      - name: ESLint
+        run: npm run eslint
+
+      # An import cycle typechecks, builds and passes every test, then renders an undefined
+      # component at runtime depending on which module the bundler evaluates first. The
+      # hexagonal/feature refactor introduced exactly one of these (auth <-> exam-session via
+      # barrel files) and nothing else in this pipeline noticed.
+      - name: Circular dependencies
+        run: npm run lint:cycles
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  deploy:
+    # The branch gate. `needs: verify` means a red build cannot reach Cloud Run, and the `if`
+    # means only a push to main can — a pull request targeting main runs verify and stops
+    # there, because github.event_name is 'pull_request', not 'push'.
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    concurrency:
+      # Never cancelled: interrupting a release mid-flight is how you end up not knowing
+      # which revision is actually serving. Two pushes to main in quick succession deploy
+      # one after the other.
+      group: deploy-cloud-run
+      cancel-in-progress: false
+
+    # Declaring the environment lets you add required reviewers or a wait timer in
+    # Settings > Environments > production without touching this file again.
+    environment: production
+
+    permissions:
+      # Required for Workload Identity Federation: the job mints a short-lived OIDC token
+      # that GCP trades for credentials, so there is no long-lived service-account key
+      # sitting in repository secrets.
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check deploy credentials are configured
+        # Without this the job fails deep inside the auth action with a generic message.
+        # Fail early and name exactly what is missing.
+        env:
+          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          WIF_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          DEPLOY_SA: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+        run: |
+          missing=""
+          [ -n "$PROJECT_ID" ] || missing="$missing GCP_PROJECT_ID(variable)"
+          [ -n "$WIF_PROVIDER" ] || missing="$missing GCP_WORKLOAD_IDENTITY_PROVIDER(secret)"
+          [ -n "$DEPLOY_SA" ] || missing="$missing GCP_DEPLOY_SERVICE_ACCOUNT(secret)"
+          if [ -n "$missing" ]; then
+            echo "::error::Cloud Run deploy is not configured. Missing:$missing. See GCP_DEPLOYMENT.md."
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Build and deploy to Cloud Run
+        # Submits the existing cloudbuild.yaml rather than reimplementing the deploy here.
+        # That file already carries the tuned Cloud Run settings (cpu/memory/concurrency/
+        # max-instances) and the reasoning behind each number — duplicating them in a second
+        # place is how the two drift apart.
+        env:
+          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: gcloud builds submit --config cloudbuild.yaml --project "$PROJECT_ID" .

@@ -1,12 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @plugin "tailwindcss-animate";
 
 @theme {
-  --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Fredoka", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Fredoka', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -33,7 +33,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -105,8 +105,22 @@
   }
   body {
     @apply bg-background text-foreground font-sans;
+    /* index.html's viewport-fit=cover tells iOS to render edge-to-edge under the notch/
+       Dynamic Island/home indicator, but nothing was actually padding content away from
+       those areas — header text was rendering right under the status bar. env() resolves to
+       0 on any browser/device without safe-area insets, so this is a no-op on desktop/normal
+       phones and only does anything inside the native app shell. */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-display font-bold tracking-tight;
   }
 }
@@ -115,32 +129,51 @@
   .tech-card {
     @apply bg-white border border-slate-200 shadow-sm transition-all duration-300 hover:shadow-md hover:border-indigo-200/50 hover:bg-slate-50/50;
   }
-  
+
   .stats-grid {
     @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8;
   }
-  
+
   .data-label {
     @apply text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500 mb-1;
   }
-  
+
   .data-value {
     @apply font-mono text-2xl tracking-tighter font-medium text-slate-900;
   }
-  
+
   .sidebar-link {
     @apply flex items-center px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-lg;
   }
-  
+
   .sidebar-link-active {
     @apply bg-indigo-50 text-indigo-700;
   }
-  
+
   .sidebar-link-inactive {
     @apply text-slate-600 hover:bg-slate-100 hover:text-slate-900;
   }
 
   .school-section {
     @apply w-full max-w-7xl mx-auto px-4 lg:px-6 space-y-8 animate-in fade-in duration-700 pb-12;
+  }
+}
+
+/* Respect the OS "reduce motion" setting for everything CSS drives — Tailwind's
+   animate-* utilities, transitions and scroll behaviour. Motion (framer) components are
+   handled separately by the MotionConfig in main.tsx. Spinners keep a slow rotation
+   instead of freezing, otherwise a loading state looks like a hung screen. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-spin {
+    animation: spin 1.5s linear infinite !important;
   }
 }

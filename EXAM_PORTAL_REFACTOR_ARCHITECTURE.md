@@ -9,27 +9,29 @@ This specification outlines the transition of the **SuvenEdu Academy Exam Portal
 To transition from static parameters (`?examId=X&schoolId=Y`) into fully dynamic systems, we introduce two primary schema models.
 
 ### A. Non-Relational / Firestore Schema (NoSQL Strategy)
+
 We introduce a specialized collection: `exam_access_tokens`. This collection persists single-use or restricted cryptographic descriptors mapping a token ID to an exam, class, and authorized institution.
 
 ```typescript
 interface ExamAccessTokenDocument {
-  id: string;                 // High-entropy token (e.g., UUID v4 or secure crypto-token)
-  examId: string;             // Reference to 'exams' collection
-  schoolId: string;           // Reference to 'schools' collection
-  classId: string;            // Targeted academic class/group
-  subject: string;            // mapped subject identifier
-  expiresAt: string;          // ISO 8601 Expiration datetime
-  maxUses: number;            // Total allowed entrances (e.g., 1 for single-use, 40 for a full class)
-  usesCount: number;          // Active entrance tracking
-  ipRestricted: boolean;      // True if locked to a designated center
+  id: string; // High-entropy token (e.g., UUID v4 or secure crypto-token)
+  examId: string; // Reference to 'exams' collection
+  schoolId: string; // Reference to 'schools' collection
+  classId: string; // Targeted academic class/group
+  subject: string; // mapped subject identifier
+  expiresAt: string; // ISO 8601 Expiration datetime
+  maxUses: number; // Total allowed entrances (e.g., 1 for single-use, 40 for a full class)
+  usesCount: number; // Active entrance tracking
+  ipRestricted: boolean; // True if locked to a designated center
   allowedIpRanges?: string[]; // Allowed CIDR blocks (e.g., ["192.168.1.0/24"])
-  isActive: boolean;          // Administrative master switch
-  createdAt: string;          // Audit trail
-  createdBy: string;          // Registrar identifier
+  isActive: boolean; // Administrative master switch
+  createdAt: string; // Audit trail
+  createdBy: string; // Registrar identifier
 }
 ```
 
 ### B. Relational Schema (SQL Strategy - PostgreSQL with Prisma/Drizzle)
+
 For relational database options (e.g., Cloud SQL PostgreSQL), the pattern is implemented with indexing for fast point key lookups:
 
 ```sql
@@ -46,7 +48,7 @@ CREATE TABLE exam_access_tokens (
   allowed_ip_ranges VARCHAR(45)[] DEFAULT '{}',
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  
+
   -- Foreign Key Integrity
   CONSTRAINT fk_token_exam FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
   CONSTRAINT fk_token_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE
@@ -59,14 +61,16 @@ CREATE INDEX idx_token_lookup ON exam_access_tokens(id, is_active);
 
 ## 2. Cryptographic Token & Dynamic Link Generation
 
-Instead of passing guessable database IDs in the query parameters, the portal server acts as a **Token Authority**. 
+Instead of passing guessable database IDs in the query parameters, the portal server acts as a **Token Authority**.
 
 ### Dynamic Link Composition:
+
 ```text
 https://suvenedu.academy/student/secure-entry?token=tkn_c7b94a82d0e7f14b986e2468159b3defc0
 ```
 
 ### Dynamic Link Generation Service (Node.js/TypeScript):
+
 ```typescript
 import crypto from 'crypto';
 
@@ -84,16 +88,16 @@ export class ExamLinkAuthorityService {
    */
   public static async generateSecureLink(
     payload: GenerationPayload,
-    baseUrl: string = "https://suvenedu.academy"
+    baseUrl: string = 'https://suvenedu.academy'
   ): Promise<{ token: string; url: string; expiresAt: Date }> {
     // 1. Generate high-entropy cryptographic hex token
     const tokenBytes = crypto.randomBytes(24);
     const secureToken = `tkn_${tokenBytes.toString('hex')}`;
-    
+
     // 2. Define strict expiration timestamp
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + payload.validityInHours);
-    
+
     // 3. Write record into Firestore or SQL database (Concept)
     // await db.collection('exam_access_tokens').doc(secureToken).set({
     //   examId: payload.examId,
@@ -105,9 +109,9 @@ export class ExamLinkAuthorityService {
     //   usesCount: 0,
     //   createdAt: new Date().toISOString()
     // });
-    
+
     const secureUrl = `${baseUrl}/student/secure-entry?token=${secureToken}`;
-    
+
     return {
       token: secureToken,
       url: secureUrl,
@@ -135,13 +139,9 @@ export interface ValidatedEntryRequest extends Request {
   };
 }
 
-export async function validateExamPortalToken(
-  req: ValidatedEntryRequest,
-  res: Response,
-  next: NextFunction
-) {
+export async function validateExamPortalToken(req: ValidatedEntryRequest, res: Response, next: NextFunction) {
   const token = req.query.token as string;
-  
+
   if (!token || !token.startsWith('tkn_')) {
     return res.status(400).json({
       success: false,
@@ -234,25 +234,28 @@ export async function validateExamPortalToken(
 In typical portal implementations, developers often leave vulnerabilities and static structures. During an audit, you must examine, identify, and refactor the following zones:
 
 ### A. Frontend Hardcoded IDs & URLs
-*   **Vulnerability:** Static variables containing `const TRIAL_EXAM_ID = "school-exam-1"` inside client-side routers or utility maps.
-*   **Refactor Strategy:** Populate list structures dynamically using Firestore queries (`query(collection(db, 'exams'), where('isActive', '==', true))`). Replace hardcoded paths in React state with API callbacks.
+
+- **Vulnerability:** Static variables containing `const TRIAL_EXAM_ID = "school-exam-1"` inside client-side routers or utility maps.
+- **Refactor Strategy:** Populate list structures dynamically using Firestore queries (`query(collection(db, 'exams'), where('isActive', '==', true))`). Replace hardcoded paths in React state with API callbacks.
 
 ### B. Controller Config Mappings
-*   **Vulnerability:** A local `exams-config.json` map binding school emails to specific parameters.
-*   **Refactor Strategy:** Introduce a composite database query or join query across `schools` and `exams` collections, validating that the school's authorized profile matches the `schoolId` requested in the exam payload.
+
+- **Vulnerability:** A local `exams-config.json` map binding school emails to specific parameters.
+- **Refactor Strategy:** Introduce a composite database query or join query across `schools` and `exams` collections, validating that the school's authorized profile matches the `schoolId` requested in the exam payload.
 
 ### C. Hardcoded Time Guards
-*   **Vulnerability:** Checking temporal restrictions purely on the client side (`if (Date.now() > EXAM_END)`).
-*   **Refactor Strategy:** Always run temporal validation server-side (within Firestore rules or Express route validation layers) against authenticated server hours to prevent local system state spoofing.
+
+- **Vulnerability:** Checking temporal restrictions purely on the client side (`if (Date.now() > EXAM_END)`).
+- **Refactor Strategy:** Always run temporal validation server-side (within Firestore rules or Express route validation layers) against authenticated server hours to prevent local system state spoofing.
 
 ---
 
 ## 5. Security Summary Checklist
 
-*   [x] **Cryptographic Hash**: Generate tokens using `crypto.randomBytes(24)` or unique uuid strings to make guessability mathematically impossible.
-*   [x] **Zero-Trust Access**: Restrict and audit uses counter on every single launch token.
-*   [x] **Server-First Validation**: Clock time validations must happen strictly against institutional server timestamps, not local user browsers.
-*   [x] **Institutional Boundary Mapping**: Relational checks between School-Account authorization matrices are enforced dynamically.
+- [x] **Cryptographic Hash**: Generate tokens using `crypto.randomBytes(24)` or unique uuid strings to make guessability mathematically impossible.
+- [x] **Zero-Trust Access**: Restrict and audit uses counter on every single launch token.
+- [x] **Server-First Validation**: Clock time validations must happen strictly against institutional server timestamps, not local user browsers.
+- [x] **Institutional Boundary Mapping**: Relational checks between School-Account authorization matrices are enforced dynamically.
 
 ---
 
@@ -261,17 +264,20 @@ In typical portal implementations, developers often leave vulnerabilities and st
 To fulfill the architectural directive that all database entities use a unified, structured **edu-autogenerated key**, the application introduces the `EduKeyFactory` engine. This engine replaces ad-hoc or simple random string generation with an enterprise-grade GoF-aligned structural mapping.
 
 ### A. Implemented Gang of Four Design Patterns:
+
 1. **Singleton Pattern**: The `EduKeyFactory` class implements a private constructor and a static `getInstance()` method, guaranteeing a single global manager is used to enforce ID uniformity.
 2. **Strategy Pattern**: Establishes a pluggable `IdGenerationStrategy` interface. This allows developers to easily swap the default cryptographically secure ID generation algorithm with other strategies (e.g. mock strategies for unit tests or legacy adapters) at runtime.
 3. **Factory Method Pattern**: The `generateKey(collectionName)` method acts as a parameterized factory method, inspecting the Firestore collection type to dynamically append the appropriate semantic prefix (e.g., `sch` for schools, `exm` for exams, `att` for attempts) to form the finished `edu-` token.
 
 ### B. Unique Key Format Structure:
+
 Every autogenerated database key follows this robust, self-describing layout:
+
 ```text
 edu-[semantic-prefix]-[base36-timestamp]-[high-entropy-randomness]
 ```
+
 - **`edu`**: Constant application global namespace prefix.
 - **`prefix`**: Dynamically mapped 3-4 letter code indicating the host collection (e.g., `usr`, `exm`, `sch`, `qst`).
 - **`base36-timestamp`**: High-resolution timestamp encoded in base36 to ensure chronological order and scale friendliness.
 - **`high-entropy-randomness`**: Cryptographically-secure 12-character random hex suffix to guarantee mathematical collision resistance under high concurrency levels.
-

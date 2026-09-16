@@ -87,7 +87,17 @@
       "properties": {
         "studentId": { "type": "string" },
         "date": { "type": "string", "format": "date" },
-        "topics": { "type": "array", "items": { "type": "object", "properties": { "title": { "type": "string" }, "completed": { "type": "boolean" }, "type": { "type": "string", "enum": ["study", "practice"] } } } },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "completed": { "type": "boolean" },
+              "type": { "type": "string", "enum": ["study", "practice"] }
+            }
+          }
+        },
         "assignedExams": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["studentId", "date"]
