@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireSession } from '../../middleware/requireSession';
+import { requireSession, requireRole } from '../../middleware/requireSession';
 import { ProxyRole } from '../../../../../application/services/authorization';
 import { authorizeWrite, scopeFieldFor, scopeValueFor } from '../../../../../composition';
 import { checkDuplicateSubmission } from '../../middleware/duplicateSubmission';
@@ -7,9 +7,11 @@ import { asyncHandler } from '../../middleware/errorHandler';
 import { attemptDao, invitationDao, studentDao, examDao } from '../../../../../composition';
 import { attemptSubmissionService } from '../../../../../composition';
 import { normalizePageParams } from '../../../../../application/ports/pagination';
-import { BadRequestError } from '../../../../../lib/errors';
+import { BadRequestError, NotFoundError, ForbiddenError } from '../../../../../lib/errors';
 import { randomUUID } from 'node:crypto';
 import { isAttemptFinished } from '../../../../../../shared/attemptStatus';
+import { cascadeDeleteByScope, documentStore } from '../../../../../composition';
+import { logger } from '../../../../../lib/logger';
 
 const router = express.Router();
 
@@ -424,6 +426,104 @@ router.post(
     }
 
     return res.status(200).json({ success: failed === 0, triggered, reTriggered, skipped, failed });
+  })
+);
+
+// Clears one student's sitting of one exam: the attempt doc, its proctoring logs, and the
+// error-book entries it produced.
+//
+// Server-side because a school caller cannot do this from the client any more. error_books
+// carry no schoolId, so they cannot be tenant-scoped for a school-role read, and
+// COLLECTION_ACCESS therefore no longer lets a school read them at all — which left
+// AdminResults.tsx's reset deleting the attempt and the proctoring logs and then throwing 403
+// on the error-book step, reporting failure for an operation that had already half-run.
+// Here the deletions run with server credentials behind one ownership check, in the order that
+// leaves the least mess if a later step fails: dependents first, the attempt itself last.
+/**
+ * @openapi
+ * /api/v1/attempts/{attemptId}/reset:
+ *   delete:
+ *     summary: Delete an attempt together with its proctoring logs and error-book entries
+ *     description: >
+ *       Admin or school role. A school caller may only reset an attempt belonging to their own
+ *       school. Dependent collections are cleared first; the attempt document is removed only
+ *       once they are fully clear, so a partial failure leaves the attempt in place rather than
+ *       orphaning data with no owner.
+ *     tags: [Attempts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: attemptId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Per-collection deletion counts, and whether the attempt doc was removed
+ *       401:
+ *         description: Missing or invalid session
+ *       403:
+ *         description: Caller is not admin/school, or a school caller doesn't own this attempt
+ *       404:
+ *         description: Attempt not found
+ */
+router.delete(
+  '/api/v1/attempts/:attemptId/reset',
+  requireSession,
+  requireRole('admin', 'school'),
+  asyncHandler(async (req: any, res) => {
+    const { attemptId } = req.params;
+
+    const attemptResult = await attemptDao.findById(attemptId);
+    if (!attemptResult.exists) {
+      throw new NotFoundError('Attempt not found.');
+    }
+    const attempt = attemptResult.data as any;
+    if (req.auth.role === 'school' && attempt.schoolId !== req.auth.schoolId) {
+      throw new ForbiddenError('Forbidden: you may only reset attempts from your own school');
+    }
+
+    // Both dependent collections are keyed by student+exam rather than by attempt id, and a
+    // reset clears that student's records for this exam.
+    //
+    // For error_books that is simply how entries are written (ExamInterface's scoreExam output
+    // carries studentId/examId and no attempt id at all). For proctoring_logs it is the only
+    // key that catches everything: logProctorAnomaly writes attemptId, logActivity does not, so
+    // the client-side reset this replaces — which queried attemptId alone — silently left every
+    // logActivity entry behind.
+    //
+    // Skipped when either id is missing rather than deleting on a half-key, which would take out
+    // every record for the student across all exams.
+    const results: Record<string, { deleted: number; failed: number }> = {};
+    const byStudentAndExam = attempt.studentId && attempt.examId ? { field: 'examId', value: attempt.examId as string } : null;
+
+    for (const collectionName of ['proctoring_logs', 'error_books'] as const) {
+      results[collectionName] = byStudentAndExam
+        ? await cascadeDeleteByScope(collectionName, 'studentId', attempt.studentId, byStudentAndExam)
+        : { deleted: 0, failed: 0 };
+    }
+
+    const anyFailures = Object.values(results).some((r) => r.failed > 0);
+    let attemptDeleted = false;
+    if (!anyFailures) {
+      try {
+        await documentStore.write({ type: 'delete', collectionName: 'attempts', docId: attemptId });
+        attemptDeleted = true;
+      } catch (err) {
+        logger.error('Failed to delete attempt doc after dependent-collection cleanup succeeded', { attemptId, error: err });
+      }
+    }
+
+    logger.info('Attempt reset completed', {
+      attemptId,
+      studentId: attempt.studentId,
+      examId: attempt.examId,
+      schoolId: attempt.schoolId,
+      results,
+      attemptDeleted
+    });
+
+    res.status(200).json({ success: !anyFailures && attemptDeleted, attemptDeleted, results });
   })
 );
 

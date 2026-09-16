@@ -35,10 +35,14 @@ export class FirestoreExamDao implements ExamDao {
     const merged = new Map<string, DocRecord>();
     recentSnap.docs.forEach((docSnap: any) => merged.set(docSnap.id, { id: docSnap.id, data: docSnap.data() }));
 
+    // Bounded like the query above it. Without a limit this was the one unbounded read left on
+    // the student dashboard: a school assigned to every published exam on the platform would
+    // pull all of them, on a route the whole cohort loads at login and then polls.
     const targetedQuery = clientQuery(
       clientCollection(clientDb, 'exams'),
       clientWhere('status', '==', 'published'),
-      clientWhere('assignedSchoolIds', 'array-contains', schoolId)
+      clientWhere('assignedSchoolIds', 'array-contains', schoolId),
+      clientLimit(maxResults)
     );
     const targetedSnap = await clientGetDocs(targetedQuery);
     targetedSnap.docs.forEach((docSnap: any) => merged.set(docSnap.id, { id: docSnap.id, data: docSnap.data() }));

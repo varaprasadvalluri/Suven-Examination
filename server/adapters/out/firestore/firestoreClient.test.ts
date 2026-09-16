@@ -12,7 +12,10 @@ vi.mock('../../../config', () => ({
     firestoreDatabaseId: 'test-db',
     apiKey: 'test-key',
     storageBucket: ''
-  }
+  },
+  // Not emulated: these tests assert the real-service URLs and the ADC path.
+  firestoreEmulatorHost: '',
+  isFirestoreEmulated: false
 }));
 
 // GoogleAuth would otherwise reach for the GCE metadata server during getAuthHeader.
@@ -22,7 +25,9 @@ vi.mock('google-auth-library', () => ({
       return 'test-project';
     }
     async getClient() {
-      return { getAccessToken: async (): Promise<{ token: string | null }> => ({ token: null }) };
+      // A real token, so the ADC path is actually exercised rather than silently falling
+      // through to the API-key-only branch on every call.
+      return { getAccessToken: async (): Promise<{ token: string | null }> => ({ token: 'adc-token' }) };
     }
   }
 }));
@@ -129,7 +134,8 @@ describe('clientRunTransaction', () => {
     fetchMock.mockImplementation(async (url: string) => {
       if (String(url).includes(':beginTransaction')) return jsonResponse({ transaction: 'txn-1' });
       if (String(url).includes(':commit')) return jsonResponse({});
-      return jsonResponse({ fields: { status: { stringValue: 'started' } } });
+      // batchGet answers with one entry per requested document.
+      return jsonResponse([{ found: { name: 'attempts/att_1', fields: { status: { stringValue: 'started' } } } }]);
     });
 
     const result = await clientRunTransaction(clientDb, async (transaction: any) => {
@@ -144,9 +150,14 @@ describe('clientRunTransaction', () => {
     expect(callsTo(':beginTransaction')).toHaveLength(1);
 
     // The read carries the transaction id — that registration is what makes the commit fail if
-    // another writer touched the document, and is the entire difference from a plain get.
-    const readCall = fetchMock.mock.calls.find(([url]) => String(url).includes('attempts/att_1?'));
-    expect(String(readCall![0])).toContain('transaction=txn-1');
+    // another writer touched the document, and is the entire difference from a plain get. It
+    // rides in the batchGet BODY rather than a query parameter: a transaction id is a bytes
+    // value, and the Firestore emulator cannot map one arriving as a query parameter (it drops
+    // the connection without responding, so the caller hangs rather than failing).
+    const readCall = callsTo(':batchGet')[0];
+    const readBody = bodyOf(readCall);
+    expect(readBody.transaction).toBe('txn-1');
+    expect(readBody.documents).toEqual(['projects/test-project/databases/test-db/documents/attempts/att_1']);
 
     const commitBody = bodyOf(callsTo(':commit')[0]);
     expect(commitBody.transaction).toBe('txn-1');
@@ -157,7 +168,8 @@ describe('clientRunTransaction', () => {
     fetchMock.mockImplementation(async (url: string) => {
       if (String(url).includes(':beginTransaction')) return jsonResponse({ transaction: 'txn-1' });
       if (String(url).includes(':commit')) return jsonResponse({});
-      return jsonResponse({}, 404);
+      // batchGet reports an absent document as `missing`, not as an HTTP 404.
+      return jsonResponse([{ missing: 'projects/test-project/databases/test-db/documents/attempts/missing' }]);
     });
 
     await clientRunTransaction(clientDb, async (transaction: any) => {
@@ -170,7 +182,7 @@ describe('clientRunTransaction', () => {
   it('rolls back and queues no writes when the callback throws', async () => {
     fetchMock.mockImplementation(async (url: string) => {
       if (String(url).includes(':beginTransaction')) return jsonResponse({ transaction: 'txn-1' });
-      return jsonResponse({ fields: {} });
+      return jsonResponse([{ found: { name: 'attempts/att_1', fields: {} } }]);
     });
 
     await expect(
@@ -215,7 +227,7 @@ describe('clientRunTransaction', () => {
   it('does not retry an error the callback itself raised', async () => {
     fetchMock.mockImplementation(async (url: string) => {
       if (String(url).includes(':beginTransaction')) return jsonResponse({ transaction: 'txn-1' });
-      return jsonResponse({ fields: {} });
+      return jsonResponse([{ found: { name: 'attempts/att_1', fields: {} } }]);
     });
 
     let callbackRuns = 0;
@@ -362,5 +374,93 @@ describe('clientSelect (projection)', () => {
 
     expect(snap.docs[0].id).toBe('att_1');
     expect(snap.docs[0].data()).toEqual({ score: 7 });
+  });
+});
+
+// ============================================================================
+// ADC IS ATTACHED FOR A NAMED DATABASE
+// ============================================================================
+// The regression this guards: the ADC gate used to also require the DEFAULT database, so an
+// app configured with a named Firestore database (this one uses `suven-edu`) never sent an
+// Authorization header at all and fell back to Firebase-API-key-only access. Ordinary document
+// reads and writes survive that; `:beginTransaction` does not, and returns 403
+// PERMISSION_DENIED — which broke exam-entry enrollment, the one path built on a real
+// transaction, while leaving the rest of the app looking healthy.
+describe('getAuthHeader', () => {
+  it('sends an ADC bearer token even though the database is a named one, not (default)', async () => {
+    // The mocked config at the top of this file is exactly that shape: project 'test-project',
+    // database 'test-db'. Under the old gate this returned {}.
+    const { getAuthHeader } = await import('./firestoreClient');
+    const headers = await getAuthHeader();
+
+    expect(headers.Authorization).toBe('Bearer adc-token');
+  });
+
+  it('never sends this app’s token to a different project', async () => {
+    // A cross-project handle (the admin migration route's source database) authenticates with
+    // its own apiKey — this app's credential is not valid there, and attaching it would mask
+    // the real 403 with a confusing auth error.
+    const { getAuthHeader, createDatabaseHandle } = await import('./firestoreClient');
+    const otherProject = createDatabaseHandle({ projectId: 'someone-elses-project', apiKey: 'their-key' });
+
+    expect(await getAuthHeader(otherProject)).toEqual({});
+  });
+});
+
+// ============================================================================
+// CREDENTIAL PROBES ARE NOT REPEATED PER CALL
+// ============================================================================
+// getAuthHeader runs in front of EVERY Firestore call. On a machine with no Application
+// Default Credentials, resolving them ends in a GCE metadata-server lookup that simply times
+// out, so without a memo of that failure every read pays the timeout, retry wraps it, and the
+// circuit breaker in front eventually opens — the app stops showing data at all, for want of a
+// credential it was only ever going to fall back from.
+describe('getAuthHeader when no credentials are available', () => {
+  it('probes once and then falls back to the API key without asking again', async () => {
+    const { getAuthHeader, __resetCredentialProbeState } = await import('./firestoreClient');
+    const { GoogleAuth } = (await import('google-auth-library')) as any;
+
+    __resetCredentialProbeState();
+    const getClient = vi.spyOn(GoogleAuth.prototype, 'getClient').mockRejectedValue(new Error('Could not load the default credentials'));
+
+    expect(await getAuthHeader()).toEqual({});
+    expect(await getAuthHeader()).toEqual({});
+    expect(await getAuthHeader()).toEqual({});
+
+    expect(getClient).toHaveBeenCalledTimes(1);
+    getClient.mockRestore();
+    __resetCredentialProbeState();
+  });
+
+  it('treats a lookup that returns no token the same as one that throws', async () => {
+    const { getAuthHeader, __resetCredentialProbeState } = await import('./firestoreClient');
+    const { GoogleAuth } = (await import('google-auth-library')) as any;
+
+    __resetCredentialProbeState();
+    const getClient = vi
+      .spyOn(GoogleAuth.prototype, 'getClient')
+      .mockResolvedValue({ getAccessToken: async (): Promise<{ token: string | null }> => ({ token: null }) } as any);
+
+    expect(await getAuthHeader()).toEqual({});
+    expect(await getAuthHeader()).toEqual({});
+
+    expect(getClient).toHaveBeenCalledTimes(1);
+    getClient.mockRestore();
+    __resetCredentialProbeState();
+  });
+
+  it('caches a successful token instead of re-minting it per call', async () => {
+    const { getAuthHeader, __resetCredentialProbeState } = await import('./firestoreClient');
+    const { GoogleAuth } = (await import('google-auth-library')) as any;
+
+    __resetCredentialProbeState();
+    const getClient = vi.spyOn(GoogleAuth.prototype, 'getClient');
+
+    expect(await getAuthHeader()).toEqual({ Authorization: 'Bearer adc-token' });
+    expect(await getAuthHeader()).toEqual({ Authorization: 'Bearer adc-token' });
+
+    expect(getClient).toHaveBeenCalledTimes(1);
+    getClient.mockRestore();
+    __resetCredentialProbeState();
   });
 });

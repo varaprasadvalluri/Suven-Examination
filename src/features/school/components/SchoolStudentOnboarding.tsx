@@ -47,7 +47,8 @@ import {
   Edit,
   Trash2,
   BarChart3,
-  GraduationCap
+  GraduationCap,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../../../components/ui/dialog';
@@ -79,6 +80,10 @@ export const SchoolStudentOnboarding: React.FC = () => {
   // Dynamic secure tokens
   const [dynamicToken, setDynamicToken] = useState<string | null>(null);
   const [isGeneratingDynamicToken, setIsGeneratingDynamicToken] = useState(false);
+  // When (if ever) this school last granted a whole-school re-attempt for the selected exam.
+  // Lives on the secure link doc rather than on every attempt — see isReopenedBySchoolLink.
+  const [linkReattemptFrom, setLinkReattemptFrom] = useState<string | null>(null);
+  const [isGrantingReattempt, setIsGrantingReattempt] = useState(false);
 
   // Validation Warnings
   const [duplicateWarnings, setDuplicateWarnings] = useState<string[]>([]);
@@ -362,6 +367,7 @@ export const SchoolStudentOnboarding: React.FC = () => {
   useEffect(() => {
     if (!profile?.schoolId || !selectedExamId || selectedExamId === 'none') {
       setDynamicToken(null);
+      setLinkReattemptFrom(null);
       return;
     }
 
@@ -375,11 +381,16 @@ export const SchoolStudentOnboarding: React.FC = () => {
           const linkData = snap.data();
           if (linkData.isActive) {
             setDynamicToken(linkData.id);
+            setLinkReattemptFrom(linkData.reattemptFrom || null);
           } else {
             setDynamicToken(null);
+            // A revoked link grants nothing, so don't keep showing a re-attempt grant that
+            // every gate is now ignoring.
+            setLinkReattemptFrom(null);
           }
         } else {
           setDynamicToken(null);
+          setLinkReattemptFrom(null);
         }
       },
       (err) => {
@@ -425,6 +436,67 @@ export const SchoolStudentOnboarding: React.FC = () => {
       toast.error('Failed to provision dynamic exam token.', { id: toastId });
     } finally {
       setIsGeneratingDynamicToken(false);
+    }
+  };
+
+  // Whole-school re-attempt grant — deliberately SEPARATE from "Re-trigger Exam", which only
+  // rotates the token/expiry. Re-opening papers that students have already handed in is a
+  // different decision from refreshing a link, and folding the two together would silently
+  // re-open submitted attempts every time a school refreshed a link.
+  //
+  // ONE write, regardless of cohort size. The per-student equivalent (handleReTriggerInvite)
+  // sets canReattempt on an attempt doc, which is correct for one student and unusable for a
+  // whole school — a 5,000-student school would be 5,000 writes on one click. Instead this
+  // stamps `reattemptFrom` on the single secure link doc, and the dashboard
+  // (StudentDashboardService) and the entry gate (gatekeeper.ts) both compare each attempt's
+  // finish time against it via isReopenedBySchoolLink.
+  //
+  // Only attempts finished BEFORE this instant are re-opened, so the grant does not carry
+  // over to the re-sit: a student who submits again is locked out again until the school
+  // grants once more.
+  const handleAllowSchoolWideReattempt = async () => {
+    if (!profile?.schoolId || !selectedExamId || selectedExamId === 'none') return;
+    if (!dynamicToken) {
+      toast.error('Trigger the exam first — there is no active link to attach a re-attempt grant to.');
+      return;
+    }
+
+    setIsGrantingReattempt(true);
+    const toastId = toast.loading('Granting school-wide re-attempt access...');
+    try {
+      const tokenDocId = `gen_${profile.schoolId}_${selectedExamId}`;
+      const tokenRef = doc(db, 'secure_exam_links', tokenDocId);
+      const grantedAt = new Date().toISOString();
+
+      await setDoc(tokenRef, { reattemptFrom: grantedAt }, { merge: true });
+
+      setLinkReattemptFrom(grantedAt);
+      toast.success('Re-attempt granted. Students who already submitted can now re-enter this paper.', { id: toastId });
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to grant school-wide re-attempt access.', { id: toastId });
+    } finally {
+      setIsGrantingReattempt(false);
+    }
+  };
+
+  // Withdraws the grant above. Students who have ALREADY re-entered on it keep their live
+  // attempt — clearing the stamp stops new re-entries, it does not evict anyone mid-paper.
+  const handleRevokeSchoolWideReattempt = async () => {
+    if (!profile?.schoolId || !selectedExamId || selectedExamId === 'none') return;
+
+    const toastId = toast.loading('Withdrawing school-wide re-attempt access...');
+    try {
+      const tokenDocId = `gen_${profile.schoolId}_${selectedExamId}`;
+      const tokenRef = doc(db, 'secure_exam_links', tokenDocId);
+
+      await setDoc(tokenRef, { reattemptFrom: null }, { merge: true });
+
+      setLinkReattemptFrom(null);
+      toast.success('School-wide re-attempt access withdrawn.', { id: toastId });
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to withdraw school-wide re-attempt access.', { id: toastId });
     }
   };
 
@@ -1248,6 +1320,23 @@ export const SchoolStudentOnboarding: React.FC = () => {
                     <span>{isGeneratingDynamicToken ? 'Sealing Link...' : dynamicToken ? 'Re-trigger Exam' : 'Trigger Exam'}</span>
                   </Button>
 
+                  {/* Allow Re-attempt — the school-wide counterpart to the per-student
+                      "Re-trigger Link" in the Method B table. Kept as its own button because
+                      re-opening submitted papers is a separate decision from rotating the
+                      link above: a school refreshing a token should never silently let every
+                      student who already handed in sit the paper again. One write, whatever
+                      the cohort size. */}
+                  {dynamicToken && (
+                    <Button
+                      onClick={handleAllowSchoolWideReattempt}
+                      disabled={isGrantingReattempt}
+                      className="h-10 px-5 rounded-xl font-black text-[11px] md:text-[10px] uppercase tracking-widest shadow-sm cursor-pointer flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 text-white"
+                    >
+                      {isGrantingReattempt ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw size={12} />}
+                      <span>{isGrantingReattempt ? 'Granting...' : 'Allow Re-attempt'}</span>
+                    </Button>
+                  )}
+
                   {dynamicToken && (
                     <button
                       onClick={handleDeactivateDynamicSecurity}
@@ -1257,6 +1346,23 @@ export const SchoolStudentOnboarding: React.FC = () => {
                     </button>
                   )}
                 </div>
+
+                {/* Grant state is not obvious from the buttons alone — a school needs to be
+                    able to see that submitted papers are currently re-openable, and to take
+                    that back without revoking the whole link. */}
+                {dynamicToken && linkReattemptFrom && (
+                  <div className="pt-2 flex flex-wrap items-center gap-2 text-[11px] md:text-[10px]">
+                    <span className="font-black uppercase tracking-widest text-sky-700">
+                      Re-attempt open for papers submitted before {new Date(linkReattemptFrom).toLocaleString()}
+                    </span>
+                    <button
+                      onClick={handleRevokeSchoolWideReattempt}
+                      className="font-black uppercase text-rose-600 hover:text-rose-700 hover:underline"
+                    >
+                      Withdraw
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-2 w-full lg:w-auto">

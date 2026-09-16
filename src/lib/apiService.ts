@@ -549,7 +549,11 @@ export function onSnapshot(
   // difference, so this is the single biggest lever on read cost/scale for this app.
   const colName = ref.collectionName;
   let pollInterval = 6000; // Default: 6 seconds
-  if (colName === 'attempts' || colName === 'proctor_logs' || colName === 'report_jobs') {
+  // 'proctoring_logs', not 'proctor_logs' — the latter is not a collection anywhere in this
+  // app (writes go to 'proctoring_logs' in ExamInterface.tsx, and that is the name indexed in
+  // firestore.indexes.json), so this branch never matched and every proctoring subscription
+  // silently fell through to the 6s default instead of the 8s intended here.
+  if (colName === 'attempts' || colName === 'proctoring_logs' || colName === 'report_jobs') {
     pollInterval = 8000; // 8 seconds for active tests, exam answers, live proctoring
   } else if (colName === 'schools' || colName === 'syllabus' || colName === 'login_options') {
     pollInterval = 12000; // Slow: 12 seconds for lists that rarely change

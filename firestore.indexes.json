@@ -1,103 +1,246 @@
 {
   "_comment": [
-    "Composite indexes required by server-side paged queries (server/dao/FirestoreAttemptDao.ts).",
-    "Firestore can serve a single equality filter with an orderBy using its automatic single-field",
-    "indexes, but any filter+orderBy combination beyond that needs an explicit composite index — and",
-    "without one Firestore FAILS the query rather than answering it slowly.",
+    "Composite indexes required by server-side and client-issued queries.",
+    "Firestore can serve a single equality filter with an orderBy on the SAME field, and can merge",
+    "several equality-only filters from its automatic single-field indexes. Anything else — an",
+    "equality filter plus an orderBy on a DIFFERENT field, an array-contains alongside an equality",
+    "filter, or a range plus an orderBy — needs an explicit composite index, and without one",
+    "Firestore FAILS the query rather than answering it slowly.",
     "",
-    "The DAO falls back to a capped in-memory page when a query fails, so a missing index degrades",
-    "performance instead of breaking a dashboard. Deploy these to get the fast path:",
+    "Deploy with:",
     "  firebase deploy --only firestore:indexes",
     "Building them takes a few minutes on a large collection, so do it before an exam window, not",
     "during one. `firebase firestore:indexes` prints the current state.",
     "",
-    "Combinations below mirror exactly what AttemptController passes: a school caller is always",
-    "scoped to schoolId and a student caller to studentId, with examId and status as optional",
-    "filters, ordered by startTime, score or endTime descending."
+    "attempts: mirrors exactly what AttemptController passes — a school caller is always scoped to",
+    "schoolId and a student caller to studentId, with examId and status as optional filters, ordered",
+    "by startTime, score or endTime descending. FirestoreAttemptDao falls back to a capped in-memory",
+    "page when a query fails, so a missing index here degrades performance instead of breaking a",
+    "dashboard.",
+    "",
+    "exams: FirestoreExamDao.findPublishedForSchool runs BOTH exam queries below on every student",
+    "dashboard load (the locked 'Soon' preview in getUpcomingListItems), and SchoolStudentOnboarding",
+    "runs the status+createdAt one when staff pick an exam to trigger. Unlike attempts, ExamDao has",
+    "NO in-memory fallback — a missing index here is a 500 on the student's Upcoming tab, not slow.",
+    "",
+    "users / proctoring_logs: the school candidate roster (schoolId+role, ordered and optionally",
+    "name-range-searched) and the live proctoring wall (schoolId + timestamp desc)."
   ],
   "indexes": [
     {
       "collectionGroup": "attempts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "examId", "order": "ASCENDING" },
-        { "fieldPath": "startTime", "order": "DESCENDING" }
+        {
+          "fieldPath": "examId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startTime",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "attempts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "examId", "order": "ASCENDING" },
-        { "fieldPath": "score", "order": "DESCENDING" }
+        {
+          "fieldPath": "examId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "attempts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "examId", "order": "ASCENDING" },
-        { "fieldPath": "endTime", "order": "DESCENDING" }
+        {
+          "fieldPath": "examId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "endTime",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "attempts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "schoolId", "order": "ASCENDING" },
-        { "fieldPath": "startTime", "order": "DESCENDING" }
+        {
+          "fieldPath": "schoolId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startTime",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "attempts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "schoolId", "order": "ASCENDING" },
-        { "fieldPath": "score", "order": "DESCENDING" }
+        {
+          "fieldPath": "schoolId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "attempts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "studentId", "order": "ASCENDING" },
-        { "fieldPath": "startTime", "order": "DESCENDING" }
+        {
+          "fieldPath": "studentId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startTime",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "attempts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "studentId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "startTime", "order": "DESCENDING" }
+        {
+          "fieldPath": "studentId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startTime",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "attempts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "examId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "score", "order": "DESCENDING" }
+        {
+          "fieldPath": "examId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "attempts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "schoolId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "startTime", "order": "DESCENDING" }
+        {
+          "fieldPath": "schoolId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startTime",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "attempts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "examId", "order": "ASCENDING" },
-        { "fieldPath": "schoolId", "order": "ASCENDING" },
-        { "fieldPath": "startTime", "order": "DESCENDING" }
+        {
+          "fieldPath": "examId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "schoolId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startTime",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "exams",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "exams",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "assignedSchoolIds",
+          "arrayConfig": "CONTAINS"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "schoolId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "role",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "name",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "proctoring_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "schoolId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
       ]
     }
   ],

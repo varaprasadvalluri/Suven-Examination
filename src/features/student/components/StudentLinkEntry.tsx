@@ -8,7 +8,7 @@ import { ShieldCheck, AlertCircle, ShieldAlert, Lock, User2, Key, Loader2 } from
 import { useAuth } from '../../../lib/AuthContext';
 import { setSessionToken } from '../../../lib/sessionStore';
 import { ExamInstructionsScreen } from '../../exam-session';
-import { isAttemptFinished } from '../../../../shared/attemptStatus';
+import { isAttemptFinished, isReopenedBySchoolLink } from '../../../../shared/attemptStatus';
 import { BrandingPanel } from '../../../shared/components/BrandingPanel';
 import { LobbyConsentNotice } from '../../../shared/components/LobbyConsentNotice';
 
@@ -31,6 +31,10 @@ export const StudentLinkEntry: React.FC = () => {
   // Parsed and verified IDs
   const [resolvedExamId, setResolvedExamId] = useState<string | null>(null);
   const [resolvedSchoolId, setResolvedSchoolId] = useState<string | null>(null);
+  // The secure link's whole-school re-attempt grant, if the school issued one. Null for a
+  // tokenless entry, which is why the fallback gate below keeps working exactly as before
+  // when there is no link in play.
+  const [linkReattemptFrom, setLinkReattemptFrom] = useState<string | null>(null);
 
   // Form State
   const [username, setUsername] = useState('');
@@ -132,6 +136,10 @@ export const StudentLinkEntry: React.FC = () => {
           activeSchoolId = tokenData.schoolId;
           setResolvedExamId(activeExamId);
           setResolvedSchoolId(activeSchoolId);
+          // Carried so the offline fallback transaction below can apply the same whole-school
+          // re-attempt grant the server gate applies. Read here rather than re-fetched: this
+          // is the doc that holds it, and it has just been validated as active and unexpired.
+          setLinkReattemptFrom(tokenData.reattemptFrom || null);
           setTokenVerified(true);
         }
 
@@ -391,12 +399,21 @@ export const StudentLinkEntry: React.FC = () => {
             // has been handed in but is still grading ('submitted') is finished for re-entry
             // purposes, even though it isn't 'completed' yet.
             if (isAttemptFinished(attemptData.status) || attemptData.status === 'expired') {
-              if (attemptData.canReattempt) {
+              // Same pair of grants the server gate checks (server/routes/gatekeeper.ts):
+              // the per-student canReattempt flag, or the school-wide reattemptFrom carried
+              // on the secure link. This branch only runs when the backend call failed, so
+              // without the second check a school-wide-granted student would be told their
+              // exam was already completed purely because the server was unreachable.
+              if (attemptData.canReattempt || isReopenedBySchoolLink(attemptData, linkReattemptFrom)) {
                 transaction.update(attemptDocRef, {
                   status: 'started',
                   score: 0,
                   answers: [],
                   startTime: now.toISOString(),
+                  // Cleared for the same reason the server gate clears it: isReopenedBySchoolLink
+                  // reads `endTime || startTime`, so a leftover endTime from the previous sitting
+                  // would stay older than the grant and keep re-opening this attempt.
+                  endTime: null,
                   canReattempt: false
                 });
               } else if (attemptData.status === 'expired') {

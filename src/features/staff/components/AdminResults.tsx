@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../lib/AuthContext';
-import { db, doc, getDoc, collection, query, where, getDocs, deleteDoc } from '../../../lib/firebase';
+import { db, doc, getDoc, collection, query, where, getDocs } from '../../../lib/firebase';
 import { attemptsService } from '../../../services/api';
 import { Attempt, Exam } from '../../../types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
@@ -131,31 +131,24 @@ export const AdminResults: React.FC = () => {
     if (!attemptToReset) return;
     setIsResetting(true);
     try {
-      const attemptId = attemptToReset.id;
-      const studentId = attemptToReset.studentId;
-
-      // 1. Delete the primary attempt document
-      const attemptRef = doc(db, 'attempts', attemptId);
-      await deleteDoc(attemptRef);
-
-      // 2. Delete related proctoring logs for this attempt
-      const logsQuery = query(collection(db, 'proctoring_logs'), where('attemptId', '==', attemptId));
-      const logsSnap = await getDocs(logsQuery);
-      for (const logDoc of logsSnap.docs) {
-        await deleteDoc(doc(db, 'proctoring_logs', logDoc.id));
-      }
-
-      // 3. Delete related error book entries for this student & exam. Collection is
-      // 'error_books' (plural) — everywhere else in the app (ExamInterface.tsx's writer,
-      // idGenerator.ts, StudentController/SchoolController's cascade-delete) already agrees on
-      // that name; this read+delete previously targeted the singular 'error_book', which no
-      // writer ever used, so reset-attempt cleanup silently never deleted the real entries.
-      if (studentId && examId) {
-        const errorBookQuery = query(collection(db, 'error_books'), where('studentId', '==', studentId), where('examId', '==', examId));
-        const errorBookSnap = await getDocs(errorBookQuery);
-        for (const ebDoc of errorBookSnap.docs) {
-          await deleteDoc(doc(db, 'error_books', ebDoc.id));
-        }
+      // One server-side call instead of the three client-side deletes this replaced.
+      //
+      // Those ran in the worst possible order for a partial failure — attempt doc first, its
+      // dependents after — and a school caller could not complete them at all: error_books
+      // carry no schoolId, so they cannot be tenant-scoped for a school-role read and
+      // COLLECTION_ACCESS no longer grants one. This screen is open to `['admin', 'school']`
+      // (App.tsx), so for every school user the sequence deleted the attempt and the proctoring
+      // logs, then threw 403 on the error-book step and reported the whole reset as failed.
+      //
+      // The endpoint clears dependents first and removes the attempt only once they are clear,
+      // so a failure leaves the attempt in place rather than orphaning records with no owner.
+      const outcome = await attemptsService.reset(attemptToReset.id);
+      if (!outcome.success) {
+        const detail = Object.entries(outcome.results || {})
+          .filter(([, r]) => r.failed > 0)
+          .map(([name, r]) => `${name}: ${r.failed} failed`)
+          .join(', ');
+        throw new Error(detail ? `Cleanup incomplete (${detail}) — the attempt was left in place.` : 'The attempt could not be cleared.');
       }
 
       toast.success(`Successfully cleared attempt for ${attemptToReset.studentName}. They can now retake this exam.`);

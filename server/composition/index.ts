@@ -26,6 +26,10 @@ export { tokenVerifier } from '../adapters/out/firebase/FirebaseTokenVerifier';
 
 // -- Generic document access -----------------------------------------------------------
 export { documentStore } from '../adapters/out/firestore/FirestoreDocumentStore';
+// Bulk delete of one owner's documents, paged. Re-exported here rather than imported straight
+// from the adapter by its callers: an inbound adapter (an HTTP controller) may not depend on an
+// outbound one, and the composition root is the seam that exists to bridge exactly that.
+export { cascadeDeleteByScope } from '../adapters/out/firestore/cascadeDelete';
 
 // -- Authorization ---------------------------------------------------------------------
 // Bound helpers, not the instance: every existing call site reads as a plain function call,

@@ -11,7 +11,7 @@ import request from 'supertest';
 // — tenant scoping, the submission contract, and the guard rails — which is where regressions
 // have actually landed in this codebase.
 
-const { fakeAttemptDao, mockAuth, mockEnqueueWrite, mockEnqueueGradingTask, mockAuthorizeWrite } = vi.hoisted(() => ({
+const { fakeAttemptDao, mockAuth, mockEnqueueWrite, mockEnqueueGradingTask, mockAuthorizeWrite, mockCascadeDeleteByScope } = vi.hoisted(() => ({
   fakeAttemptDao: {
     store: new Map<string, any>(),
     lastFindByFilters: null as any,
@@ -24,7 +24,11 @@ const { fakeAttemptDao, mockAuth, mockEnqueueWrite, mockEnqueueGradingTask, mock
   mockAuth: { current: null as any },
   mockEnqueueWrite: vi.fn().mockResolvedValue({ success: true, id: 'att_1' }),
   mockEnqueueGradingTask: vi.fn().mockResolvedValue(undefined),
-  mockAuthorizeWrite: vi.fn()
+  mockAuthorizeWrite: vi.fn(),
+  // The reset route's bulk delete. Stubbed so the test asserts what the route ASKS for —
+  // which collections, scoped by which fields — rather than exercising the paged drain
+  // itself, which is the adapter's own concern.
+  mockCascadeDeleteByScope: vi.fn()
 }));
 
 // requireSession normally verifies a JWT and reads users/{uid}; here it just injects whatever
@@ -62,6 +66,7 @@ vi.mock('../../../../../composition', async () => {
     studentDao: { findById: vi.fn() },
     examDao: { findById: vi.fn() },
     documentStore: documents,
+    cascadeDeleteByScope: mockCascadeDeleteByScope,
     authorizeWrite: mockAuthorizeWrite,
     scopeFieldFor: authorization.scopeFieldFor.bind(authorization),
     scopeValueFor: authorization.scopeValueFor.bind(authorization),
@@ -79,6 +84,7 @@ vi.mock('../../../../../composition', async () => {
 vi.mock('../../middleware/duplicateSubmission', () => ({
   checkDuplicateSubmission: (_req: any, _res: any, next: () => void) => next()
 }));
+
 
 async function buildApp() {
   const { default: router } = await import('./AttemptController');
@@ -110,6 +116,7 @@ beforeEach(() => {
   // re-read lets it through. Tests that care about a finished attempt override this.
   fakeAttemptDao.findById.mockResolvedValue({ id: 'att_1', exists: true, data: { status: 'in-progress', studentId: 'student_1' } });
   mockEnqueueWrite.mockResolvedValue({ success: true, id: 'att_1' });
+  mockCascadeDeleteByScope.mockResolvedValue({ deleted: 0, failed: 0 });
 });
 
 describe('GET /api/v1/attempts — tenant scoping', () => {
@@ -371,5 +378,87 @@ describe('PATCH /api/v1/attempts/:attemptId', () => {
       .expect(200);
 
     expect(fakeAttemptDao.update).toHaveBeenCalledWith('att_1', expect.objectContaining({ answers: [1, 2] }));
+  });
+});
+
+// ============================================================================
+// DELETE /api/v1/attempts/:attemptId/reset
+// ============================================================================
+// Exists because AdminResults.tsx could not do this from the client any more: error_books
+// carry no schoolId, so a school-role read of them cannot be tenant-scoped and is no longer
+// granted at all. The client sequence deleted the attempt first and the dependents after, so a
+// school user got the attempt and its proctoring logs deleted, a 403 on the error-book step,
+// and a "reset failed" toast for an operation that had already half-run.
+describe('DELETE /api/v1/attempts/:attemptId/reset', () => {
+  const ownAttempt = { id: 'att_1', exists: true, data: { status: 'completed', studentId: 'student_1', examId: 'exam_1', schoolId: 'school_mine' } };
+
+  it('rejects a student, who may never reset an attempt', async () => {
+    mockAuth.current = { uid: 'student_1', role: 'student', schoolId: 'school_mine', email: null, sessionId: 's1' };
+    const app = await buildApp();
+
+    await request(app).delete('/api/v1/attempts/att_1/reset').expect(403);
+    expect(mockEnqueueWrite).not.toHaveBeenCalled();
+  });
+
+  it("rejects a school resetting another school's attempt", async () => {
+    fakeAttemptDao.findById.mockResolvedValue(ownAttempt);
+    mockAuth.current = { uid: 'u_school', role: 'school', schoolId: 'school_someone_else', email: null, sessionId: 's1' };
+    const app = await buildApp();
+
+    await request(app).delete('/api/v1/attempts/att_1/reset').expect(403);
+    expect(mockCascadeDeleteByScope).not.toHaveBeenCalled();
+    expect(mockEnqueueWrite).not.toHaveBeenCalled();
+  });
+
+  it('clears dependents scoped by student AND exam, then the attempt itself', async () => {
+    fakeAttemptDao.findById.mockResolvedValue(ownAttempt);
+    mockAuth.current = { uid: 'u_school', role: 'school', schoolId: 'school_mine', email: null, sessionId: 's1' };
+    const app = await buildApp();
+
+    const res = await request(app).delete('/api/v1/attempts/att_1/reset').expect(200);
+
+    // studentId + examId, not attemptId: logProctorAnomaly writes an attemptId onto its logs
+    // but logActivity does not, so scoping by attempt id — as the client-side version did —
+    // silently leaves every logActivity entry behind. error_books never carry one at all.
+    for (const collectionName of ['proctoring_logs', 'error_books']) {
+      expect(mockCascadeDeleteByScope).toHaveBeenCalledWith(collectionName, 'studentId', 'student_1', { field: 'examId', value: 'exam_1' });
+    }
+    expect(mockEnqueueWrite).toHaveBeenCalledWith({ type: 'delete', collectionName: 'attempts', docId: 'att_1' });
+    expect(res.body).toMatchObject({ success: true, attemptDeleted: true });
+  });
+
+  it('leaves the attempt in place when a dependent collection could not be fully cleared', async () => {
+    // The ordering property. A half-cleared reset that still has its attempt doc is
+    // recoverable — the school retries. One where the attempt is gone and its records are not
+    // leaves rows no query will ever reach again.
+    fakeAttemptDao.findById.mockResolvedValue(ownAttempt);
+    mockCascadeDeleteByScope.mockResolvedValue({ deleted: 3, failed: 1 });
+    mockAuth.current = { uid: 'u_admin', role: 'admin', schoolId: null, email: null, sessionId: 's1' };
+    const app = await buildApp();
+
+    const res = await request(app).delete('/api/v1/attempts/att_1/reset').expect(200);
+
+    expect(mockEnqueueWrite).not.toHaveBeenCalled();
+    expect(res.body).toMatchObject({ success: false, attemptDeleted: false });
+  });
+
+  it('does not delete on a half key when the attempt is missing a studentId or examId', async () => {
+    // Scoping by studentId alone would take out that student's error book for EVERY exam.
+    fakeAttemptDao.findById.mockResolvedValue({ id: 'att_1', exists: true, data: { status: 'completed', schoolId: 'school_mine' } });
+    mockAuth.current = { uid: 'u_admin', role: 'admin', schoolId: null, email: null, sessionId: 's1' };
+    const app = await buildApp();
+
+    await request(app).delete('/api/v1/attempts/att_1/reset').expect(200);
+
+    expect(mockCascadeDeleteByScope).not.toHaveBeenCalled();
+    expect(mockEnqueueWrite).toHaveBeenCalledWith({ type: 'delete', collectionName: 'attempts', docId: 'att_1' });
+  });
+
+  it('404s on an attempt that does not exist', async () => {
+    fakeAttemptDao.findById.mockResolvedValue({ id: 'att_missing', exists: false, data: null });
+    mockAuth.current = { uid: 'u_admin', role: 'admin', schoolId: null, email: null, sessionId: 's1' };
+    const app = await buildApp();
+
+    await request(app).delete('/api/v1/attempts/att_missing/reset').expect(404);
   });
 });

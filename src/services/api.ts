@@ -956,6 +956,19 @@ export const attemptsService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ studentIds })
     });
+  },
+
+  // DELETE /api/v1/attempts/:attemptId/reset — removes the attempt together with its
+  // proctoring logs and error-book entries. Server-side because a school caller cannot read
+  // error_books (they carry no schoolId, so they cannot be tenant-scoped for a school-role
+  // read), which is what made the previous client-side three-step delete in AdminResults.tsx
+  // fail partway through with the attempt already gone.
+  async reset(attemptId: string): Promise<{
+    success: boolean;
+    attemptDeleted: boolean;
+    results: Record<string, { deleted: number; failed: number }>;
+  }> {
+    return safeFetchJson(`/api/v1/attempts/${encodeURIComponent(attemptId)}/reset`, { method: 'DELETE' });
   }
 };
 

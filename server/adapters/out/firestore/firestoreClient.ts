@@ -1,5 +1,5 @@
 import { GoogleAuth } from 'google-auth-library';
-import { firebaseConfig } from '../../../config';
+import { firebaseConfig, firestoreEmulatorHost, isFirestoreEmulated } from '../../../config';
 import { createBreaker } from '../../../lib/circuitBreaker';
 import { withRetry, FirestoreRestError } from '../../../lib/retry';
 import { logger } from '../../../lib/logger';
@@ -29,11 +29,16 @@ export function createDatabaseHandle(config: { projectId: string; firestoreDatab
   };
 }
 
+// Where Firestore's REST API lives: the real service, or the local emulator when
+// FIRESTORE_EMULATOR_HOST is set. The emulator serves the identical v1 REST surface, so the
+// only difference is the origin — every path, body and response shape below is unchanged.
+const firestoreOrigin = () => (isFirestoreEmulated ? `http://${firestoreEmulatorHost}` : 'https://firestore.googleapis.com');
+
 // REST Client configuration
 export const getBaseUrl = (db?: DatabaseHandle) => {
   const projectId = db?.projectId || firebaseConfig.projectId;
   const databaseId = db?.databaseId || firebaseConfig.firestoreDatabaseId;
-  return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents`;
+  return `${firestoreOrigin()}/v1/projects/${projectId}/databases/${databaseId}/documents`;
 };
 
 function apiKeyFor(db?: DatabaseHandle): string {
@@ -58,39 +63,92 @@ export const auth = new GoogleAuth({
 export let detectedContainerProjectId: string | null = null;
 let cachedToken: { token: string; expiry: number } | null = null;
 
+// NEGATIVE caching for credential lookups, so an environment WITHOUT Application Default
+// Credentials costs one probe rather than one per Firestore call.
+//
+// google-auth-library resolves credentials by looking for an env var, then a well-known file,
+// then by asking the GCE metadata server — and that last step is a network call to a link-local
+// address that simply times out on a developer laptop. Without a memo of the failure, every
+// single Firestore read pays that timeout, retry wraps it, and the circuit breaker in front
+// eventually opens: the app stops showing data at all, for want of a credential it was only
+// ever going to fall back from. Successes are already cached (`cachedToken`); this is the other
+// half of the same idea.
+//
+// A cooldown rather than a permanent flag: credentials can legitimately appear after the
+// process starts (someone runs `gcloud auth application-default login` and expects the running
+// server to pick it up), and on Cloud Run a metadata blip must not disable ADC for the life of
+// the instance.
+const CREDENTIAL_PROBE_COOLDOWN_MS = 60000;
+let projectProbeBlockedUntil = 0;
+let adcProbeBlockedUntil = 0;
+
+// Exported for tests, which need each case to start from an un-probed state.
+export function __resetCredentialProbeState(): void {
+  detectedContainerProjectId = null;
+  cachedToken = null;
+  projectProbeBlockedUntil = 0;
+  adcProbeBlockedUntil = 0;
+}
+
 export async function getAuthHeader(db?: DatabaseHandle): Promise<Record<string, string>> {
+  // The emulator recognises the literal token `owner` as a full-access caller, which is what
+  // lets it serve transactions — and every other operation — with no real credentials. Returned
+  // before any of the ADC machinery below so local development never waits on a metadata-server
+  // lookup that was always going to fail.
+  if (isFirestoreEmulated) {
+    return { Authorization: 'Bearer owner' };
+  }
+
   // A ref pointing at a DIFFERENT project than this app's own never gets this app's ADC
   // token — that credential isn't valid there, and attaching it would mask the real 403 with
   // a confusing auth error. Such reads authenticate with the source config's own apiKey.
   if (db?.projectId && db.projectId !== firebaseConfig.projectId) {
     return {};
   }
-  if (!detectedContainerProjectId) {
+  // Detected for its own sake, not to decide anything about authentication: the GCP
+  // billing/IAM routes (routes/gcp.ts) read it to know which project they are running in.
+  if (!detectedContainerProjectId && Date.now() >= projectProbeBlockedUntil) {
     try {
       detectedContainerProjectId = await auth.getProjectId();
       logger.info('Firestore auth: auto-detected container project ID', { detectedContainerProjectId });
     } catch (err) {
-      logger.warn('Firestore auth: could not auto-detect container project ID', { err });
+      // Off-platform (a developer machine) this fails every time and costs a metadata-server
+      // timeout, so it is not re-asked on the next call — see CREDENTIAL_PROBE_COOLDOWN_MS.
+      projectProbeBlockedUntil = Date.now() + CREDENTIAL_PROBE_COOLDOWN_MS;
+      logger.warn('Firestore auth: could not auto-detect container project ID, pausing detection', { err });
     }
   }
 
-  // Use Application Default Credentials (ADC) if we are targeting the platform's sandbox project and using the default database.
-  // Standard platforms projects have IDs starting with 'gen-lang-client-' or 'project-'.
-  // We also use ADC if the target project matches the auto-detected container project ID and we use the (default) database.
-  const isTargetingPlatformProject =
-    (firebaseConfig.projectId === 'gen-lang-client-0086284509' ||
-      firebaseConfig.projectId.startsWith('gen-lang-client-') ||
-      firebaseConfig.projectId.startsWith('project-') ||
-      !!(detectedContainerProjectId && firebaseConfig.projectId === detectedContainerProjectId)) &&
-    (!firebaseConfig.firestoreDatabaseId || firebaseConfig.firestoreDatabaseId === '(default)');
-
-  if (!isTargetingPlatformProject) {
+  // ONE mechanism for every environment. Application Default Credentials exist precisely so
+  // that the same call resolves to the right identity wherever the process runs: the service
+  // account from the metadata server on Cloud Run, the file written by
+  // `gcloud auth application-default login` on a developer machine, or GOOGLE_APPLICATION_
+  // CREDENTIALS wherever that is set. So the rule here is simply: ask for a token, and use it
+  // if there is one. No environment detection, because there is nothing to detect.
+  //
+  // This used to guess instead, from two things that say nothing about whether credentials
+  // exist:
+  //   - the project NAME (`startsWith('project-')`, `startsWith('gen-lang-client-')`), which
+  //     means renaming the project silently turns authentication off;
+  //   - the DATABASE id, requiring `(default)` — and this app's is `suven-edu`, so ADC was
+  //     disabled everywhere, Cloud Run included. Plain document reads and writes survive on the
+  //     Firebase API key alone and hid it; `:beginTransaction` does not, and answers 403
+  //     PERMISSION_DENIED. The one code path built on a real transaction is exam-entry
+  //     enrollment (gatekeeper.ts), so the whole app looked healthy and a student could get all
+  //     the way to the start-exam button before anything failed.
+  //
+  // Falling back to the API key when no credentials are found keeps local read-only work
+  // possible without a login, which is the one genuine convenience the old branching bought.
+  if (cachedToken && cachedToken.expiry > Date.now() + 300000) {
+    return { Authorization: `Bearer ${cachedToken.token}` };
+  }
+  // A recent probe already established there are no credentials here. Fall back to the API key
+  // immediately instead of waiting on the same lookup again — the whole point is that this path
+  // runs in front of EVERY Firestore call.
+  if (Date.now() < adcProbeBlockedUntil) {
     return {};
   }
   try {
-    if (cachedToken && cachedToken.expiry > Date.now() + 300000) {
-      return { Authorization: `Bearer ${cachedToken.token}` };
-    }
     const client = await auth.getClient();
     const tokenResponse = await client.getAccessToken();
     if (tokenResponse.token) {
@@ -100,7 +158,10 @@ export async function getAuthHeader(db?: DatabaseHandle): Promise<Record<string,
       };
       return { Authorization: `Bearer ${tokenResponse.token}` };
     }
+    // Resolved, but handed back no token. Same cost to re-ask as a throw, so same cooldown.
+    adcProbeBlockedUntil = Date.now() + CREDENTIAL_PROBE_COOLDOWN_MS;
   } catch (err) {
+    adcProbeBlockedUntil = Date.now() + CREDENTIAL_PROBE_COOLDOWN_MS;
     logger.warn('Firestore auth: ADC token unavailable, falling back to apiKey', { err });
   }
   return {};
@@ -805,16 +866,36 @@ async function rollbackTransaction(transaction: string, db?: DatabaseHandle): Pr
 // by unrelated writes.
 async function getDocInTransaction(docRef: any, transaction: string) {
   const db = docRef.db;
-  const url = `${getBaseUrl(db)}/${docRef.collectionName}/${docRef.id}?key=${apiKeyFor(db)}&transaction=${encodeURIComponent(transaction)}`;
-  const headers = await firestoreHeaders(db);
+  // `:batchGet` with the transaction id in the JSON BODY, rather than a plain document GET with
+  // `?transaction=` in the query string.
+  //
+  // A transaction id is a bytes value. Real Firestore accepts it base64-encoded in a query
+  // parameter, but the emulator's REST-to-gRPC adapter cannot map a BYTE_STRING arriving that
+  // way: it throws `IllegalArgumentException: Unmapped JavaType: BYTE_STRING` and drops the
+  // connection WITHOUT sending a response, so the caller hangs until it times out rather than
+  // seeing an error. batchGet carries the same value in the request body, which both the real
+  // service and the emulator handle, and is the documented way to read inside a transaction.
+  const url = `${getBaseUrl(db)}:batchGet?key=${apiKeyFor(db)}`;
+  const headers = await firestoreHeaders(db, true);
+  const documentName = `${getDocumentsPath(db)}/${docRef.collectionName}/${docRef.id}`;
 
-  const httpResponse = await fetch(url, { headers });
-  if (httpResponse.status === 404) {
+  const httpResponse = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ documents: [documentName], transaction })
+  });
+  await assertFirestoreOk(httpResponse, 'transactional get');
+
+  // Response is one entry per requested document: `found` with the document, or `missing` with
+  // just its name. A missing document is a normal outcome here, not an error — the enrollment
+  // flow reads attempts and links that may not exist yet.
+  const payload = await httpResponse.json();
+  const entry = Array.isArray(payload) ? payload.find((row: any) => row.found || row.missing) : null;
+  if (!entry || !entry.found) {
     return { id: docRef.id, exists: () => false, data: (): any => null };
   }
-  await assertFirestoreOk(httpResponse, 'transactional get');
-  const payload = await httpResponse.json();
-  const docData = fromFirestoreFields(payload.fields || {});
+
+  const docData = fromFirestoreFields(entry.found.fields || {});
   return { id: docRef.id, exists: () => true, data: () => docData };
 }
 

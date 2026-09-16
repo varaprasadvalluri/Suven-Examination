@@ -43,7 +43,11 @@ export const COLLECTION_ACCESS: Record<string, { read: ProxyRole[]; write: Proxy
   invitations: { read: ['admin', 'school'], write: ['admin', 'school'] },
   notifications_queue: { read: ['admin'], write: ['admin'] },
   proctoring_logs: { read: ['admin', 'school'], write: ['admin', 'school', 'student'] },
-  error_books: { read: ['admin', 'school', 'student'], write: ['admin', 'school', 'student'] },
+  // 'school' deliberately absent from read: error_books carry no schoolId of their own, so a
+  // school-role read could not be tenant-scoped and returned every school's students' wrong-
+  // answer history. Nothing in the app makes that read — AdminResults.tsx is the only reader
+  // and it is admin-role. Schools see per-student history through StudentExamHistory instead.
+  error_books: { read: ['admin', 'student'], write: ['admin', 'school', 'student'] },
   benchmarks: { read: ['admin'], write: ['admin'] },
   secure_exam_links: { read: ['admin', 'school', 'student'], write: ['admin', 'school'] },
   report_jobs: { read: ['admin', 'school'], write: ['admin', 'school'] }
@@ -53,7 +57,13 @@ export const COLLECTION_ACCESS: Record<string, { read: ProxyRole[]; write: Proxy
 // own schoolId/uid. 'exams' is scoped by creatorId (the school that created it), not
 // schoolId, since schools also legitimately read/act on exams assigned to them by admins.
 export const SCOPE_FIELD: Record<string, { school?: string; student?: string }> = {
-  users: { school: 'schoolId' },
+  // A student reads only their OWN users doc. Without the student entry here the role had no
+  // scope field at all, and an unscoped read falls straight through injectReadScope — so any
+  // signed-in student could dump every user on the platform (names, emails, roll numbers,
+  // schoolIds, activeSessionId) across every school. `uid` is written on every users doc that
+  // this app creates (gatekeeper.ts's auto-onboard, SchoolCandidateOnboarding's
+  // candidatePayload, and the bulk import), so it is a reliable self-scope.
+  users: { school: 'schoolId', student: 'uid' },
   exams: { school: 'creatorId' },
   attempts: { school: 'schoolId', student: 'studentId' },
   syllabus: { school: 'schoolId' },
@@ -74,6 +84,111 @@ export const SCOPE_FIELD: Record<string, { school?: string; student?: string }> 
   secure_exam_links: { school: 'schoolId' },
   report_jobs: { school: 'schoolId' }
 };
+
+// ==========================================
+// STUDENT WRITE POLICY FOR `attempts`
+// ==========================================
+// The tenant-scoping rules below answer "is this your document?". They do not answer "may you
+// write this field", and for `attempts` — the grade record — that gap was exploitable: a
+// student's own attempt passes the ownership check, so `{"score":100}` sent to
+// PATCH /api/v1/attempts/:id or /api/db/write landed verbatim on an already-graded attempt.
+// The submit route recomputes the score server-side, but a PATCH carrying no
+// `status: 'completed'` is not a submission and never reached that recompute. The same shape
+// let a student send `{"canReattempt":true}` and re-sit whenever they liked.
+
+// What a student's own client actually sends, taken from the real call sites: the 30s autosave
+// tick and the violation/proctoring counters (ExamInterface.tsx), the submission payload
+// (score/accuracy already stripped by AttemptSubmissionService before it reaches here), and
+// the initial create plus re-attempt reset (StudentDashboard.tsx).
+export const STUDENT_WRITABLE_ATTEMPT_FIELDS = new Set([
+  'answers',
+  'timePerQuestion',
+  'avgTimePerCorrect',
+  'status',
+  'startTime',
+  'endTime',
+  'violationsCount',
+  'lastViolation',
+  'lastViolationTime',
+  'deviceFootprint',
+  'ephemeralToken',
+  'examId',
+  'examTitle',
+  'studentId',
+  'studentName',
+  'studentEmail',
+  'schoolId'
+]);
+
+// Server-owned fields a student may still send, but ONLY at their reset value — starting an
+// exam and re-sitting one both legitimately write score 0 / accuracy 0 / canReattempt false.
+// Any other value is a forged grade or a self-granted re-attempt.
+export const STUDENT_RESET_ONLY_ATTEMPT_FIELDS: Record<string, unknown> = {
+  score: 0,
+  accuracy: 0,
+  canReattempt: false
+};
+
+// 'completed' and 'grading_failed' belong to the grading worker (GradeAttemptService), and
+// 'expired' to the lazy-expiry gates. A student writing 'completed' directly would skip the
+// server-side recompute the submit route exists to perform.
+export const STUDENT_WRITABLE_ATTEMPT_STATUSES = new Set(['started', 'in-progress', 'submitted']);
+
+// ==========================================
+// READ SCOPING IS FAIL-CLOSED
+// ==========================================
+// injectReadScope returns the caller's constraints untouched when a role has no scope field
+// for a collection, and db.ts only injected `if (scopeField)`. So "no scope rule defined" read
+// as "no scope needed" — the most dangerous possible default, and the reason a student could
+// read the entire `users` collection. Adding a collection to COLLECTION_ACCESS was enough to
+// expose it platform-wide; forgetting a SCOPE_FIELD entry was silent.
+//
+// readScopePolicyFor makes that decision explicit and closed by default: every non-admin read
+// must resolve to a scope field, a targeted token lookup, or a reviewed exemption. Anything
+// else is denied, and authorization.test.ts fails the build if a new collection/role pair
+// lands here without one of the three.
+
+// Roles that may read a collection ONLY through a targeted single-token lookup, never as a
+// listing. A signed-in student following a shared exam link still needs to resolve their
+// token, but must not be able to enumerate every school's active entry tokens.
+export const TOKEN_LOOKUP_ONLY_ROLES: Record<string, ProxyRole[]> = {
+  secure_exam_links: ['student']
+};
+
+// Deliberate, reviewed exceptions: collection:role pairs that genuinely need an unscoped read.
+// Empty on purpose — every current pair resolves to a scope field or a token lookup. Adding
+// to this set is a security decision and should be justified in a comment beside the entry.
+export const UNSCOPED_READ_EXEMPT = new Set<string>();
+
+export type ReadScopePolicy =
+  { kind: 'admin' } | { kind: 'field'; field: string } | { kind: 'token-lookup' } | { kind: 'exempt' } | { kind: 'deny' };
+
+export function readScopePolicyFor(collectionName: string, role: ProxyRole): ReadScopePolicy {
+  if (role === 'admin') return { kind: 'admin' };
+
+  const scope = SCOPE_FIELD[collectionName];
+  const field = role === 'school' ? scope?.school : scope?.student;
+  if (field) return { kind: 'field', field };
+
+  if ((TOKEN_LOOKUP_ONLY_ROLES[collectionName] || []).includes(role)) return { kind: 'token-lookup' };
+  if (UNSCOPED_READ_EXEMPT.has(`${collectionName}:${role}`)) return { kind: 'exempt' };
+
+  return { kind: 'deny' };
+}
+
+// The one query shape a token lookup may take: resolve exactly one document by its token
+// value. No docId, no listing, no extra constraints to widen it back out.
+export function isTargetedTokenLookup(docId: string | undefined, constraints: any[]): boolean {
+  return (
+    !docId &&
+    Array.isArray(constraints) &&
+    constraints.length === 1 &&
+    constraints[0]?.type === 'where' &&
+    constraints[0]?.op === '==' &&
+    (constraints[0]?.field === 'id' || constraints[0]?.field === 'token') &&
+    !!constraints[0]?.value
+  );
+}
 
 // Encapsulates the DB-proxy authorization rules — the highest-stakes code in the app — as a
 // single cohesive unit: the collection/scope config above (read via the class, not mutated),
@@ -160,6 +275,36 @@ export class AuthorizationService {
         if (entry.expiry < now) this.ownerVerificationCache.delete(key);
       }
     }
+  }
+
+  // Returns a rejection when a student's attempt write carries anything they are not allowed
+  // to set, or sets an allowed field to a value only the server may choose. Returns null when
+  // the write is clean.
+  //
+  // Allow-list rather than deny-list on purpose: a deny-list silently accepts every field
+  // added to the attempt shape later, and the field most likely to be added later is another
+  // server-computed grading field.
+  private rejectDisallowedStudentAttemptWrite(data: any): { ok: false; status: number; error: string } | null {
+    if (!data || typeof data !== 'object') return null;
+
+    for (const [field, value] of Object.entries(data)) {
+      if (field in STUDENT_RESET_ONLY_ATTEMPT_FIELDS) {
+        if (value !== STUDENT_RESET_ONLY_ATTEMPT_FIELDS[field]) {
+          return { ok: false, status: 403, error: `Forbidden: '${field}' is set by the server, not by the client` };
+        }
+        continue;
+      }
+
+      if (!STUDENT_WRITABLE_ATTEMPT_FIELDS.has(field)) {
+        return { ok: false, status: 403, error: `Forbidden: students may not write '${field}' on an attempt` };
+      }
+
+      if (field === 'status' && !STUDENT_WRITABLE_ATTEMPT_STATUSES.has(String(value))) {
+        return { ok: false, status: 403, error: `Forbidden: students may not set attempt status '${String(value)}'` };
+      }
+    }
+
+    return null;
   }
 
   // Authorizes a single /api/db/write operation for a non-admin caller. Admins bypass this
@@ -274,6 +419,13 @@ export class AuthorizationService {
         }
       }
       return { ok: true, data };
+    }
+
+    // Field-level policy for the grade record. Runs before the ownership check below, which
+    // on its own would happily accept a forged score on a document the student does own.
+    if (collectionName === 'attempts' && auth.role === 'student') {
+      const rejection = this.rejectDisallowedStudentAttemptWrite(data);
+      if (rejection) return rejection;
     }
 
     // Generic tenant-scoped collections: attempts, invitations, proctoring_logs, error_books,

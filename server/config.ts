@@ -11,6 +11,29 @@ export const firebaseConfig = {
   storageBucket: process.env.FIREBASE_STORAGE_BUCKET || ''
 };
 
+// Local Firestore emulator, when FIRESTORE_EMULATOR_HOST is set (e.g. `127.0.0.1:8080`) — the
+// standard variable the Firebase tooling itself exports, so it is understood by the emulator
+// suite and every Google client library without further configuration.
+//
+// Why local development wants it: this server talks to Firestore over REST, and unauthenticated
+// API-key access covers document reads and writes but NOT `:beginTransaction`, which Firestore
+// answers with 403 PERMISSION_DENIED. Exam-entry enrollment (gatekeeper.ts) runs inside a real
+// transaction, so without either Application Default Credentials or the emulator, a developer
+// can browse the whole app and then fail at the moment a student actually starts an exam.
+// The emulator accepts transactions with no credentials at all.
+//
+// Empty string when unset, so `isEmulated` stays a plain boolean check at every call site and
+// production behaviour is untouched.
+export const firestoreEmulatorHost = process.env.FIRESTORE_EMULATOR_HOST || '';
+export const isFirestoreEmulated = !!firestoreEmulatorHost;
+
+if (isFirestoreEmulated) {
+  console.warn(
+    `[NODE EXPRESS SERVER] Firestore EMULATOR mode — all reads and writes go to ${firestoreEmulatorHost}, ` +
+      'not to the real project. Nothing here touches production data.'
+  );
+}
+
 // The two console.warn calls in this file are deliberate: config is evaluated at module load,
 // before any request context exists for the structured logger to attach, and a bootstrap
 // misconfiguration should be readable even if nothing else has initialised yet. Everything

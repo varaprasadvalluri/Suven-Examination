@@ -18,8 +18,17 @@ export interface CascadeDeleteResult {
  * (scoped by studentId) — the same loop, the same page size, the same two termination
  * conditions, differing only in which field names the owner. The subtle part is the failure
  * handling, and duplicating that is how the two copies eventually stop agreeing.
+ *
+ * `extra` narrows the match set with a second equality constraint, for callers that delete a
+ * slice of one owner's documents rather than all of them — error_books belonging to one
+ * student for one exam, say. Optional, so the two cascade callers above are unaffected.
  */
-export async function cascadeDeleteByScope(collectionName: string, scopeField: string, scopeValue: string): Promise<CascadeDeleteResult> {
+export async function cascadeDeleteByScope(
+  collectionName: string,
+  scopeField: string,
+  scopeValue: string,
+  extra?: { field: string; value: string }
+): Promise<CascadeDeleteResult> {
   let deleted = 0;
   let failed = 0;
 
@@ -27,8 +36,10 @@ export async function cascadeDeleteByScope(collectionName: string, scopeField: s
   // pass, so this never re-reads more than DELETE_PAGE_SIZE docs at a time regardless of
   // how large the school (or student history) is.
   while (true) {
+    const constraints: any[] = [clientWhere(scopeField, '==', scopeValue)];
+    if (extra) constraints.push(clientWhere(extra.field, '==', extra.value));
     const snap = await clientGetDocs(
-      clientQuery(clientCollection(clientDb, collectionName), clientWhere(scopeField, '==', scopeValue), clientLimit(DELETE_PAGE_SIZE))
+      clientQuery(clientCollection(clientDb, collectionName), ...constraints, clientLimit(DELETE_PAGE_SIZE))
     );
     if (snap.docs.length === 0) break;
 

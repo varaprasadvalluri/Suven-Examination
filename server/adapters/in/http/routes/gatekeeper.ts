@@ -16,7 +16,7 @@ import {
   GoneError,
   UnprocessableEntityError
 } from '../../../../lib/errors';
-import { isAttemptFinished } from '../../../../../shared/attemptStatus';
+import { isAttemptFinished, isReopenedBySchoolLink } from '../../../../../shared/attemptStatus';
 import {
   clientDb,
   clientCollection,
@@ -657,6 +657,10 @@ router.post(
     const attemptIdRaw = `att_${finalExamId}_${resolvedStudentId}`;
     const attemptDocRef = clientDoc(clientDb, 'attempts', attemptIdRaw);
     const examDocRef = clientDoc(clientDb, 'exams', finalExamId);
+    // The school+exam secure link, at the deterministic id handleActivateDynamicSecurity
+    // writes. Read here only to pick up a whole-school `reattemptFrom` grant; one extra read
+    // per enrollment, which happens once per student per sitting rather than per poll.
+    const secureLinkDocRef = clientDoc(clientDb, 'secure_exam_links', `gen_${finalSchoolId}_${finalExamId}`);
 
     let finalStudentProfile: any = null;
     let isNewAttempt = false;
@@ -668,7 +672,14 @@ router.post(
       const studentSnap = await transaction.get(studentDocRef);
       const attemptSnap = await transaction.get(attemptDocRef);
       const examSnap = await transaction.get(examDocRef);
+      const secureLinkSnap = await transaction.get(secureLinkDocRef);
       const examDurationMs = examSnap.exists() ? (examSnap.data() as any).duration * 60 * 1000 : null;
+
+      // A revoked link grants nothing — "Disable and Revert to Standard" sets isActive:false,
+      // and a stale reattemptFrom left behind on that doc must not keep reopening submitted
+      // attempts after the school has closed the exam off.
+      const secureLinkData = secureLinkSnap.exists() ? (secureLinkSnap.data() as any) : null;
+      const schoolWideReattemptFrom = secureLinkData?.isActive ? secureLinkData.reattemptFrom : null;
 
       // A. Onboard or fetch Student Profile atomically
       if (studentSnap.exists()) {
@@ -705,13 +716,24 @@ router.post(
         // 'submitted' for a while. Testing 'completed' alone let a student re-enter and retake
         // the exam they had just submitted, for as long as grading took.
         if (isAttemptFinished(attemptData.status) || attemptData.status === 'expired') {
-          if (attemptData.canReattempt) {
+          // Two independent grants, checked together so this door matches the dashboard card
+          // (StudentDashboardService.getAccessibleExamCandidates): `canReattempt` is the
+          // per-student grant written by handleReTriggerInvite, `reattemptFrom` is the
+          // whole-school grant written once onto the secure link by handleAllowSchoolWideReattempt.
+          if (attemptData.canReattempt || isReopenedBySchoolLink(attemptData, schoolWideReattemptFrom)) {
             attemptAction = 'reattempted';
             transaction.update(attemptDocRef, {
               status: 'started',
               score: 0,
               answers: [] as any[],
               startTime: now.toISOString(),
+              // Cleared, not left behind. isReopenedBySchoolLink reads `endTime || startTime`,
+              // so a stale endTime from the PREVIOUS sitting stays older than the grant
+              // forever — and any terminal status reached without writing a new endTime (lazy
+              // expiry, or grading_failed on an abandoned re-entry) would then be re-opened by
+              // the same grant again, and again. Clearing it makes the grant single-use as
+              // designed: the next finish timestamp is the re-sit's, which is after the grant.
+              endTime: null,
               canReattempt: false
             });
           } else if (attemptData.status === 'expired') {

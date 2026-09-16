@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { RequestAuth } from '../ports/RequestAuth';
 import type { SingleDocResult } from '../ports/SchoolDao';
-import { AuthorizationService } from './authorization';
+import {
+  AuthorizationService,
+  COLLECTION_ACCESS,
+  PUBLIC_READ_COLLECTIONS,
+  readScopePolicyFor,
+  isTargetedTokenLookup,
+  type ProxyRole
+} from './authorization';
 
 // AuthorizationService reaches persistence only through the DocumentStore port, so the
 // highest-stakes logic in the app is tested against a hand-written fake — no vi.mock of a
@@ -292,5 +299,146 @@ describe('sanitizeForPublicRead', () => {
   it('is a no-op on null/undefined data', () => {
     expect(sanitizeForPublicRead('questions', null)).toBeNull();
     expect(sanitizeForPublicRead('questions', undefined)).toBeUndefined();
+  });
+});
+
+// ============================================================================
+// GRADE INTEGRITY — students may not write server-owned fields on their attempt
+// ============================================================================
+// The tenant-scoping rules answer "is this your document?", not "may you write this field".
+// A student's own attempt passes the ownership check, so before this policy existed
+// `{"score":100}` sent to PATCH /api/v1/attempts/:id or /api/db/write landed verbatim on an
+// already-graded attempt: the submit route recomputes the score server-side, but a PATCH with
+// no status:'completed' is not a submission and never reached that recompute.
+describe('student writes to their own attempt', () => {
+  const ownAttempt = 'att_exam-1_student-a';
+
+  beforeEach(() => {
+    mockGetDoc.mockResolvedValue(found({ studentId: 'student-a', schoolId: 'school-A', status: 'completed', score: 40 }));
+  });
+
+  it('rejects a forged score on an already-graded attempt', async () => {
+    const decision = await authorizeWrite(studentA, 'update', 'attempts', ownAttempt, { score: 100 });
+    expect(decision.ok).toBe(false);
+  });
+
+  it('rejects a forged accuracy', async () => {
+    const decision = await authorizeWrite(studentA, 'update', 'attempts', ownAttempt, { accuracy: 1 });
+    expect(decision.ok).toBe(false);
+  });
+
+  it('rejects a self-granted re-attempt', async () => {
+    // Otherwise a student re-sits whenever they like, bypassing both the per-student
+    // Re-trigger Link and the whole-school Allow Re-attempt grant.
+    const decision = await authorizeWrite(studentA, 'update', 'attempts', ownAttempt, { canReattempt: true });
+    expect(decision.ok).toBe(false);
+  });
+
+  it('rejects writing status completed directly, which would skip grading', async () => {
+    const decision = await authorizeWrite(studentA, 'update', 'attempts', ownAttempt, { status: 'completed', score: 100 });
+    expect(decision.ok).toBe(false);
+  });
+
+  it('rejects school-only exam controls', async () => {
+    for (const data of [{ isPaused: false }, { extraTime: 3600 }]) {
+      const decision = await authorizeWrite(studentA, 'update', 'attempts', ownAttempt, data);
+      expect(decision.ok).toBe(false);
+    }
+  });
+
+  it('rejects an unknown field rather than passing it through', async () => {
+    // Allow-list, not deny-list: the field most likely to be added to the attempt shape later
+    // is another server-computed grading field, and a deny-list would accept it silently.
+    const decision = await authorizeWrite(studentA, 'update', 'attempts', ownAttempt, { gradedAt: 'now' });
+    expect(decision.ok).toBe(false);
+  });
+
+  // The real payloads the exam client sends. These are what makes the allow-list safe to
+  // tighten: if a future client field is missed, it fails here rather than in a live exam.
+  it.each([
+    ['autosave tick', { timePerQuestion: { q1: 4 }, status: 'in-progress' }],
+    ['violation counter', { violationsCount: 2 }],
+    ['proctoring violation', { violationsCount: 3, lastViolation: 'tab blur', lastViolationTime: '2026-09-12T00:00:00.000Z' }],
+    [
+      'submission after AttemptSubmissionService strips score/accuracy',
+      {
+        avgTimePerCorrect: 9,
+        status: 'submitted',
+        answers: [1, 2],
+        timePerQuestion: {},
+        endTime: '2026-09-12T00:00:00.000Z',
+        schoolId: 'school-A',
+        examId: 'exam-1'
+      }
+    ],
+    ['re-attempt reset', { status: 'started', score: 0, answers: [], startTime: '2026-09-12T00:00:00.000Z', canReattempt: false }]
+  ])('still allows the real client payload: %s', async (_label, data) => {
+    const decision = await authorizeWrite(studentA, 'update', 'attempts', ownAttempt, data);
+    expect(decision.ok).toBe(true);
+  });
+
+  it('still allows a school to grant a re-attempt and set extra time', async () => {
+    // The field policy is student-only — school/admin exam controls are unchanged.
+    for (const data of [{ canReattempt: true }, { extraTime: 600 }]) {
+      const decision = await authorizeWrite(schoolA, 'update', 'attempts', ownAttempt, data);
+      expect(decision.ok).toBe(true);
+    }
+  });
+});
+
+// ============================================================================
+// READ SCOPING IS FAIL-CLOSED
+// ============================================================================
+describe('readScopePolicyFor', () => {
+  // THE REGRESSION GUARD. Not about the three collections that were wrong — about the class
+  // of bug: adding a collection to COLLECTION_ACCESS used to be enough to expose it
+  // platform-wide, because a missing SCOPE_FIELD entry read as "no scope needed" and
+  // injectReadScope passed the caller's constraints straight through.
+  it('leaves no collection/role pair readable without a scope, token lookup, or exemption', () => {
+    const unscoped: string[] = [];
+
+    for (const [collectionName, access] of Object.entries(COLLECTION_ACCESS)) {
+      if (PUBLIC_READ_COLLECTIONS.has(collectionName)) continue;
+      for (const role of ['school', 'student'] as ProxyRole[]) {
+        if (!access.read.includes(role)) continue;
+        if (readScopePolicyFor(collectionName, role).kind === 'deny') unscoped.push(`${collectionName}:${role}`);
+      }
+    }
+
+    // A new entry here means a non-admin role can read a whole collection across every
+    // tenant. Give it a SCOPE_FIELD, a TOKEN_LOOKUP_ONLY_ROLES entry, or — with a written
+    // justification — an UNSCOPED_READ_EXEMPT entry.
+    expect(unscoped).toEqual([]);
+  });
+
+  it('scopes a student to their own user document', () => {
+    // Was the worst of the three: names, emails, roll numbers, schoolIds and activeSessionId
+    // for every student, school and admin on the platform, to any signed-in student.
+    expect(readScopePolicyFor('users', 'student')).toEqual({ kind: 'field', field: 'uid' });
+
+    const constraints = injectReadScope(studentA, 'users', []);
+    expect(constraints).toEqual([{ type: 'where', field: 'uid', op: '==', value: 'student-a' }]);
+  });
+
+  it('blocks a student who tries to read another student, rather than widening the query', () => {
+    expect(injectReadScope(studentA, 'users', [{ type: 'where', field: 'uid', op: '==', value: 'student-b' }])).toBeNull();
+  });
+
+  it('lets a student resolve one exam token but never list them', () => {
+    expect(readScopePolicyFor('secure_exam_links', 'student')).toEqual({ kind: 'token-lookup' });
+    expect(isTargetedTokenLookup(undefined, [{ type: 'where', field: 'id', op: '==', value: 'tkn_abc' }])).toBe(true);
+    // A listing, or anything that widens the lookup back out.
+    expect(isTargetedTokenLookup(undefined, [])).toBe(false);
+    expect(isTargetedTokenLookup(undefined, [{ type: 'where', field: 'schoolId', op: '==', value: 'school-B' }])).toBe(false);
+    expect(isTargetedTokenLookup('gen_school-B_exam-1', [])).toBe(false);
+  });
+
+  it('no longer lets a school read every school’s error books', () => {
+    // error_books carry no schoolId, so a school read could not be tenant-scoped at all.
+    expect(COLLECTION_ACCESS.error_books.read).not.toContain('school');
+  });
+
+  it('keeps admin unscoped, which is the existing trust boundary', () => {
+    expect(readScopePolicyFor('users', 'admin')).toEqual({ kind: 'admin' });
   });
 });

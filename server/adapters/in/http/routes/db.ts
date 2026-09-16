@@ -10,7 +10,9 @@ import {
   ProxyRole,
   PUBLIC_READ_COLLECTIONS,
   TOKEN_LOOKUP_COLLECTIONS,
-  COLLECTION_ACCESS
+  COLLECTION_ACCESS,
+  readScopePolicyFor,
+  isTargetedTokenLookup
 } from '../../../../application/services/authorization';
 import { scopeFieldFor, scopeValueFor, injectReadScope, authorizeWrite, sanitizeForPublicRead } from '../../../../composition';
 import {
@@ -289,14 +291,7 @@ export const handleCollectionQuery = asyncHandler(async (req: any, res: any) => 
       // Pre-session exception: a visitor following a shared exam-invite link needs to look
       // up the one secure_exam_links doc matching their token before they have a session —
       // but only a targeted lookup by that token, never an unscoped collection dump.
-      const isTokenLookup =
-        TOKEN_LOOKUP_COLLECTIONS.has(collectionName) &&
-        !docId &&
-        constraints.length === 1 &&
-        constraints[0]?.type === 'where' &&
-        constraints[0]?.op === '==' &&
-        (constraints[0]?.field === 'id' || constraints[0]?.field === 'token') &&
-        !!constraints[0]?.value;
+      const isTokenLookup = TOKEN_LOOKUP_COLLECTIONS.has(collectionName) && isTargetedTokenLookup(docId, constraints);
 
       if (!isTokenLookup) {
         throw new UnauthorizedError('Unauthorized: Missing, invalid, or expired session');
@@ -305,6 +300,19 @@ export const handleCollectionQuery = asyncHandler(async (req: any, res: any) => 
       const access = COLLECTION_ACCESS[collectionName];
       if (!access || !access.read.includes(auth.role as ProxyRole)) {
         throw new ForbiddenError('Forbidden: role cannot read this collection');
+      }
+
+      // Fail-closed scoping. Being allowed to read a collection is not the same as being
+      // allowed to read ALL of it: a role with no scope rule used to fall through
+      // injectReadScope untouched and get the whole collection back. Anything that does not
+      // resolve to a scope field, a targeted token lookup, or a reviewed exemption is denied
+      // here rather than silently served.
+      const policy = readScopePolicyFor(collectionName, auth.role as ProxyRole);
+      if (policy.kind === 'deny') {
+        throw new ForbiddenError('Forbidden: this collection has no read scope defined for your role');
+      }
+      if (policy.kind === 'token-lookup' && !isTargetedTokenLookup(docId, constraints)) {
+        throw new ForbiddenError('Forbidden: this collection may only be read by a single token lookup');
       }
     }
   }

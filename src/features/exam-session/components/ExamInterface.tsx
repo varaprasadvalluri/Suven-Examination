@@ -530,22 +530,38 @@ const ExamInterfaceCore: React.FC = () => {
             console.warn('Client-side updateDoc failed, attempting Express API proxy submission:', err);
           }
 
-          // Fallback Channel: Express Server Proxy Write
+          // Fallback Channel: the same /submit route, reached with a bare fetch instead of
+          // through apiService's safeFetchJson wrapper.
+          //
+          // NOT /api/db/write. Two independent reasons that generic proxy is the wrong target
+          // for a submission: (1) students may not write `score`, `accuracy` or
+          // status:'completed' through it — authorizeWrite's attempt field policy rejects this
+          // exact payload with a 403, so the fallback could only ever fail; (2) even if it were
+          // accepted, the generic write does not queue grading the way AttemptSubmissionService
+          // does, so the attempt would sit at 'submitted' and never be scored. The submit route
+          // strips the client's score/accuracy and recomputes server-side, which is what makes
+          // sending the full payload here safe.
           try {
-            const submitResponse = await fetch('/api/db/write', {
+            const submitResponse = await fetch(`/api/v1/attempts/${encodeURIComponent(attemptId)}/submit`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', ...authHeaders() },
-              body: JSON.stringify({
-                type: 'update',
-                collectionName: 'attempts',
-                docId: attemptId,
-                data: submissionPayload
-              })
+              body: JSON.stringify(submissionPayload)
             });
             if (submitResponse.ok) {
               return;
             }
-            failures.push(`fallback: HTTP ${submitResponse.status} ${await submitResponse.text()}`);
+            const fallbackBody = await submitResponse.text();
+            // 429 DUPLICATE_SUBMISSION means the PRIMARY request reached the server and took
+            // the in-process lock — its response is what went missing, not the submission. The
+            // answers are saved (or are being saved right now), so failing here would tell a
+            // student their exam was lost when it wasn't. An already-finished attempt is not a
+            // concern on this path: AttemptSubmissionService returns 200 for that case by
+            // design, so it lands in the submitResponse.ok branch above.
+            if (submitResponse.status === 429 && fallbackBody.includes('DUPLICATE_SUBMISSION')) {
+              console.warn('Fallback submission hit the duplicate lock — the primary request reached the server.');
+              return;
+            }
+            failures.push(`fallback: HTTP ${submitResponse.status} ${fallbackBody}`);
           } catch (apiErr: any) {
             failures.push(`fallback: ${apiErr?.message || String(apiErr)}`);
             console.error('Express write API fetch error:', apiErr);

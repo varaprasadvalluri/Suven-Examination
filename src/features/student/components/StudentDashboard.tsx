@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../lib/AuthContext';
+import { isAttemptFinished } from '../../../../shared/attemptStatus';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import {
@@ -278,7 +279,16 @@ export const StudentDashboard: React.FC = () => {
       navigate(`/exam/${attempt.id}`);
       return;
     }
-    if (attempt?.status === 'completed' && attempt?.canReattempt) {
+    // Both re-attempt grants have to RESTART the existing attempt rather than start a fresh
+    // one: `canReattempt` (set per student by Re-trigger Link) and `reopenedBySchoolLink`
+    // (derived server-side from the school-wide grant on the secure link — see
+    // StudentDashboardService). Falling through to openInstructions(exam, null) for either
+    // would create a second attempt doc for the same student and exam.
+    //
+    // isAttemptFinished rather than `=== 'completed'`: grading is asynchronous, so a regraded
+    // re-attempt grant can land while the attempt is still 'submitted', and 'grading_failed'
+    // is exactly the case a school is most likely to be re-opening.
+    if (attempt && isAttemptFinished(attempt.status) && (attempt.canReattempt || attempt.reopenedBySchoolLink)) {
       openInstructions(exam, attempt.id);
       return;
     }
@@ -301,6 +311,11 @@ export const StudentDashboard: React.FC = () => {
           score: 0,
           answers: [],
           startTime: new Date().toISOString(),
+          // Same reset the gatekeeper performs — endTime included. Leaving the previous
+          // sitting's endTime in place keeps it older than the school-wide grant, which is
+          // what isReopenedBySchoolLink compares against, so the grant would keep re-opening
+          // this attempt on any finish that doesn't write a fresh endTime.
+          endTime: null,
           canReattempt: false
         });
         attemptId = pendingReattemptId;
@@ -582,7 +597,7 @@ export const StudentDashboard: React.FC = () => {
                     </CardContent>
                   </Card>
                 ) : statusError ? (
-                  <LoadErrorCard onRetry={loadStatus} />
+                  <LoadErrorCard onRetry={() => loadStatus()} />
                 ) : !inProgress ? (
                   <Card className="rounded-[24px] border-2 border-slate-200 border-b-4">
                     <CardContent className="p-6 sm:p-8 text-center space-y-3">
