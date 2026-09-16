@@ -110,7 +110,9 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Seeding emulator at ${firestoreEmulatorHost} from project ${firebaseConfig.projectId}/${firebaseConfig.firestoreDatabaseId}\n`);
+  console.log(
+    `Seeding emulator at ${firestoreEmulatorHost} from project ${firebaseConfig.projectId}/${firebaseConfig.firestoreDatabaseId}\n`
+  );
 
   let total = 0;
   for (const { name, limit } of COLLECTIONS) {

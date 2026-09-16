@@ -11,25 +11,27 @@ import request from 'supertest';
 // — tenant scoping, the submission contract, and the guard rails — which is where regressions
 // have actually landed in this codebase.
 
-const { fakeAttemptDao, mockAuth, mockEnqueueWrite, mockEnqueueGradingTask, mockAuthorizeWrite, mockCascadeDeleteByScope } = vi.hoisted(() => ({
-  fakeAttemptDao: {
-    store: new Map<string, any>(),
-    lastFindByFilters: null as any,
-    findById: vi.fn(),
-    findByFilters: vi.fn(),
-    findByStudent: vi.fn(),
-    submit: vi.fn(),
-    update: vi.fn()
-  },
-  mockAuth: { current: null as any },
-  mockEnqueueWrite: vi.fn().mockResolvedValue({ success: true, id: 'att_1' }),
-  mockEnqueueGradingTask: vi.fn().mockResolvedValue(undefined),
-  mockAuthorizeWrite: vi.fn(),
-  // The reset route's bulk delete. Stubbed so the test asserts what the route ASKS for —
-  // which collections, scoped by which fields — rather than exercising the paged drain
-  // itself, which is the adapter's own concern.
-  mockCascadeDeleteByScope: vi.fn()
-}));
+const { fakeAttemptDao, mockAuth, mockEnqueueWrite, mockEnqueueGradingTask, mockAuthorizeWrite, mockCascadeDeleteByScope } = vi.hoisted(
+  () => ({
+    fakeAttemptDao: {
+      store: new Map<string, any>(),
+      lastFindByFilters: null as any,
+      findById: vi.fn(),
+      findByFilters: vi.fn(),
+      findByStudent: vi.fn(),
+      submit: vi.fn(),
+      update: vi.fn()
+    },
+    mockAuth: { current: null as any },
+    mockEnqueueWrite: vi.fn().mockResolvedValue({ success: true, id: 'att_1' }),
+    mockEnqueueGradingTask: vi.fn().mockResolvedValue(undefined),
+    mockAuthorizeWrite: vi.fn(),
+    // The reset route's bulk delete. Stubbed so the test asserts what the route ASKS for —
+    // which collections, scoped by which fields — rather than exercising the paged drain
+    // itself, which is the adapter's own concern.
+    mockCascadeDeleteByScope: vi.fn()
+  })
+);
 
 // requireSession normally verifies a JWT and reads users/{uid}; here it just injects whatever
 // identity the test set up. The auth logic itself has its own tests (authorization.test.ts).
@@ -84,7 +86,6 @@ vi.mock('../../../../../composition', async () => {
 vi.mock('../../middleware/duplicateSubmission', () => ({
   checkDuplicateSubmission: (_req: any, _res: any, next: () => void) => next()
 }));
-
 
 async function buildApp() {
   const { default: router } = await import('./AttemptController');
@@ -390,7 +391,11 @@ describe('PATCH /api/v1/attempts/:attemptId', () => {
 // school user got the attempt and its proctoring logs deleted, a 403 on the error-book step,
 // and a "reset failed" toast for an operation that had already half-run.
 describe('DELETE /api/v1/attempts/:attemptId/reset', () => {
-  const ownAttempt = { id: 'att_1', exists: true, data: { status: 'completed', studentId: 'student_1', examId: 'exam_1', schoolId: 'school_mine' } };
+  const ownAttempt = {
+    id: 'att_1',
+    exists: true,
+    data: { status: 'completed', studentId: 'student_1', examId: 'exam_1', schoolId: 'school_mine' }
+  };
 
   it('rejects a student, who may never reset an attempt', async () => {
     mockAuth.current = { uid: 'student_1', role: 'student', schoolId: 'school_mine', email: null, sessionId: 's1' };
